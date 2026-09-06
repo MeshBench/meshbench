@@ -39,11 +39,17 @@ func (tb *Table) header(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 				return layout.Inset{
 					Top: t.Sp.XS, Bottom: t.Sp.XS, Left: t.Sp.S, Right: t.Sp.S,
 				}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					// OneLine, as the rows below already are. The header
+					// was the half of the table that still wrapped, so a
+					// column narrower than its own title laid the word out
+					// one character per line down six rows - "detail" as
+					// d/e/t/a/i/l - while the cells under it clipped
+					// politely.
+					head := OneLine(t, t.Sz.Caption, t.P.Faint, title, false)
 					if c.Right {
-						return layout.E.Layout(gtx,
-							Text(t, t.Sz.Caption, t.P.Faint, title))
+						return layout.E.Layout(gtx, head)
 					}
-					return Text(t, t.Sz.Caption, t.P.Faint, title)(gtx)
+					return head(gtx)
 				})
 			})
 		}

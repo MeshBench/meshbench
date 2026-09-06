@@ -205,6 +205,10 @@ type Button struct {
 // reason is drawn every frame rather than on hover: a control that is dim and
 // silent is the one an operator reports as broken, and a caption that appears
 // only under the pointer is not there for the person scanning the page.
+// minButtonWidth is the narrowest a button will draw itself: enough for the
+// padding and an ellipsis, so it is still visibly a control.
+const minButtonWidth unit.Dp = 34
+
 func (b *Button) Layout(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	if b.Disabled && b.Reason != "" {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -256,9 +260,25 @@ func (b *Button) draw(t *theme.Theme, gtx layout.Context) layout.Dimensions {
 	if b.Disabled {
 		gtx = gtx.Disabled()
 	}
+	// A floor, so a squeezed button is a small button rather than no button.
+	//
+	// OneLine at a width with no room for even the truncator draws nothing at
+	// all, and the button came out as an empty rounded outline: measured at
+	// zero pixels wide with a Max.X of twelve. That is worse than the folded
+	// label it replaced - a control nobody can see is one nobody knows to look
+	// for, where an ugly one at least says something is there. Below this it
+	// overflows its slot instead of vanishing, which is the lesser of the two
+	// wrongs when a caller has left it nothing.
+	if floor := gtx.Dp(minButtonWidth); gtx.Constraints.Max.X < floor {
+		gtx.Constraints.Max.X = floor
+	}
 	return b.Click.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		macro := op.Record(gtx.Ops)
-		dims := pad.Layout(gtx, Text(t, t.Sz.Body, fg, b.Label))
+		// Cut, never folded. A button squeezed narrower than its label used
+		// to lay the word out one character per line inside its own rounded
+		// rect - "Open Configuration" as a vertical strip of letters, which
+		// is a control nobody can recognise, let alone press with confidence.
+		dims := pad.Layout(gtx, OneLine(t, t.Sz.Body, fg, b.Label, false))
 		call := macro.Stop()
 		if bg.A > 0 {
 			RoundRect(gtx, dims.Size, 6, bg)

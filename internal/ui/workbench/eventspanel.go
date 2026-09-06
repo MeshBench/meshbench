@@ -195,44 +195,45 @@ func (p *eventsPanel) cards(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 }
 
 // chipRow filters by cause, with the search beside it.
+//
+// It wraps. A rail narrower than the eight classes used to lay the last chip
+// that fit at twenty pixels with its label folded in half and slice the next
+// one in two, so four of the filters could not be pressed while the panel was
+// docked - and nothing said so, because the counts they filter were all in the
+// cards above. Every chip is on screen at its own width now, on as many lines
+// as that takes.
+//
+// The compact view keeps its two, for the reason it always had: the causes are
+// already on those rows as coloured dots, and eight chips over a rail this
+// narrow would be four lines of them above three columns of data.
 func (p *eventsPanel) chipRow(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	kids := []layout.FlexChild{
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Right: t.Sp.XS}.Layout(gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					return p.allChip.Layout(t, gtx, "All events",
-						fmt.Sprintf("%d", s.EventTotal), p.filter == "", t.P.Accent)
-				})
-		}),
+	items := []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
+			return p.allChip.Layout(t, gtx, "All events",
+				fmt.Sprintf("%d", s.EventTotal), p.filter == "", t.P.Accent)
+		},
 	}
 	for i := range p.chips {
 		i := i
 		class := eventClasses[i]
-		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		if p.compact && class != "sent" && class != "received" {
+			continue
+		}
+		items = append(items, func(gtx layout.Context) layout.Dimensions {
 			n := classCount(s.Counts, class)
-			// The compact column fits three chips; the causes are already on
-			// the rows as coloured dots, and a chip squeezed past the edge
-			// folds into a vertical smear.
-			if p.compact && class != "sent" && class != "received" {
-				return layout.Dimensions{}
-			}
-			return layout.Inset{Right: t.Sp.XS}.Layout(gtx,
-				func(gtx layout.Context) layout.Dimensions {
-					return p.chips[i].Layout(t, gtx, comp.ClassLabel(class),
-						fmt.Sprintf("%d", n), p.filter == class, comp.ClassColour(t, class))
-				})
-		}))
+			return p.chips[i].Layout(t, gtx, comp.ClassLabel(class),
+				fmt.Sprintf("%d", n), p.filter == class, comp.ClassColour(t, class))
+		})
 	}
-	kids = append(kids, layout.Flexed(1, comp.Spacer))
 	if !p.compact {
-		kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		items = append(items, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Max.X = gtx.Dp(200)
 			return p.search.Layout(t, gtx)
-		}))
+		})
 	}
 	return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
+			return comp.Flow(gtx, t.Sp.XS, items...)
 		})
 }
 

@@ -40,7 +40,7 @@ func (c *Chip) Layout(t *theme.Theme, gtx layout.Context, label, count string,
 			Top: t.Sp.XS, Bottom: t.Sp.XS, Left: t.Sp.S, Right: t.Sp.S,
 		}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			kids := []layout.FlexChild{
-				layout.Rigid(Text(t, t.Sz.Caption, ink, label)),
+				layout.Rigid(OneLine(t, t.Sz.Caption, ink, label, false)),
 			}
 			if count != "" {
 				kids = append(kids, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
