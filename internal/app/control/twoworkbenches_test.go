@@ -38,13 +38,13 @@ func TestTwoEphemeralWorkbenchesBothStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the first workbench did not start: %v", err)
 	}
-	defer first.Close()
+	defer func() { _ = first.Close() }()
 
 	second, err := ListenAt("tcp", Handler(quiet))
 	if err != nil {
 		t.Fatalf("the second workbench was refused: %v", err)
 	}
-	defer second.Close()
+	defer func() { _ = second.Close() }()
 
 	if first.Address().Addr == second.Address().Addr {
 		t.Fatalf("both took %s, so one is not really listening", first.Address().Addr)
@@ -64,7 +64,7 @@ func TestARefusalNamesTheAddressSomebodyElseHolds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.Close()
+	defer func() { _ = first.Close() }()
 
 	// Ask for the port the first one actually took.
 	_, err = ListenAt("tcp:"+first.Address().Addr, Handler(quiet))
@@ -93,7 +93,7 @@ func TestASecondWorkbenchDoesNotOrphanTheFirstFromDiscovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer first.Close()
+	defer func() { _ = first.Close() }()
 
 	r, err := readRendezvous()
 	if err != nil {
@@ -108,7 +108,7 @@ func TestASecondWorkbenchDoesNotOrphanTheFirstFromDiscovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the second workbench did not start: %v", err)
 	}
-	defer second.Close()
+	defer func() { _ = second.Close() }()
 
 	after, err := readRendezvous()
 	if err != nil {
@@ -145,13 +145,13 @@ func TestAGreetingCarryingARequestIsRefusedRatherThanEaten(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer srv.Close()
+	defer func() { _ = srv.Close() }()
 
 	c, err := net.Dial("tcp", srv.Address().Addr)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	// The token in the right place, but on a line that is also a call.
 	line := fmt.Sprintf(`{"id":1,"method":"sim.state","token":%q}`+"\n",

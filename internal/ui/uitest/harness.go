@@ -172,6 +172,9 @@ func withEmoji(base []font.FontFace) []font.FontFace {
 		}, paths...)
 	}
 	for _, p := range paths {
+		// The list above is this package's own, and the only part of it that
+		// comes from outside is the name Windows gives its own directory.
+		//nolint:gosec // a fixed list of font paths, one of them under WINDIR
 		b, err := os.ReadFile(p)
 		if err != nil {
 			continue
