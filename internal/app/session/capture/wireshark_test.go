@@ -198,7 +198,7 @@ func TestDissectorFilesFindsWhatTheBundleShips(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Skipf("cannot write beside the test binary: %v", err)
 	}
-	t.Cleanup(func() { os.RemoveAll(filepath.Join(filepath.Dir(exe), "tools")) })
+	t.Cleanup(func() { _ = os.RemoveAll(filepath.Join(filepath.Dir(exe), "tools")) })
 	for _, n := range []string{"meshbench.lua", "meshcore_dissector.lua"} {
 		if err := os.WriteFile(filepath.Join(dir, n), []byte("-- x"), 0o644); err != nil {
 			t.Skipf("cannot write beside the test binary: %v", err)

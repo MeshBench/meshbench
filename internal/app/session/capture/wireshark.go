@@ -123,7 +123,12 @@ func wiresharkBinary() string {
 	}
 	for _, n := range names {
 		if filepath.IsAbs(n) {
-			if st, err := os.Stat(n); err == nil && !st.IsDir() {
+			// G703: the candidates are this file's own list, at most rooted at
+			// a directory the operating system named. A Windows program that
+			// will not look under %ProgramFiles% cannot find what a Windows
+			// installer put there, and an attacker who can set that variable
+			// for this process has already won.
+			if st, err := os.Stat(n); err == nil && !st.IsDir() { //nolint:gosec // G703: our own path list, rooted where Windows says
 				return n
 			}
 			continue
@@ -165,7 +170,11 @@ func launchWireshark(bin, meshcoreLua, meshbenchLua string) string {
 	if meshbenchLua != "" {
 		args = append(args, "-X", "lua_script:"+meshbenchLua, "-o", wiresharkColumns)
 	}
-	cmd := exec.Command(bin, args...)
+	// G204: bin is whatever wiresharkBinary resolved - a PATH lookup or one of
+	// its own fixed paths - and every argument is built above from constants
+	// and paths this process found. None of it reaches here from a caller.
+	// Starting a named program is the entire purpose of this function.
+	cmd := exec.Command(bin, args...) //nolint:gosec // G204: bin and args are resolved here, not supplied
 	// Its own stdio, so a chatty GTK does not interleave with the session log.
 	cmd.Stdout, cmd.Stderr = nil, nil
 	// Wireshark finds dumpcap on PATH; put a runnable one first if the system
