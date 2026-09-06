@@ -12,6 +12,7 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/unit"
 	"gioui.org/widget"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -176,17 +177,40 @@ func (p *eventsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 }
 
 // cards is the run's shape: totals and causes, with their share.
+// cardsFitClasses is the shortest pane that shows a card per event class as
+// well as the chips that filter them.
+//
+// A docked rail gives this panel about 430dp; a panel filling the window or
+// popped out into one gets two to three times that. Below the line the two
+// cannot both be had, and something has to give.
+const cardsFitClasses unit.Dp = 600
+
+// cards is the summary above the chips: what the run has done, and how much of
+// it was each thing.
+//
+// The class cards go first when the pane is too short for everything, because
+// they are the only part of this page whose numbers are said twice: every count
+// on them is on the chip that filters it, so what is lost is the percentage
+// rather than the figure. Total events and Duration stay whatever happens -
+// nothing else on the page says either.
+//
+// The alternative was to keep all ten and let the chip row run off the bottom,
+// which is what it did: three of the eight filters were drawn under the panel
+// below and could not be pressed, while the counts they filter sat in full view
+// on the cards above them.
 func (p *eventsPanel) cards(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
 	total := s.Counts.Total()
 	cells := []layout.Widget{
 		comp.StatCell(t, "Total events", fmt.Sprintf("%d", s.EventTotal), ""),
 		comp.StatCell(t, "Duration", fmt.Sprintf("%.2f s", float64(s.NowMs)/1000), ""),
 	}
-	for _, class := range eventClasses {
-		class := class
-		n := classCount(s.Counts, class)
-		cells = append(cells, comp.StatCell(t, comp.ClassLabel(class),
-			fmt.Sprintf("%d", n), pct(n, total)))
+	if gtx.Constraints.Max.Y >= gtx.Dp(cardsFitClasses) {
+		for _, class := range eventClasses {
+			class := class
+			n := classCount(s.Counts, class)
+			cells = append(cells, comp.StatCell(t, comp.ClassLabel(class),
+				fmt.Sprintf("%d", n), pct(n, total)))
+		}
 	}
 	return layout.Inset{Bottom: t.Sp.S}.Layout(gtx, comp.Card(t, "",
 		func(gtx layout.Context) layout.Dimensions {
