@@ -89,6 +89,13 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: "1.25"
+          # cache: false, for the reason ci.yml's test and fixtures jobs give:
+          # the caches already survive between jobs on a persistent runner, and
+          # the upload back to GitHub over the lab's uplink does not. It killed
+          # the v0.0.9 docs publish - the job did its work, then sat in the
+          # cache action's tar until it was cancelled, so the site was never
+          # written.
+          cache: false
 
       # The mapping is checked by tools/skillmirror's own test rather than
       # here, because a mapping fault should fail the pull request that
