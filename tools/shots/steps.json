@@ -1138,5 +1138,247 @@
    ],
    "expect": "the menu drops with its sections, icons and shortcuts, and one entry appears in one menu only"
   }
+ ],
+ "docs": [
+  {
+   "name": "docs-index",
+   "what": "Learn - Overview",
+   "url": "https://meshbench.github.io/docs/index.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-concepts",
+   "what": "Learn - What is real",
+   "url": "https://meshbench.github.io/docs/concepts.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-getting-started",
+   "what": "Learn - Getting started",
+   "url": "https://meshbench.github.io/docs/getting-started.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-first-simulation",
+   "what": "Learn - Your first simulation",
+   "url": "https://meshbench.github.io/docs/first-simulation.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-results",
+   "what": "Learn - Reading a result",
+   "url": "https://meshbench.github.io/docs/results.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-fixtures",
+   "what": "Use - Shipped networks",
+   "url": "https://meshbench.github.io/docs/fixtures.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-importing",
+   "what": "Use - Importing a network",
+   "url": "https://meshbench.github.io/docs/importing.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-debugging",
+   "what": "Use - Debugging packet delivery",
+   "url": "https://meshbench.github.io/docs/debugging.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-firmware-library",
+   "what": "Use - Firmware library",
+   "url": "https://meshbench.github.io/docs/firmware-library.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-firmware-development",
+   "what": "Use - Firmware development",
+   "url": "https://meshbench.github.io/docs/firmware-development.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-board-view",
+   "what": "Use - The board view",
+   "url": "https://meshbench.github.io/docs/board-view.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-testing-repeaters",
+   "what": "Use - Testing a repeater",
+   "url": "https://meshbench.github.io/docs/testing-repeaters.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-app-development",
+   "what": "Use - App development",
+   "url": "https://meshbench.github.io/docs/app-development.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-testing",
+   "what": "Use - Testing your own code",
+   "url": "https://meshbench.github.io/docs/testing.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-experiments",
+   "what": "Use - Running an experiment",
+   "url": "https://meshbench.github.io/docs/experiments.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-studies",
+   "what": "Use - Studies",
+   "url": "https://meshbench.github.io/docs/studies.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-sdr-observer",
+   "what": "Use - Listening with SDR++",
+   "url": "https://meshbench.github.io/docs/sdr-observer.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-architecture",
+   "what": "Understand - Architecture",
+   "url": "https://meshbench.github.io/docs/architecture.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-native-vs-emulated",
+   "what": "Understand - Native and emulated",
+   "url": "https://meshbench.github.io/docs/native-vs-emulated.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-rf-simulation",
+   "what": "Understand - RF simulation",
+   "url": "https://meshbench.github.io/docs/rf-simulation.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-rf-chain",
+   "what": "Understand - The RF chain",
+   "url": "https://meshbench.github.io/docs/rf-chain.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-waveform",
+   "what": "Understand - Waveform mode",
+   "url": "https://meshbench.github.io/docs/waveform.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-timing",
+   "what": "Understand - Time and determinism",
+   "url": "https://meshbench.github.io/docs/timing.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-golden-vectors",
+   "what": "Understand - Golden vectors",
+   "url": "https://meshbench.github.io/docs/golden-vectors.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-emulation",
+   "what": "Understand - Emulation",
+   "url": "https://meshbench.github.io/docs/emulation.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-firmware-integration",
+   "what": "Understand - Running real firmware",
+   "url": "https://meshbench.github.io/docs/firmware-integration.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-what-it-does-not-do",
+   "what": "Understand - Accuracy and limits",
+   "url": "https://meshbench.github.io/docs/what-it-does-not-do.html",
+   "expect": "every entry matches the build: it is generated, so the check is that nothing here is missing or stale, not that the prose reads well"
+  },
+  {
+   "name": "docs-scripting",
+   "what": "Automate - Scripting a session",
+   "url": "https://meshbench.github.io/docs/scripting.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-cookbook",
+   "what": "Automate - Scripting cookbook",
+   "url": "https://meshbench.github.io/docs/cookbook.html",
+   "expect": "every step can be followed literally, in order, and the application does what the page says at each one - no step names a control that is not there, and no screenshot shows a view that has changed"
+  },
+  {
+   "name": "docs-agent-skills",
+   "what": "Automate - Agent skills",
+   "url": "https://meshbench.github.io/docs/agent-skills.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-reference-cli",
+   "what": "Automate - CLI",
+   "url": "https://meshbench.github.io/docs/reference-cli.html",
+   "expect": "every entry matches the build: it is generated, so the check is that nothing here is missing or stale, not that the prose reads well"
+  },
+  {
+   "name": "docs-reference-control",
+   "what": "Automate - Control socket",
+   "url": "https://meshbench.github.io/docs/reference-control.html",
+   "expect": "every entry matches the build: it is generated, so the check is that nothing here is missing or stale, not that the prose reads well"
+  },
+  {
+   "name": "docs-reference-python",
+   "what": "Automate - Python client",
+   "url": "https://meshbench.github.io/docs/reference-python.html",
+   "expect": "every entry matches the build: it is generated, so the check is that nothing here is missing or stale, not that the prose reads well"
+  },
+  {
+   "name": "docs-reference-go",
+   "what": "Automate - Go client",
+   "url": "https://meshbench.github.io/docs/reference-go.html",
+   "expect": "every entry matches the build: it is generated, so the check is that nothing here is missing or stale, not that the prose reads well"
+  },
+  {
+   "name": "docs-reference-js",
+   "what": "Automate - Node client",
+   "url": "https://meshbench.github.io/docs/reference-js.html",
+   "expect": "every entry matches the build: it is generated, so the check is that nothing here is missing or stale, not that the prose reads well"
+  },
+  {
+   "name": "docs-settings",
+   "what": "Reference - Settings",
+   "url": "https://meshbench.github.io/docs/settings.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-resources",
+   "what": "Reference - What gets downloaded",
+   "url": "https://meshbench.github.io/docs/resources.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-tools",
+   "what": "Reference - External tools",
+   "url": "https://meshbench.github.io/docs/tools.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-quality-gates",
+   "what": "Reference - What the build enforces",
+   "url": "https://meshbench.github.io/docs/quality-gates.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  },
+  {
+   "name": "docs-repositories",
+   "what": "Reference - Repositories and licences",
+   "url": "https://meshbench.github.io/docs/repositories.html",
+   "expect": "what it claims is true of the build in front of you, and every screenshot on it is recognisable in the application"
+  }
  ]
 }

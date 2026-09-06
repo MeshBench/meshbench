@@ -51,7 +51,27 @@ def capture(out):
     sys.exit("no window capture tool found: install spectacle or grim")
 
 
+def read_page(step, outdir):
+    """A documentation step: open the page and let somebody read it.
+
+    Not automated, and deliberately. What is being checked is whether the page
+    is still true of the application - whether a step can be followed, whether
+    a screenshot on it is recognisable - and no script can answer that. The
+    browser is opened so the reading actually happens, and the picture is of
+    what the reader concluded.
+    """
+    print("  ", step["url"])
+    print("  expected:", step["expect"])
+    if shutil.which("xdg-open"):
+        subprocess.Popen(["xdg-open", step["url"]],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    input("  press enter once read, having captured anything that disagrees> ")
+    return True
+
+
 def run(step, binary, fixture, outdir):
+    if step.get("url"):
+        return read_page(step, outdir)
     out = os.path.join(outdir, step["name"] + ".png")
     cmd = [binary, "workbench", "-fixture", fixture] + step["flags"]
     # A panel that is empty without traffic is a panel whose picture cannot be
@@ -93,7 +113,9 @@ def run(step, binary, fixture, outdir):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("buckets", nargs="*", help="only these buckets")
+    ap.add_argument("buckets", nargs="*",
+                    help="only these buckets; \"docs\" walks the published "
+                         "pages rather than the application")
     ap.add_argument("--list", action="store_true", help="say what would run")
     ap.add_argument("--out", default=os.path.join(ROOT, "shots"))
     ap.add_argument("--binary", default=os.environ.get(
@@ -109,7 +131,8 @@ def main():
 
     if a.list:
         for b, s in chosen:
-            print(f"{b:14} {s['name']:26} {' '.join(s['flags'])}")
+            how = s.get("url") or " ".join(s["flags"])
+            print(f"{b:14} {s['name']:26} {how}")
         print(f"\n{len(chosen)} steps")
         return
 
