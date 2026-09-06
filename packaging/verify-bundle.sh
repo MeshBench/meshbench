@@ -116,7 +116,14 @@ fi
 # and ScotMesh names use them heavily, so that is ten of fifty-eight names in
 # one shipped fixture. On Linux and macOS a system copy usually covers it; on
 # Windows there is no Noto to fall back to, which is where it was found.
+# macOS is the exception: Apple Color Emoji is part of the operating system, at
+# a path withEmoji() already looks in, so shipping ten megabytes of Noto beside
+# it would buy nothing. Windows has no such guarantee - which is where the boxes
+# were reported - and a Linux box may or may not have a Noto installed.
 emoji=$(find "$dir" -name NotoColorEmoji.ttf -print -quit 2>/dev/null)
+case "$platform" in
+  darwin-*) emoji=${emoji:-"(macOS ships Apple Color Emoji)"} ;;
+esac
 if [ -z "$emoji" ]; then
   echo "::error::no NotoColorEmoji.ttf in $dir - emoji in node names will draw" \
        "as boxes on any machine without a system emoji font" >&2
