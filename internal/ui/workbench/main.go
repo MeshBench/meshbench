@@ -118,22 +118,7 @@ func Run(args []string) {
 	updateNowFlag := flag.Bool("update-check", false, "ask whether a newer "+
 		"release exists shortly after startup, whatever the schedule says")
 	_ = flag.CommandLine.Parse(args)
-	// Naming a section is asking to see it, so the flag brings its panel with
-	// it. It used to scope a panel that was not on screen: the window opened on
-	// whatever it would have opened on, and eleven capture steps - six
-	// configuration sections and five licence ones - produced eleven identical
-	// pictures of a page neither flag is about. Said here rather than in the
-	// manifest so it is true however the flag is reached.
-	for _, imply := range []struct {
-		section *string
-		panel   string
-	}{
-		{cfgSection, "Configuration"}, {licSection, "Licences"},
-	} {
-		if *imply.section != "" && *panelFlag == "" && *popFlag == "" {
-			*panelFlag = imply.panel
-		}
-	}
+	implySectionPanel(panelFlag, popFlag, cfgSection, licSection)
 	if *versionFlag {
 		fmt.Println("MeshBench", version.Detail())
 		return

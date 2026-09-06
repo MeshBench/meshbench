@@ -245,3 +245,25 @@ func (a startupActions) run() {
 	// Selecting the first node at load also selects its neighbours overlay,
 	// so the map opens saying something rather than nothing.
 }
+
+// implySectionPanel makes naming a section enough to see it.
+//
+// -config-section and -licence-section scoped a panel that was never put on
+// screen, so the window opened on whatever it would have opened on anyway.
+// Eleven capture steps - six configuration sections and five licence ones -
+// produced eleven byte-identical pictures of a page neither flag is about.
+//
+// An explicit -panel or -pop-out wins, because somebody who named both meant
+// the one they named.
+func implySectionPanel(panelFlag, popFlag, cfgSection, licSection *string) {
+	for _, imply := range []struct {
+		section *string
+		panel   string
+	}{
+		{cfgSection, "Configuration"}, {licSection, "Licences"},
+	} {
+		if *imply.section != "" && *panelFlag == "" && *popFlag == "" {
+			*panelFlag = imply.panel
+		}
+	}
+}
