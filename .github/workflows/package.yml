@@ -208,6 +208,16 @@ jobs:
           cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
             dist/meshbench/renode-support/peripherals/
 
+          # The Wireshark dissectors, beside the binary where capture.wireshark
+          # looks for them. They are Lua that Wireshark loads at run time rather
+          # than anything linked in, so they have to travel as files: without
+          # them the verb still streams frames and Wireshark still opens, on
+          # undissected UDP, which reads as a broken capture rather than as two
+          # missing scripts.
+          mkdir -p dist/meshbench/tools/dissector
+          cp tools/dissector/meshbench.lua tools/dissector/meshcore_dissector.lua \
+            dist/meshbench/tools/dissector/
+
           # The shipped fixtures, so the workbench has something to open on a
           # machine with nothing else on it.
           cp -r fixtures dist/meshbench/fixtures
@@ -463,6 +473,15 @@ jobs:
           cp tools/renode/*.repl "$APP/Contents/MacOS/renode-support/"
           cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
             "$APP/Contents/MacOS/renode-support/peripherals/"
+          # The Wireshark dissectors, beside the binary where capture.wireshark
+          # looks for them. They are Lua that Wireshark loads at run time rather
+          # than anything linked in, so they have to travel as files: without
+          # them the verb still streams frames and Wireshark still opens, on
+          # undissected UDP, which reads as a broken capture rather than as two
+          # missing scripts.
+          mkdir -p "$APP/Contents/MacOS/tools/dissector"
+          cp tools/dissector/meshbench.lua tools/dissector/meshcore_dissector.lua \
+            "$APP/Contents/MacOS/tools/dissector/"
           # This tree stopped being the compact one the moment the emulators
           # landed in it, so it has to say so before anything reads the label.
           # verify-bundle checks a tree against what it claims to be, and with
@@ -671,6 +690,15 @@ jobs:
           cp tools/renode/*.repl dist/meshbench/renode-support/
           cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
             dist/meshbench/renode-support/peripherals/
+          # The Wireshark dissectors, beside the binary where capture.wireshark
+          # looks for them. They are Lua that Wireshark loads at run time rather
+          # than anything linked in, so they have to travel as files: without
+          # them the verb still streams frames and Wireshark still opens, on
+          # undissected UDP, which reads as a broken capture rather than as two
+          # missing scripts.
+          mkdir -p dist/meshbench/tools/dissector
+          cp tools/dissector/meshbench.lua tools/dissector/meshcore_dissector.lua \
+            dist/meshbench/tools/dissector/
           # The compact pair, from the tree as it stands: application, chip
           # model and Renode's support files, and no emulators.
           # Emoji in node names should not depend on the user's font packages,
