@@ -62,6 +62,10 @@ func Run(args []string) {
 	openMenuFlag := flag.String("node-menu", "", "open this node's context menu at startup")
 	provFlag := flag.String("provisioning", "", "show what this node is told at boot, at startup")
 	nodeWinFlag := flag.String("node-window", "", "open this node's own window at startup")
+	boardWinFlag := flag.String("board-view", "",
+		"open this node's board view at startup")
+	boardTabFlag := flag.String("board-tab", "",
+		"which table the board view opens on: Radio or Wiring")
 	filterFlag := flag.String("filter", "", "preset the node view's search box, so a filtered table can be captured")
 	popFlag := flag.String("pop-out", "", "open this panel in its own window at startup")
 	importFlag := flag.String("import", "", "describe an import from this CoreScope URL at startup")
@@ -282,6 +286,7 @@ func Run(args []string) {
 		sweepCtl: sweepCtl, provCtl: provCtl,
 		cfgSection: cfgSection, licSection: licSection, filterFlag: filterFlag,
 		importFlag: importFlag, nodeWinFlag: nodeWinFlag, provFlag: provFlag,
+		boardWinFlag: boardWinFlag, boardTabFlag: boardTabFlag,
 		openFwFlag: openFwFlag, openMenuFlag: openMenuFlag,
 		packetTabFlag: packetTabFlag, nodeTabFlag: nodeTabFlag,
 	})

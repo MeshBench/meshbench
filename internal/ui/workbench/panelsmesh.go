@@ -48,6 +48,21 @@ func addMeshPanels(d panelDeps) {
 			}
 		}()
 	}
+	// The board view has no other way in from outside: it is opened from a
+	// button on a node's Hardware tab, and a window reachable only by clicking
+	// is a window no capture can take a picture of.
+	if *d.boardWinFlag != "" {
+		go func() {
+			time.Sleep(4 * time.Second)
+			p := map[string]any{"node": *d.boardWinFlag}
+			if *d.boardTabFlag != "" {
+				p["tab"] = *d.boardTabFlag
+			}
+			if _, err := d.st.Do(d.ctx, "node.boardview", p); err != nil {
+				fmt.Fprintln(os.Stderr, "node.boardview:", err)
+			}
+		}()
+	}
 	if *d.provFlag != "" {
 		go func() {
 			if _, err := d.st.Do(d.ctx, "node.provisioning", *d.provFlag); err != nil {

@@ -203,6 +203,9 @@ tools/              what builds, generates and drives it, none of it shipped
   flagdoc/            docs/cli-reference.md, built from the binary's own help,
                       plus the authored note of what each flag is for
   licgen/             the licence inventory the workbench embeds
+  shots/              one picture per window, panel and menu the application
+                      has, driven from a manifest the build checks against the
+                      panel table
   skillmirror/        the standalone skill repository, a plugin marketplace
                       rendered from .claude/skills so it cannot drift from it
     readme/             each mirror's front page, the one thing it carries that

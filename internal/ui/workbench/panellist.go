@@ -58,6 +58,7 @@ type panelDeps struct {
 	cfgSection, licSection            *string
 	filterFlag, importFlag            *string
 	nodeWinFlag, provFlag, openFwFlag *string
+	boardWinFlag, boardTabFlag        *string
 	openMenuFlag                      *string
 	packetTabFlag, nodeTabFlag        *int
 }
