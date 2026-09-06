@@ -73,10 +73,17 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      # Asked for rather than assumed. Node came with the hosted image and this
+      # job now runs on the lab, where it does not - so the version is named
+      # here and the same version is used wherever the job lands, which is what
+      # the engines floor below is checking anyway.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      # Node comes with the runner image. Checked rather than installed with
-      # an action, so the failure names the runner instead of arriving eight
-      # steps later as an unrecognised npm flag.
+      # The check stays. setup-node puts node on the path; this says so in one
+      # line if anything about that changes, rather than letting the failure
+      # arrive eight steps later as an unrecognised npm flag.
       - name: The tools this job shells out to
         run: |
           set -e
@@ -252,7 +259,12 @@ jobs:
     needs: build
     if: needs.build.outputs.publish == 'yes'
     timeout-minutes: 15
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
+    # Hosted, and the one job here that is. pypa/gh-action-pypi-publish is a
+    # Docker container action, and the lab runners are LXC containers without a
+    # daemon to run one in - so this would fail at the last step of a release,
+    # which is the worst place to find out. It runs once per release and costs
+    # minutes nobody will miss.
+    runs-on: ubuntu-latest
     # Trusted publishing: PyPI mints a short-lived token from the OIDC claim
     # of this job, so there is no API token to store, rotate or leak. The
     # environment name is part of what PyPI matches on, and is also where a
