@@ -21,6 +21,84 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-09-06
+
+A release of repairs, most of them found by a person working through the
+pre-release pass on Windows.
+
+### Fixed
+
+- **`-look` frames what it is asked for.** The flag's third field was read as
+  the camera's own scale, which is pixels per degree, rather than as the zoom
+  level on a slippy map - so `-look 56.33,-3.32,16`, meant to be a street,
+  asked for sixteen pixels per degree and drew most of the planet. Every level
+  anybody tried came out at roughly world scale. The same conversion now
+  applies to `map.centre`.
+
+- **Three node names in the shipped fixtures are whole again.** Ten U+FFFD
+  replacement characters across four fixtures, the mark of a name cut
+  mid-character before it ever reached this repository. What was valid is kept
+  and what was lost is dropped, and a check refuses a fixture carrying either
+  spelling of that character.
+
+- **Two workbenches can both start.** Asking for any free port was refused when
+  another workbench was running, and the refusal named `tcp:127.0.0.1:0` - a
+  sentinel meaning "whatever is free", which nothing can hold and nobody types.
+  An ephemeral request is never in conflict, and a real conflict now names the
+  address that actually answered.
+
+- **A second workbench no longer hides the first.** `control.json` names the
+  session a client with no address finds, and a newcomer overwrote it: the
+  first kept running and answering, and stopped being reachable by every
+  documented route, with nothing raising an error. A live entry is left alone
+  now, and the newcomer says so - it is still reachable at its own address and
+  still listed among the running sessions. This matters most on Windows, where
+  reading that file is the only way anything finds anything.
+
+- **A control connection that greets wrongly is answered.** Putting the token
+  inside the first request authorised, had that request read as the greeting,
+  and then waited for a reply to something nothing had queued - so the
+  connection simply hung.
+
+- **A basemap tile fetched without a key no longer poisons the cache.** CARTO
+  serves a tile either way: with a key it is the map, without one it is the map
+  under a watermark. The cache recorded neither, so a single run of a locally
+  built binary - which has no key, because the key belongs to the release
+  pipeline - left watermarked tiles that every release build installed
+  afterwards re-served for ever. They are cached apart now, which needs no
+  migration and stops both directions.
+
+- **Emoji in node names have a font to fall back to on Windows.** The search
+  covered Linux and macOS and no Windows path at all, so a build whose bundled
+  copy was missing drew every supplementary-plane emoji as a box while the
+  older symbols came through - which reads as mangled names rather than an
+  absent font. The bundle check now requires the font as well, in both
+  variants: it is fetched with a warning rather than an error, so a failed
+  fetch used to ship quietly.
+
+### Changed
+
+- **The pipelines run on this project's own machines.** Eight jobs move off
+  GitHub-hosted runners, which a free account pays for in minutes, onto the
+  lab. The two that stay are the release itself and the PyPI publish, which
+  needs a Docker daemon the lab runners have not got. A workflow a fork's pull
+  request can trigger keeps the guard that sends that run to a hosted runner
+  instead.
+
+- **The Windows GPU check is dispatched rather than tagged.** What it uniquely
+  proves is the kernels on DX12 on a real Windows machine, and that is now run
+  when somebody asks. A release is still proven to *build* for Windows on every
+  tag, by the cross-compile that packages it.
+
+- **A release refuses to publish without a changelog entry.** The notes link to
+  this file at the tag, which is only true if the entry was written before the
+  tag was cut - and for 0.0.7 it was not.
+
+- **The release notes say which download is which.** Every platform ships a
+  bundled and a compact build, and the notes described one row of six. They
+  carry the banner and a link here as well.
+
+
 ## [0.0.7] - 2026-09-06
 
 The release where a board can be looked at rather than only run, and where the
@@ -426,7 +504,8 @@ First release: one binary per platform.
 - The radio model reachable over TCP where there is no unix socket.
 - Two data races found by `-race` and fixed.
 
-[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.7...HEAD
+[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.8...HEAD
+[0.0.8]: https://github.com/MeshBench/meshbench/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/MeshBench/meshbench/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/MeshBench/meshbench/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/MeshBench/meshbench/compare/v0.0.4...v0.0.5
