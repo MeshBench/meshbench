@@ -307,7 +307,12 @@ jobs:
   # nightly's work - firmware-live.yml runs the whole set with no cap.
   fixtures:
     timeout-minutes: 25
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
+    # lab-2404, not lab-linux. This job starts real MeshCore firmware, and the
+    # 22.04 runner in the pool cannot: the published binaries want GLIBC 2.38
+    # and it has an older one, so every node fails to connect and the fixture
+    # assertions read as a broken fixture rather than as the wrong machine.
+    # The test job asks for the same label for the same reason.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-2404"]') || fromJSON('["ubuntu-latest"]') }}
     steps:
       - uses: actions/checkout@v7
 
