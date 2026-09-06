@@ -921,12 +921,34 @@ jobs:
           TAG="v${VERSION}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+          # The changelog is linked from the notes and pinned to this tag, so
+          # it has to have been written before the tag was cut. Checked rather
+          # than trusted: v0.0.7 was tagged first and written up afterwards, so
+          # the link on its page pointed at a file that did not mention it, and
+          # nothing said so.
+          if ! grep -q "^## \[${VERSION}\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section for ${VERSION}. The notes" \
+                 "link to the changelog at this tag, so write the entry, then tag."
+            exit 1
+          fi
+
           # GPL-3.0 section 6: whoever gets the binary can have the source.
           git archive --format=tar.gz --prefix="meshbench-${VERSION}/" \
             -o "dist/meshbench-source.tar.gz" HEAD
           (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
 
           {
+            # Pinned to the tag rather than to a branch: the banner on a
+            # release is the banner as it was for that release, and a file
+            # moved later cannot turn an old page into a broken image.
+            RAW="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${TAG}"
+            echo "<picture>"
+            echo "  <source media=\"(prefers-color-scheme: dark)\" srcset=\"$RAW/docs/brand/meshbench-banner-1600x400.png\">"
+            echo "  <img alt=\"MeshBench: an RF-accurate MeshCore network simulator\" src=\"$RAW/docs/brand/meshbench-banner-1600x400-light.png\">"
+            echo "</picture>"
+            echo
+            echo "**What changed in this release: [the changelog](https://github.com/MeshBench/meshbench/blob/$TAG/CHANGELOG.md)**"
+            echo
             echo "## Installing"
             echo
             echo "See the [quick start](https://github.com/MeshBench/meshbench#installation) for each platform."

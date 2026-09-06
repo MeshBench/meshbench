@@ -21,6 +21,86 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-09-06
+
+The release where a board can be looked at rather than only run, and where the
+console says what it is actually saying.
+
+### Added
+
+- **The board view: one board, and whether it is behaving like the board its
+  profile says it is.** A window of its own, opened from a node's Hardware tab
+  or by `node.boardview`. The board's panel at a whole-number scale, every part
+  it declares as an index, the controls for everything it has wired, and two
+  tables - the radio as the firmware left it, and the wiring as the profile
+  declares it - with a verdict on every row. The verdicts keep apart the two
+  answers that are both about an absence: a line nothing has happened on, and a
+  part we have no model for. Documented at
+  [the board view](https://meshbench.github.io/docs/board-view.html).
+
+- **The console strip reads the framed protocol.** A companion's serial carries
+  MeshCore's own framing, so a byte at a time it is a wall of escapes with the
+  answer buried in it. The `decode` tick reads the frames on screen and prints
+  each as a line - name, position, frequency, spreading factor, transmit power -
+  and leaves everything that is not a frame exactly as it was, because the
+  bootloader is what says whether the board started at all.
+
+- **Type at a board from the window watching it.** A box along the bottom of
+  the console, routed by what the node is: a repeater reads typed text, a
+  companion speaks meshcore-cli's vocabulary, and text typed at a companion
+  through the repeater's console goes nowhere while looking exactly like a
+  command that ran and did nothing.
+
+- **The console rate is reported rather than guessed.** The board view shows
+  what rate the firmware set its console to, read from the divider the guest
+  wrote rather than offered as a list to pick from. A board whose console is
+  the USB peripheral says it has no line rate, which is a different fact from
+  not knowing.
+
+- **Five nRF52 board profiles**, transcribed from MeshCore's own variants: the
+  RAK 4631, the XIAO nRF52, the Heltec Mesh Solar, T096 and T114. The XIAO's
+  Arduino pin numbering is resolved through the variant's own map rather than
+  assumed to be flat.
+
+- **A capture step for every window.** `tools/shots/steps.json` names one
+  picture per panel, view, node-window tab, board-view table, configuration
+  section, licence section and menu, and `tools/shots/shots.py` drives the
+  binary once per step to take them. A test checks the manifest against the
+  application's own panel table, so a panel added without a step is a red
+  build.
+
+### Changed
+
+- **The emulator pin moves to `sx1262-14`.** The console rate arrives in the
+  chip model's stats record, which the previous pin does not carry, so on it
+  every UART board reported nothing. That release also corrects the UART's
+  clock: the rate was computed against a hard-coded forty megahertz where the
+  part runs at eighty, so every figure was half what the firmware asked for.
+
+- **The manual is part of the change.** A change that alters what somebody sees
+  or does now opens a pull request against
+  [MeshBench/docs](https://github.com/MeshBench/docs) in the same stroke as the
+  code, written as a manual rather than as a changelog. Enforced by review
+  rather than by CI, and stated in `CLAUDE.md` and `CONTRIBUTING.md`.
+
+- **Nine packages split out of the session and workbench layers**, each named
+  for what it holds: the map verbs, the firmware library, the A/B matrix, the
+  node view, the packet inspector, and the shared controls into the packages
+  shared things live in. A test enforces that a file is named for its contents.
+
+- **A node's identity is what makes it that node.** An emulated node was
+  identified by name alone, so two nodes that swapped names swapped identities
+  with them.
+
+### Fixed
+
+- **The T-Deck forwards.** A dropped GPIO input, and a stimulus the board could
+  not have heard because it arrived while the board was transmitting.
+
+- **Windows and macOS publishing** calls the apt and tap publishers directly
+  rather than waiting for an event that a release does not always raise.
+
+
 ## [0.0.6] - 2026-09-04
 
 The release where every emulated board relays, and where a download says what
@@ -346,7 +426,8 @@ First release: one binary per platform.
 - The radio model reachable over TCP where there is no unix socket.
 - Two data races found by `-race` and fixed.
 
-[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/MeshBench/meshbench/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/MeshBench/meshbench/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/MeshBench/meshbench/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/MeshBench/meshbench/compare/v0.0.3...v0.0.4
