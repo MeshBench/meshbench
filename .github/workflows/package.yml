@@ -667,6 +667,13 @@ jobs:
             dist/meshbench/renode-support/peripherals/
           # The compact pair, from the tree as it stands: application, chip
           # model and Renode's support files, and no emulators.
+          # Emoji in node names should not depend on the user's font packages,
+          # and Windows has no Noto to fall back to. Before the compact zip, so
+          # both variants carry it, and before verify-bundle, which refuses a
+          # bundle without one.
+          mkdir -p dist/meshbench/fonts
+          curl -fsSL -o dist/meshbench/fonts/NotoColorEmoji.ttf \
+            https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf
           echo compact > dist/meshbench/VARIANT
           (cd dist && zip -qr meshbench-windows-x86_64-compact.zip meshbench)
           packaging/windows-msi.sh dist/meshbench "$VERSION" \
@@ -720,13 +727,6 @@ jobs:
           Licences are in LICENCES\, and in the application under
           Help > Licences & attributions.
           TXT
-          # The emoji font, as the Linux bundle carries it. Windows has no Noto
-          # to fall back to, so a bundle without this draws every supplementary
-          # -plane emoji in a node name as a box - which is exactly what was
-          # reported against 0.0.7, and what the bundle check now refuses.
-          mkdir -p dist/meshbench/fonts
-          curl -fsSL -o dist/meshbench/fonts/NotoColorEmoji.ttf \
-            https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf
           (cd dist && zip -qr meshbench-windows-x86_64-bundled.zip meshbench)
           ls -la dist/*.zip
           file dist/meshbench/meshbench.exe
