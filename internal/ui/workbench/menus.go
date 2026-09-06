@@ -101,8 +101,15 @@ func workbenchMenus() []menu {
 		// gave that panel two menu homes, which is two entries to keep in
 		// step and one of them always stale.
 		{"Help", []shell.MenuItem{
+			// The manual first, because that is what a Help menu is for. This
+			// application holds itself to a hard rule about keeping the site
+			// current - a page per window, a screenshot on each, the verb
+			// beside the control - and then had no way to reach any of it,
+			// so somebody with the window open in front of them had to
+			// already know the site existed.
+			{Label: "Manual", Action: "help.manual", Section: "read", Icon: "help"},
 			{Label: "What this run assumes", Action: "help.assumptions",
-				Icon: "help"},
+				Section: "this run", Icon: "help"},
 		}},
 	}
 }
@@ -122,3 +129,10 @@ func nextPlacedName(kind string, s *state.Snapshot) string {
 		}
 	}
 }
+
+// manualURL is where the manual is published.
+//
+// One copy, here, because it is also what CONTRIBUTING.md and the READMEs
+// point at, and a second spelling of it is a second thing to move if it ever
+// does.
+const manualURL = "https://meshbench.github.io/docs/"

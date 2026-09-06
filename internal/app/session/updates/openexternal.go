@@ -15,12 +15,17 @@ import (
 // is anything that is neither: the target arrives from a release feed, which is
 // somebody else's data even when the somebody is us.
 
-// openExternal asks the desktop to open a folder or a page, and returns why it
+// OpenExternal asks the desktop to open a folder or a page, and returns why it
 // could not - empty when it did.
+//
+// Exported because the Help menu opens the manual through it. The checks below
+// are the reason to share this rather than shell out a second time: a target
+// that is neither a folder nor an http(s) page is refused before anything is
+// launched.
 //
 // Not an error when the launcher is missing: failing to open a window is not a
 // failed download, and the path has already been said out loud.
-func openExternal(target string) string {
+func OpenExternal(target string) string {
 	if why := openable(target); why != "" {
 		return why
 	}

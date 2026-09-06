@@ -55,7 +55,7 @@ func registerDownload(st *state.Store, s *session.Sim) {
 				"is no folder to open")
 		}
 		dir := filepath.Dir(w.Update.Staged)
-		if why := openExternal(dir); why != "" {
+		if why := OpenExternal(dir); why != "" {
 			return nil, fmt.Errorf("could not open %s: %s", dir, why)
 		}
 		return map[string]any{"opened": dir}, nil
@@ -68,7 +68,7 @@ func registerDownload(st *state.Store, s *session.Sim) {
 			return nil, fmt.Errorf("no release page is known yet: run " +
 				"update.check first")
 		}
-		if why := openExternal(w.Update.Notes); why != "" {
+		if why := OpenExternal(w.Update.Notes); why != "" {
 			return nil, fmt.Errorf("could not open %s: %s", w.Update.Notes, why)
 		}
 		return map[string]any{"opened": w.Update.Notes}, nil

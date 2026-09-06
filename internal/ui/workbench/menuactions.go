@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MeshBench/meshbench/internal/app/session/updates"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/ui/shell"
 	"github.com/MeshBench/meshbench/internal/ui/workbench/nodeview"
@@ -256,6 +257,22 @@ func (w menuDeps) onMenu(action string) {
 				}
 			}()
 		})
+		return
+	}
+	if action == "help.manual" {
+		// Handed to the desktop rather than drawn here: the manual is a site
+		// that outgrows any panel, and a browser is a thing every desktop
+		// already has and does better. Said out loud when it cannot be
+		// opened, because a menu entry that does nothing is the same silence
+		// as a broken one.
+		go func() {
+			if why := updates.OpenExternal(manualURL); why != "" {
+				_, _ = w.st.Do(w.ctx, "ui.said",
+					"could not open "+manualURL+": "+why)
+				return
+			}
+			_, _ = w.st.Do(w.ctx, "ui.said", "opened the manual at "+manualURL)
+		}()
 		return
 	}
 	// The interface's own settings are a Configuration section now.
