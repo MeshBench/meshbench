@@ -76,12 +76,11 @@ func (p *schedulePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	p.claims.SetRows(claimRows)
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(comp.SectionTitle(t, fmt.Sprintf("%d sends", len(sendRows)))),
+		layout.Rigid(comp.SectionTitle(t, comp.Count(len(sendRows), "send"))),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return p.sends.Layout(t, gtx, nil)
 		}),
-		layout.Rigid(comp.SectionTitle(t,
-			fmt.Sprintf("%d assertions", len(claimRows)))),
+		layout.Rigid(comp.SectionTitle(t, comp.Count(len(claimRows), "assertion"))),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return p.claims.Layout(t, gtx, nil)
 		}),
