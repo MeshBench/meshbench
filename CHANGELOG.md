@@ -21,6 +21,97 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-09-06
+
+Everything a full walk of the pre-release pass turned up on the released 0.0.8
+binary, run against an empty profile so the application was met the way a new
+machine meets it.
+
+### Fixed
+
+- **The refusal for a machine with no firmware says how many nodes it means.**
+  It read "no firmware for 5 of 58 nodes ... and 52 more" - a sentence that
+  disagrees with itself, because the count was the length of the shortened list
+  rather than the number of nodes. The truth on a fresh machine is every node,
+  so it understated the gap in the one direction that reads as ignorable. It is
+  also the first thing anybody sees after pressing play.
+
+- **Setup no longer opens in front of the map on every launch.** A machine with
+  everything it needs, which had simply never answered the update-check
+  question, was told "this machine is not set up yet" by the status bar while
+  the page it had just opened said "nothing is broken". Both on screen at once,
+  and one of them wrong. The page opens only for something that is actually
+  blocking; the outstanding question is said in a line instead.
+
+- **A study's terrain verdict asks about the ground the study walks.** It
+  judged a grid across the bounding box while the fetch covers the tiles under
+  the links, and on a coastal study a fifth of that grid is sea no profile
+  crosses. Those tiles were never going to arrive, so the answer was stuck at
+  "partial terrain" however much was downloaded. It can reach complete now, and
+  a machine that has everything its links need is told so.
+
+- **Three shipped fixtures carried the same study area twice**, byte for byte -
+  fife-strict, fife-permissive and fem-e22, each with two identical copies of
+  Fife. Everything that walked the areas walked it twice, and the Boundary
+  panel listed one place on two rows with the same numbers. The duplicate is
+  gone from the files, and a fixture that carries one is corrected on the way
+  in.
+
+- **The Events and Inspector panels start under their header.** With fewer rows
+  than the pane holds they were pressed against its bottom edge, leaving the
+  column header labelling several hundred pixels of nothing - which reads as a
+  panel that has not loaded. A run longer than the pane still follows its
+  newest row.
+
+- **Labels are cut rather than folded.** A table header narrower than its own
+  title laid the word out one character per line, a squeezed button drew its
+  name as a vertical strip of letters inside its own outline, and a filter chip
+  came out twenty pixels wide with its label in half. A button with no room for
+  even an ellipsis drew nothing at all.
+
+- **Every event filter can be reached in a docked panel.** The chips ran off
+  the edge with no wrap and no scroll, so three of the eight could not be
+  pressed. They wrap now, and in a pane too short for both the per-class
+  summary cards give way to them - every count on those cards is on the chip
+  that filters it, so what goes is the percentage rather than the figure.
+
+- **The Resources page stops denying what it counts.** Its last line read
+  "Nothing here is fetched without being asked" three rows under its own card
+  counting the megabytes that had been. It now describes the split its rows
+  already draw.
+
+- **"1 assertion".** Three counted headings had no singular, including the last
+  line of a passing `meshbench test` - the line CI logs and the one people
+  paste into reports.
+
+- **Help reaches the manual.** The menu had no route to the documentation at
+  all, which is the one thing a Help menu is for.
+
+### Changed
+
+- **`-node-tab` takes a tab name rather than an index.** The index list was
+  written out by hand in three places and two of them had missed a tab added in
+  the middle, so five of the capture steps had been photographing the tab after
+  the one they were named for and one had never been photographed at all. A
+  name cannot drift that way, and an unknown one is refused with the list.
+
+- **`-config-section` and `-licence-section` open their panel** as well as
+  scoping it. They had been scoping a panel that was never shown, so eleven
+  capture steps produced eleven identical pictures of a different page. An
+  unknown section is refused with the list, which five of the six configured
+  names turned out to be.
+
+- **`-board-decode` opens the board view's console with its decode tick on**, so
+  the one control in that window with no way in from outside can be captured
+  without a hand on the mouse.
+
+### Infrastructure
+
+- The pipelines build on the lab runners rather than on hosted ones, and the
+  Windows check runs when somebody asks for it. A release still publishes from
+  hosted, and so do the package indexes.
+
+
 ## [0.0.8] - 2026-09-06
 
 A release of repairs, most of them found by a person working through the
@@ -505,6 +596,7 @@ First release: one binary per platform.
 - Two data races found by `-race` and fixed.
 
 [Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.8...HEAD
+[0.0.9]: https://github.com/MeshBench/meshbench/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/MeshBench/meshbench/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/MeshBench/meshbench/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/MeshBench/meshbench/compare/v0.0.5...v0.0.6
