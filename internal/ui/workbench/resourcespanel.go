@@ -139,12 +139,32 @@ func (p *resourcesPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 					})(gtx)
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
-			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint,
-				"Sizes marked ~ are estimates, not measurements. "+
-					"Nothing here is fetched without being asked.")),
+			// Not "nothing here is fetched without being asked", which this
+			// page's own Filled itself card disproves three rows above it:
+			// the map tiles and the ground under a study arrive as they are
+			// needed, and on a fresh install that is most of what is here.
+			// A page whose job is to account for what was spent is the worst
+			// possible place for the one sentence that is not true.
+			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, resourcesFootnote)),
 		)
 	})
 }
+
+// resourcesFootnote is the last line of the page, and the one that has to be
+// true of every row above it.
+//
+// It said "Nothing here is fetched without being asked", which this page's own
+// Filled itself card disproves three rows higher: the map tiles and the ground
+// under a study arrive as they are needed, and on a fresh install that is most
+// of what is here. A page whose whole job is to account for what was spent is
+// the worst possible place for the one sentence that is not true.
+//
+// The wording is the rows' own: DirCache.OnRequest is what makes a row say
+// "only when asked", and its comment is the same split - "three of these fill
+// themselves as the map is used and one does not".
+const resourcesFootnote = "Sizes marked ~ are estimates, not measurements. " +
+	"Rows marked \"only when asked\" wait to be pressed; the rest fill " +
+	"themselves as the map and the study need them."
 
 // totals is what the page says about itself, counted once per frame.
 type totals struct {
