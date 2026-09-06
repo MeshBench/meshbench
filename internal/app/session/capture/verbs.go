@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -43,8 +44,12 @@ func registerCapture(st *state.Store, s *session.Sim) {
 			return nil, err
 		}
 		meshcoreLua, meshbenchLua := dissectorFiles()
+		// Found before the hint is built, because the hint names it: a reader
+		// told to run this by hand should be handed the binary we already
+		// located rather than a bare name their shell may not resolve.
+		bin := wiresharkBinary()
 		out := map[string]any{
-			"addr": captureUDPAddr, "how": wiresharkHint(meshcoreLua, meshbenchLua),
+			"addr": captureUDPAddr, "how": wiresharkHint(bin, meshcoreLua, meshbenchLua),
 		}
 		switch {
 		case meshbenchLua == "":
@@ -54,11 +59,19 @@ func registerCapture(st *state.Store, s *session.Sim) {
 				"MeshBench's own metadata will show, the MeshCore frame inside it will not"
 		}
 
-		bin := wiresharkBinary()
 		if bin == "" {
-			w.Say("streaming frames to " + captureUDPAddr + " - Wireshark is not installed, so run: " +
-				wiresharkHint(meshcoreLua, meshbenchLua))
+			// Said in the answer as well as on screen. A caller reading only
+			// the verb used to get launched false and nothing to explain it,
+			// which reads as a launch that failed silently rather than as a
+			// program that is not there.
+			why := "Wireshark is not installed, or not where this looked"
+			if runtime.GOOS == "windows" {
+				why += " (PATH, and Wireshark\\Wireshark.exe under Program Files)"
+			}
+			w.Say("streaming frames to " + captureUDPAddr + " - " + why + ", so run: " +
+				wiresharkHint(bin, meshcoreLua, meshbenchLua))
 			out["launched"] = false
+			out["launch_error"] = why
 			return out, nil
 		}
 		if why := launchWireshark(bin, meshcoreLua, meshbenchLua); why != "" {
