@@ -90,6 +90,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # This job moved off a hosted image, where these happened to be present.
+      # Checked in one line so a runner without one says so before anything is
+      # published, rather than failing halfway with an unrecognised flag.
+      - name: The tools this job shells out to
+        run: |
+          missing=""
+          for t in git python3; do command -v "$t" >/dev/null || missing="$missing $t"; done
+          if [ -n "$missing" ]; then
+            echo "::error::this runner is missing:$missing - install them on the runner"
+            exit 1
+          fi
+
+
       # The Go client's reference is extracted with `go doc`, so this job needs
       # a toolchain. Without one that generator exits non-zero, and gen.py's
       # guard reads a failed generator as a source it cannot reach and skips

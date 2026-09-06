@@ -76,7 +76,12 @@ concurrency:
 jobs:
   publish:
     name: rebuild the pool and the index
-    runs-on: [self-hosted, linux, x64, lab-linux]
+    # Hosted, deliberately. This job does `sudo apt-get install apt-utils
+    # gnupg` - it is written for a machine that is thrown away afterwards. A
+    # lab runner is not: it would either refuse for want of sudo or install
+    # packages onto a shared box on every release, and neither is worth the
+    # handful of minutes this costs once per release.
+    runs-on: ubuntu-latest
     environment: apt-publish
     steps:
       - name: Tools
