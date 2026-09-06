@@ -84,12 +84,25 @@ func (s *Sim) buildsMissing() []string {
 		}
 		out = append(out, fmt.Sprintf("%s (%s %s)", n.Name, role, n.Firmware.Version))
 	}
-	// Naming forty nodes helps nobody; naming three and counting the rest
-	// does.
-	if len(out) > 4 {
-		return append(out[:4], fmt.Sprintf("and %d more", len(out)-4))
-	}
 	return out
+}
+
+// namedFew is the list a refusal quotes: the first few by name, and a count of
+// the rest. Naming forty nodes helps nobody; naming four and counting the rest
+// does.
+//
+// Kept apart from buildsMissing because the caller needs both halves and used
+// to have only this one. It counted the shortened list, so a mesh with
+// fifty-six nodes missing a build was refused with "no firmware for 5 of 58
+// nodes ... and 52 more" - a sentence that contradicts itself, and understates
+// the gap in the direction that reads as ignorable.
+func namedFew(all []string) []string {
+	const few = 4
+	if len(all) <= few {
+		return all
+	}
+	return append(append([]string{}, all[:few]...),
+		fmt.Sprintf("and %d more", len(all)-few))
 }
 
 // firmwareStartBlocker names why real firmware cannot start yet, or nil if it
@@ -102,10 +115,29 @@ func (s *Sim) firmwareStartBlocker() error {
 	if len(missing) == 0 {
 		return nil
 	}
+	// Both halves of the count come from the whole list: how many nodes are
+	// missing a build, and how many could have run one. len(s.nodes) counted
+	// the fleet, which includes the emitter and the observer that never boot
+	// firmware at all, so a 58-node Fife mesh reported a denominator two
+	// larger than the number of nodes the sentence is about.
 	return fmt.Errorf(
 		"no firmware for %d of %d nodes, so this run would be half a mesh: %s. "+
 			"Pin one in the Firmware panel, or download it there",
-		len(missing), len(s.nodes), strings.Join(missing, ", "))
+		len(missing), s.firmwareNodes(), strings.Join(namedFew(missing), ", "))
+}
+
+// firmwareNodes is how many nodes could run firmware at all - the denominator
+// the gate's refusal is about. An SDR observer and an emitter are nodes and
+// never boot one, so counting them makes the sentence describe a fleet where
+// it means to describe the candidates.
+func (s *Sim) firmwareNodes() int {
+	n := 0
+	for _, node := range s.nodes {
+		if node.Kind.RunsFirmware() {
+			n++
+		}
+	}
+	return n
 }
 
 // nodeRole is what a node runs: its pinned role, or the one its kind implies.
