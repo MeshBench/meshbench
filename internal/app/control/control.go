@@ -117,10 +117,14 @@ func ListenAt(want string, h Handler) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	if live(addr) {
+	if held, taken := live(addr); taken {
+		// Named as the address that answered, not as the one asked for. An
+		// ephemeral request is spelled ":0", and reporting that told somebody
+		// port zero was busy: a sentinel meaning "any free port", which
+		// nothing can hold and which they never typed.
 		return nil, fmt.Errorf(
 			"control: %s is already answering - another workbench holds it. "+
-				"Choose another with -control-socket or %s", addr, SocketEnv)
+				"Choose another with -control-socket or %s", held, SocketEnv)
 	}
 	s := &Server{handler: h, release: ourRelease}
 	switch addr.Kind {
@@ -149,7 +153,17 @@ func ListenAt(want string, h Handler) (*Server, error) {
 			_ = ln.Close()
 			return nil, err
 		}
-		if s.rendezvous, err = writeRendezvous(addr.Addr, addr.Token); err != nil {
+		// A held rendezvous is not a reason to refuse to run. The listener is
+		// up, the session answers where it was told to and is listed among the
+		// running sessions; all it loses is being the one a client with no
+		// address finds. Said out loud, because a workbench that is running and
+		// undiscoverable is exactly the state nobody could see before.
+		var held errRendezvousHeld
+		switch s.rendezvous, err = writeRendezvous(addr.Addr, addr.Token); {
+		case errors.As(err, &held):
+			diag.Printf("control", "%v", held)
+			fmt.Fprintln(os.Stderr, held)
+		case err != nil:
 			_ = ln.Close()
 			return nil, err
 		}
@@ -169,24 +183,27 @@ func ListenAt(want string, h Handler) (*Server, error) {
 	return s, nil
 }
 
-// live reports whether something is already answering there.
+// live reports whether something is already answering there, and where.
 //
 // A dial rather than a stat: a socket file existing says nothing about whether
 // anybody is behind it, and that difference is the whole of this check. For
 // TCP it is the port that is probed and not the rendezvous file, for the same
 // reason - a file left by a crashed run names a port nobody holds.
-func live(addr Address) bool {
+//
+// An ephemeral request is never taken. ":0" asks the kernel for whatever is
+// free, so there is no address to be in conflict over and the answer is always
+// no. This used to read the rendezvous file and refuse when whatever it named
+// was alive, which asked a different question - "is the default discovery slot
+// occupied" - and answered it by stopping a second workbench from running at
+// all. Two of them asking for any free port want two free ports, and the
+// machine has plenty; which of them a client finds is the registry's business,
+// not this one's.
+func live(addr Address) (string, bool) {
 	network, target := "unix", addr.Addr
 	if addr.Kind == TCP {
 		network = "tcp"
-		// An ephemeral port cannot already be held, because it has not been
-		// chosen yet. What might be is whatever the rendezvous file still names.
 		if strings.HasSuffix(target, ":0") {
-			r, err := readRendezvous()
-			if err != nil {
-				return false
-			}
-			target = r.Address
+			return "", false
 		}
 	}
 	// No context on purpose. This is a 250 ms probe of something on this
@@ -198,10 +215,10 @@ func live(addr Address) bool {
 	//nolint:noctx // bounded local probe, before there is a server to cancel
 	c, err := net.DialTimeout(network, target, 250*time.Millisecond)
 	if err != nil {
-		return false
+		return "", false
 	}
 	_ = c.Close()
-	return true
+	return target, true
 }
 
 // Path is where this server answers, as somebody would type it back in: a
