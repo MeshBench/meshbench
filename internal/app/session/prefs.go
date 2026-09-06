@@ -30,11 +30,21 @@ type Prefs struct {
 	UnverifiedWiring bool `json:"unverified_wiring,omitempty"`
 	// TileCacheGB bounds the decoded tiles held in memory.
 	TileCacheGB float64 `json:"tile_cache_gb,omitempty"`
-	// TerrainDownloads is whether terrain may be fetched without asking. A
-	// pointer for the same reason as GPU: "not yet asked" is a third state,
-	// and it is the one a fresh install is in. A national network's ground is
-	// several hundred megabytes, which is not a thing to spend on somebody's
-	// tethered phone because they opened the application.
+	// TerrainDownloads is whether terrain may be fetched. Nil means nobody has
+	// turned it off, which is a yes: a fresh install downloads the ground it
+	// needs without asking, and says what that costs while it does.
+	//
+	// It was a three-state consent once, and this comment argued for it - a
+	// national network's ground is several hundred megabytes, and a prompt
+	// would stop that landing on somebody's tethered connection unbidden. That
+	// is deliberately gone. This is professional software and an operator who
+	// opens a country has made that choice; a first-run dialog buys them
+	// nothing. Recorded because the argument is still a good one for a
+	// different product, and the next reader should know it was heard and
+	// answered rather than overlooked (#616).
+	//
+	// Still a pointer, because turning it off has to survive a restart and
+	// "off" must be distinguishable from "unset" in the file.
 	TerrainDownloads *bool `json:"terrain_downloads,omitempty"`
 	// GPU is nil until somebody has chosen; a pointer because "off" and
 	// "never said" are different answers and only one of them lets the
