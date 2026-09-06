@@ -1,5 +1,5 @@
-// The one page the application opens without being asked, and only when it has
-// something to say.
+// The one page the application opens without being asked, and only when
+// something cannot run until it is seen to.
 //
 // A first launch is where every one of these problems is met and the worst
 // place to meet them: the firmware cache is empty, nobody has answered the
@@ -8,9 +8,19 @@
 // a status line in the middle of a measurement - which is a sequence nobody
 // designed and everybody walks through.
 //
-// So the check runs once at startup and the page opens if, and only if,
-// something is blocking or something is waiting to be told. A machine that is
-// set up sees nothing, which is what stops this from being a splash screen.
+// So the check runs once at startup, and the page opens if, and only if,
+// something is blocking. A machine that is set up sees nothing, which is what
+// stops this from being a splash screen.
+//
+// A question nobody has answered is deliberately not enough to open it. The
+// setup page distinguishes the two cases itself - "something in this session
+// cannot run until the rows below are seen to" against "nothing is broken; one
+// thing is waiting to be told what it may do" - and this used to open on the
+// sum of them and then say the blocking sentence for both. On a machine whose
+// only outstanding row was the update-check question, that put the page in
+// front of the map on every launch, for ever, announcing a fault the page
+// underneath it denied. The question is still worth mentioning, so it is said
+// in the status bar in the words the page would use.
 package workbench
 
 import (
@@ -39,23 +49,23 @@ func openSetupIfNotReady(ctx context.Context, st *state.Store) {
 			return
 		}
 		m, ok := v.(map[string]any)
-		if !ok || !setupIsWanting(m) {
+		if !ok {
 			return
 		}
-		if _, err := st.Do(ctx, "panel.open",
-			map[string]any{"name": "Setup"}); err != nil {
-			return
+		switch {
+		case setupCount(m, "needed") > 0:
+			if _, err := st.Do(ctx, "panel.open",
+				map[string]any{"name": "Setup"}); err != nil {
+				return
+			}
+			_, _ = st.Do(ctx, "ui.said", "this machine is not set up yet: Setup "+
+				"lists what is missing, what each one costs, and what to do about "+
+				"the ones nothing here can fetch")
+		case setupCount(m, "undecided") > 0:
+			_, _ = st.Do(ctx, "ui.said", "nothing is broken; Setup has one "+
+				"question nothing has answered on your behalf")
 		}
-		_, _ = st.Do(ctx, "ui.said", "this machine is not set up yet: Setup "+
-			"lists what is missing, what each one costs, and what to do about "+
-			"the ones nothing here can fetch")
 	}()
-}
-
-// setupIsWanting reads the check's own counts rather than the rows, so the page
-// and this agree on what unready means without either counting for itself.
-func setupIsWanting(m map[string]any) bool {
-	return setupCount(m, "needed")+setupCount(m, "undecided") > 0
 }
 
 func setupCount(m map[string]any, key string) int {
