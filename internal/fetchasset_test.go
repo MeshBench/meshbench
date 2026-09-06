@@ -219,6 +219,10 @@ func TestVerifyBundleRefusesABundleWithoutItsEmulators(t *testing.T) {
 		// Renode reads these at runtime, so a bundle without them can start an
 		// ESP32 board and not an nRF52 one.
 		"renode-support/peripherals/VirtualSX1262.cs",
+		// Every variant carries the emoji font: node names use emoji heavily
+		// and a bundle without it draws them as boxes on any machine with no
+		// system emoji face, which is where this was found.
+		"fonts/NotoColorEmoji.ttf",
 	} {
 		p := filepath.Join(full, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -251,6 +255,8 @@ func TestVerifyBundleJudgesEachVariantByItsOwnRules(t *testing.T) {
 	for _, name := range []string{
 		"libvirtualsx1262.so",
 		"renode-support/peripherals/VirtualSX1262.cs",
+		// Compact means no emulators, not no font.
+		"fonts/NotoColorEmoji.ttf",
 	} {
 		p := filepath.Join(compact, name)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -278,5 +284,53 @@ func TestVerifyBundleJudgesEachVariantByItsOwnRules(t *testing.T) {
 	}
 	if !strings.Contains(out, "qemu-system-xtensa") {
 		t.Errorf("the refusal does not name what it found:\n%s", out)
+	}
+}
+
+// A bundle without the emoji font is refused, in either variant.
+//
+// The font is fetched with curl and a warning rather than an error, so a fetch
+// that fails leaves a bundle that builds, installs, runs, and draws a box where
+// every emoji in a node name should be. Ten of the fifty-eight names in one
+// shipped fixture carry them, so it is not a corner: it is most of the map
+// labels in the first screenshot anybody takes.
+func TestVerifyBundleRefusesABundleWithoutTheEmojiFont(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash on this machine")
+	}
+	const script = "../packaging/verify-bundle.sh"
+
+	for _, variant := range []string{"bundled", "compact"} {
+		dir := t.TempDir()
+		names := []string{
+			"libvirtualsx1262.so",
+			"renode-support/peripherals/VirtualSX1262.cs",
+		}
+		if variant == "bundled" {
+			names = append(names,
+				"qemu-meshbench/bin/qemu-system-xtensa",
+				"renode_1.16.1-portable/renode")
+		}
+		for _, name := range names {
+			p := filepath.Join(dir, name)
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte("x"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(dir, "VARIANT"),
+			[]byte(variant+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, out := run(t, "", script, dir, "linux-amd64")
+		if code == 0 {
+			t.Errorf("a %s bundle with no emoji font was accepted:\n%s",
+				variant, out)
+		}
+		if !strings.Contains(out, "NotoColorEmoji") {
+			t.Errorf("the %s refusal does not name the font:\n%s", variant, out)
+		}
 	}
 }

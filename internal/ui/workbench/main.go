@@ -79,7 +79,7 @@ func Run(args []string) {
 		"scope the Licences panel to one section: forks, bundled, golibs, runtime, data")
 	dropFlag := flag.String("drop-menu", "", "open this menu's dropdown at startup, so it can be captured")
 	layersFlag := flag.String("layers", "", "switch these map layers on at startup, comma separated")
-	lookFlag := flag.String("look", "", "start the camera at lat,lon,zoom - a capture cannot drag the map")
+	lookFlag := flag.String("look", "", "start the camera at lat,lon,level - a slippy zoom level, 0 the world\n    \tand the high teens a street; a capture cannot drag the map")
 	packetTabFlag := flag.Int("packet-tab", 0,
 		"which tab the packet window opens on: 0 dissection, 1 journey "+
 			"(the propagation graph), 2 reception ledger, 3 where it went")

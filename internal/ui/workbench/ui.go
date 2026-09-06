@@ -182,7 +182,8 @@ func (u *workbenchUI) applyCamera() {
 	}
 	u.mv.CentreLat, u.mv.CentreLon = want.lat, want.lon
 	if want.zoom > 0 {
-		u.mv.Zoom = want.zoom
+		// The caller named a slippy level; the camera keeps pixels per degree.
+		u.mv.Zoom = comp.ZoomForLevel(want.zoom)
 	}
 }
 

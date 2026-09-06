@@ -83,7 +83,7 @@ func key(l Layer, z, x, y int) string { return fmt.Sprintf("%s/%d/%d/%d", l.ID, 
 // that caches like a real answer.
 func tileURL(l Layer, z, x, y int) string {
 	url := expand(l.URL, z, x, y)
-	if strings.Contains(url, "cartocdn.com") {
+	if wantsCartoKey(l) {
 		if k := CartoKey(); k != "" {
 			url += "?key=" + k
 		}
@@ -92,8 +92,40 @@ func tileURL(l Layer, z, x, y int) string {
 }
 
 func (s *Store) path(l Layer, z, x, y int) string {
-	return filepath.Join(s.CacheDir, l.ID, fmt.Sprint(z), fmt.Sprint(x), fmt.Sprint(y)+".img")
+	return filepath.Join(s.CacheDir, cacheDirFor(l), fmt.Sprint(z),
+		fmt.Sprint(x), fmt.Sprint(y)+".img")
 }
+
+// cacheDirFor keeps tiles fetched without a key away from tiles fetched with
+// one.
+//
+// The cache was keyed on style, zoom and position, and nothing recorded which
+// kind of fetch had produced the bytes. CARTO serves a tile either way: with a
+// key it is the map, and without one it is the map under an API KEY REQUIRED
+// watermark. So a single run of a build with no key stamped into it - which is
+// every locally built binary, because the key lives in the release pipeline -
+// wrote watermarked tiles into the shared cache, and every release build
+// installed afterwards re-served them for ever. The map looked keyless on a
+// machine whose key was working perfectly.
+//
+// Separating them fixes it in both directions and needs no migration: a keyed
+// build stops reading what a keyless one wrote, a keyless build keeps its own
+// tiles rather than poisoning the good ones, and whatever is already poisoned
+// simply stops being looked at.
+//
+// Only for the layers where it is true. A tile server that does not take a key
+// serves the same bytes either way, and splitting its cache would double the
+// disk for nothing.
+func cacheDirFor(l Layer) string {
+	if wantsCartoKey(l) && CartoKey() == "" {
+		return l.ID + "-keyless"
+	}
+	return l.ID
+}
+
+// wantsCartoKey reports whether this layer's tiles come from CARTO, which is
+// the one place a key changes what is served rather than whether it is served.
+func wantsCartoKey(l Layer) bool { return strings.Contains(l.URL, "cartocdn.com") }
 
 // tileName identifies a tile in a message, without the request URL.
 //

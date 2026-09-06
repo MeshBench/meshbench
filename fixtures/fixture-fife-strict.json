@@ -533,7 +533,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Drumcarrow Craig NWR \ufffd\ufffd",
+      "Name": "Drumcarrow Craig NWR",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "07f1fef7b2c51616cb9207f4afafce3c14a4fb20f9e216ab6fad3584235be50b",
@@ -735,7 +735,7 @@
       "NoiseFigureDB": 6
     },
     {
-      "Name": "Kellie Law NWR \ud83c\udf24\ufe0f\ufffd",
+      "Name": "Kellie Law NWR \ud83c\udf24\ufe0f",
       "Kind": "simple-repeater",
       "Board": "RAK4631",
       "PublicKey": "06f1fece5ea0422a26b32e5f23d8f8acb2db02c684897eeedec8097223e64d1e",

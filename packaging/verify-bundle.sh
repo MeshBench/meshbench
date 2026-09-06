@@ -110,6 +110,21 @@ else
   echo "verify-bundle: no emulators, as a compact bundle should have none"
 fi
 
+# The emoji font, in every variant. It is fetched with curl and a warning
+# rather than an error, so a fetch that fails leaves a bundle that builds,
+# installs, runs and draws a box where every emoji in a node name should be -
+# and ScotMesh names use them heavily, so that is ten of fifty-eight names in
+# one shipped fixture. On Linux and macOS a system copy usually covers it; on
+# Windows there is no Noto to fall back to, which is where it was found.
+emoji=$(find "$dir" -name NotoColorEmoji.ttf -print -quit 2>/dev/null)
+if [ -z "$emoji" ]; then
+  echo "::error::no NotoColorEmoji.ttf in $dir - emoji in node names will draw" \
+       "as boxes on any machine without a system emoji font" >&2
+  fail=1
+else
+  echo "verify-bundle: emoji font at ${emoji#"$dir"/}"
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "verify-bundle: $dir is not shippable" >&2
   exit 1

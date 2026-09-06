@@ -147,17 +147,34 @@ func BrandFaces() []font.FontFace {
 func withEmoji(base []font.FontFace) []font.FontFace {
 	// The bundle carries the font beside the binary, so emoji in node names
 	// do not depend on what the machine happens to have installed.
+	//
+	// The system paths are the fallback for when it does not - a compact
+	// build, a `go run`, a tree somebody is working in. Every platform this
+	// ships on needs one: Windows had none, so a Windows build whose bundled
+	// copy was missing had nothing to fall back to and drew every
+	// supplementary-plane emoji as a box, while the BMP ones came through on
+	// the interface faces and made it look like the names were mangled rather
+	// than the font absent.
 	paths := []string{
 		"/usr/share/fonts/noto/NotoColorEmoji.ttf",
 		"/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
 		"/System/Library/Fonts/Apple Color Emoji.ttc",
 	}
+	// Segoe UI Emoji is on every supported Windows, under whatever the
+	// machine calls its Windows directory - which is not always C:.
+	if win := os.Getenv("WINDIR"); win != "" {
+		paths = append(paths, filepath.Join(win, "Fonts", "seguiemj.ttf"))
+	}
+	paths = append(paths, `C:\Windows\Fonts\seguiemj.ttf`)
 	if exe, err := os.Executable(); err == nil {
 		paths = append([]string{
 			filepath.Join(filepath.Dir(exe), "fonts", "NotoColorEmoji.ttf"),
 		}, paths...)
 	}
 	for _, p := range paths {
+		// The list above is this package's own, and the only part of it that
+		// comes from outside is the name Windows gives its own directory.
+		//nolint:gosec // a fixed list of font paths, one of them under WINDIR
 		b, err := os.ReadFile(p)
 		if err != nil {
 			continue

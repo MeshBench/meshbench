@@ -247,10 +247,34 @@ func newToken() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
+// writeRendezvous records this session as the one a bare client finds, unless
+// somebody is already there.
+//
+// control.json holds one address, and a second workbench used to overwrite it.
+// The first kept running and kept answering on its own port, and stopped being
+// discoverable - so a client that found the workbench the documented way
+// reached the newcomer instead. On Windows that is not an edge case: there is
+// no socket path to name, so reading this file is the only way anything finds
+// anything, and the failure is the bad kind. Nothing errors; a script drives a
+// session nobody meant, and the numbers come back from a real engine and look
+// plausible.
+//
+// So a live entry is left alone. The newcomer is still reachable at its own
+// address and still listed in the sessions directory, which holds one file per
+// workbench and is what a client should be asking anyway; what it gives up is
+// only the right to be found by a client that names nothing.
+//
+// Liveness is a dial, not a pid: a pid can be reused, and this has to mean the
+// same thing on Windows as it does here.
 func writeRendezvous(addr, token string) (string, error) {
 	path, err := RendezvousPath()
 	if err != nil {
 		return "", err
+	}
+	if r, err := readRendezvous(); err == nil && r.Address != "" && r.Address != addr {
+		if _, taken := live(Address{Kind: TCP, Addr: r.Address}); taken {
+			return "", errRendezvousHeld{addr: r.Address, pid: r.PID, path: path}
+		}
 	}
 	body, err := json.Marshal(rendezvous{Address: addr, Token: token, PID: os.Getpid()})
 	if err != nil {
@@ -266,6 +290,23 @@ func writeRendezvous(addr, token string) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+// errRendezvousHeld says a live workbench already holds the discovery slot.
+//
+// Its own type rather than a string, because the caller does not treat it as a
+// failure to listen: the session is up, and this only decides how it is found.
+type errRendezvousHeld struct {
+	addr string
+	pid  int
+	path string
+}
+
+func (e errRendezvousHeld) Error() string {
+	return fmt.Sprintf("control: %s already answers as the workbench a bare "+
+		"client finds (pid %d, named in %s), so this session is not listed "+
+		"there. It is still reachable at its own address, and still listed "+
+		"among the running sessions", e.addr, e.pid, e.path)
 }
 
 func readRendezvous() (rendezvous, error) {

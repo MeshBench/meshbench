@@ -451,3 +451,27 @@ func (m *MapView) openMenu(at f32.Point, pts []projected, sz image.Point) {
 		node: name, lat: lat, lon: lon, items: menuFor(name),
 	}
 }
+
+// ZoomForLevel is the camera's own scale for a slippy map zoom level.
+//
+// MapView.Zoom is pixels per degree, which is what the projection and the drag
+// arithmetic need and what nobody types. Every place a person names a zoom - a
+// -look flag, a map.centre call - means the number on a slippy map, where 0 is
+// the world and the high teens are a street, so the two are not the same
+// quantity and handing one straight to the other is how -look came to ignore
+// its third field: 14 meant fourteen pixels per degree, which is most of the
+// planet, and every level rendered at roughly world scale.
+//
+// A slippy level covers 360 degrees in 256*2^z pixels.
+func ZoomForLevel(level float64) float64 {
+	return clampZoom(256 * math.Exp2(level) / 360)
+}
+
+// LevelForZoom is the inverse, for anything reporting a camera back to a
+// person in the units they gave it in.
+func LevelForZoom(zoom float64) float64 {
+	if zoom <= 0 {
+		return 0
+	}
+	return math.Log2(zoom * 360 / 256)
+}

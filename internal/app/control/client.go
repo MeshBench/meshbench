@@ -99,6 +99,13 @@ type hello struct {
 	// Release is the release this client belongs to, checked beside Protocol
 	// and travelling the same way on a unix socket.
 	Release string `json:"release,omitempty"`
+	// Method is not part of the handshake. It is read so that a first line
+	// carrying a request can be told apart from one carrying a greeting: a
+	// client that puts its token inside its first call authorises, has that
+	// call eaten as the greeting, and then waits for a reply to something
+	// nothing ever queued. Silence is the worst answer available, so the
+	// field exists to make that case sayable.
+	Method string `json:"method,omitempty"`
 }
 
 // Path is where this client is connected.
