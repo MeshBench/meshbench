@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -54,10 +56,16 @@ func TestEveryPanelHasACaptureStep(t *testing.T) {
 	}
 }
 
-// Every step says what it runs and what somebody should see.
+// Every step says what it opens and what somebody should see.
+//
+// Two shapes, because the pass covers two things. A workbench step carries
+// flags and launches the binary; a documentation step carries a URL and is a
+// page somebody reads against the application it describes. Both are steps in
+// the same pass: the manual is part of the change, so a release is not tested
+// until the pages have been walked too.
 //
 // A step with no expectation is a screenshot nobody can judge: the point of
-// the pass is that a person compares the picture against a sentence, and a
+// the pass is that a person compares what they see against a sentence, and a
 // missing sentence turns the step into "look at it and hope".
 func TestEveryCaptureStepIsRunnableAndJudgeable(t *testing.T) {
 	for bucket, steps := range loadShotSteps(t) {
@@ -65,8 +73,13 @@ func TestEveryCaptureStepIsRunnableAndJudgeable(t *testing.T) {
 			switch {
 			case s.Name == "":
 				t.Errorf("%s: a step with no name has nowhere to write its picture", bucket)
-			case len(s.Flags) == 0:
-				t.Errorf("%s/%s: no flags, so there is nothing to run", bucket, s.Name)
+			case len(s.Flags) == 0 && s.URL == "":
+				t.Errorf("%s/%s: neither flags to run nor a page to open, so "+
+					"there is nothing to do", bucket, s.Name)
+			case len(s.Flags) > 0 && s.URL != "":
+				t.Errorf("%s/%s: both flags and a URL; a step is one or the "+
+					"other, and which it is decides how it is checked",
+					bucket, s.Name)
 			case s.What == "":
 				t.Errorf("%s/%s: no description", bucket, s.Name)
 			case s.Expect == "":
@@ -81,6 +94,7 @@ type shotStep struct {
 	Name   string   `json:"name"`
 	What   string   `json:"what"`
 	Flags  []string `json:"flags"`
+	URL    string   `json:"url,omitempty"`
 	Expect string   `json:"expect"`
 	Then   string   `json:"then,omitempty"`
 }
@@ -120,4 +134,47 @@ func loadShotSteps(t *testing.T) map[string][]shotStep {
 		t.Fatalf("the capture manifest does not parse: %v", err)
 	}
 	return out
+}
+
+// Every published page is in the pass.
+//
+// The manual is part of the change, so a release is not tested until somebody
+// has walked the pages against the build. Read from the documentation site's
+// own navigation table, for the same reason the panel check reads panelMenus:
+// a hand-kept list of forty pages is a list that is wrong by the second one.
+//
+// Skipped, rather than failed, when the documentation repository is not beside
+// this one. It is a separate repository and a contributor need not have it -
+// but on the machine that cuts a release it is there, and that is the machine
+// this matters on.
+func TestEveryPublishedPageIsInThePass(t *testing.T) {
+	nav, err := os.ReadFile(filepath.Join("..", "..", "..", "..",
+		"meshbench-docs", "gen.py"))
+	if err != nil {
+		t.Skip("no documentation checkout beside this one:", err)
+	}
+	body := string(nav)
+	i := strings.Index(body, "NAV = [")
+	j := strings.Index(body[i:], "\n]")
+	if i < 0 || j < 0 {
+		t.Skip("the documentation's navigation table has moved")
+	}
+	pages := regexp.MustCompile(`\("([a-z0-9-]+\.html)", "`).
+		FindAllStringSubmatch(body[i:i+j], -1)
+	if len(pages) == 0 {
+		t.Skip("no pages found in the navigation table")
+	}
+
+	inPass := map[string]bool{}
+	for _, s := range loadShotSteps(t)["docs"] {
+		if k := strings.LastIndex(s.URL, "/"); k >= 0 {
+			inPass[s.URL[k+1:]] = true
+		}
+	}
+	for _, p := range pages {
+		if !inPass[p[1]] {
+			t.Errorf("%s is published and is in no step, so the pass can pass "+
+				"without anybody having read it", p[1])
+		}
+	}
 }
