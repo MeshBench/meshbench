@@ -63,23 +63,12 @@ concurrency:
 jobs:
   publish:
     name: rewrite the casks
-    runs-on: [self-hosted, linux, x64, lab-linux]
+    # Hosted, with the apt publisher and for the same reason: it runs once per
+    # release, so the minutes are noise, and a publishing path is the wrong
+    # place to find out that a runner is missing something.
+    runs-on: ubuntu-latest
     environment: tap-publish
     steps:
-      # This job moved off a hosted image, where these happened to be present.
-      # Checked in one line so a runner without one says so before anything is
-      # published, rather than failing halfway with an unrecognised flag.
-      - name: The tools this job shells out to
-        run: |
-          missing=""
-          for t in gh git ssh-keyscan; do
-            command -v "$t" >/dev/null || missing="$missing $t"
-          done
-          if [ -n "$missing" ]; then
-            echo "::error::this runner is missing:$missing - install them on the runner"
-            exit 1
-          fi
-
       - name: What this release published
         id: rel
         env:

@@ -296,7 +296,10 @@ jobs:
     needs: build
     if: needs.build.outputs.publish == 'yes'
     timeout-minutes: 15
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
+    # Hosted, beside the PyPI publish. It runs only when something is being
+    # released, so what it costs is noise against the cost of a release that
+    # cannot publish.
+    runs-on: ubuntu-latest
     # Trusted publishing, the npm equivalent of the PyPI job below: npm mints
     # a short-lived token from this job's OIDC claim, matched against the
     # trusted publisher configured on @meshbench/client (organisation
