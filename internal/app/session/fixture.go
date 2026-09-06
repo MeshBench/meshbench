@@ -8,6 +8,8 @@
 package session
 
 import (
+	"strings"
+
 	"github.com/MeshBench/meshbench/internal/app/fixture"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
@@ -47,9 +49,32 @@ func LoadFixture(path string) (Loaded, error) {
 		})
 	}
 	for _, a := range f.Areas {
-		out.areas = append(out.areas, areaOf(a.Name, a.Boundaries))
+		out.areas = appendArea(out.areas, areaOf(a.Name, a.Boundaries))
 	}
 	return out, nil
+}
+
+// appendArea adds a study area unless the same place is already in the list.
+//
+// The same rule boundary.accept applies, said again here because a fixture does
+// not come in through that verb. Three shipped fixtures carry "Fife" twice,
+// byte for byte - they were built by hand before accept learned to refuse a
+// place it already had, and opening one put the duplicate straight back into
+// the world past the guard. Everything that walks the areas then walked it
+// twice: the boundary drawn twice on the map, "2 areas" in the session log,
+// "Study areas 2" on the overview, and a Boundary panel listing the same place
+// with the same ring and point counts on two rows, which reads as a fault in
+// the panel.
+//
+// Corrected on load rather than only in the files, so a fixture somebody else
+// saved before the guard existed is corrected too.
+func appendArea(areas []state.Area, add state.Area) []state.Area {
+	for _, a := range areas {
+		if strings.EqualFold(a.Name, add.Name) {
+			return areas
+		}
+	}
+	return append(areas, add)
 }
 
 // areaOf is the one way a set of boundaries becomes a study area.
