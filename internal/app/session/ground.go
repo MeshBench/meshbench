@@ -31,9 +31,33 @@ const groundSampleEdge = 16
 
 // GroundUnder is the ground under a set of nodes, which is what the
 // node-shaped studies stand on.
+//
+// Judged over the tiles the profiles will walk, not over the box the nodes sit
+// in - the same set the warm fetches, so the verdict and the download are
+// answering one question rather than two.
+//
+// They were two. This asked about a sixteen-by-sixteen grid across the bounding
+// box while the warm fetched the ground under the lines between pairs, and on
+// fife-strict 18% of the grid landed on tiles no profile crosses: the Firth of
+// Forth, mostly. Those tiles were never fetched, because nothing will ever
+// sample them, and their absence was then reported as missing ground - so a
+// machine holding every tile its links would ask for was told for ever that
+// part of its answer was free space. On a national study that is the whole of
+// the sea between Scotland and Ireland counted as a gap.
+//
+// A box is still the right question for a raster, which really does sample all
+// of it, and GroundOver still asks it.
 func (s *Sim) GroundUnder(nodes []scenario.Node) state.Ground {
 	if len(nodes) == 0 {
 		return state.Ground{}
+	}
+	if ts, ok := s.terrain().(*terrain.TileStore); ok && ts != nil {
+		if tiles := profileTiles(nodes, ts.Zoom); len(tiles) > 0 {
+			return groundFrom(ts.EstimateTiles(tiles), !s.TerrainDownloadsOn())
+		}
+		// No pair worth measuring - a single node, or a fleet physics has
+		// already refused every link between. There is no profile to have
+		// ground under, so the box is the only question left to ask.
 	}
 	south, north := math.Inf(1), math.Inf(-1)
 	west, east := math.Inf(1), math.Inf(-1)
@@ -118,7 +142,7 @@ func groundNote(g state.Ground) string {
 		"optimistic than the best case the rest of the model is documented as"
 	if g.State == state.GroundPartial {
 		return fmt.Sprintf(
-			"partial terrain: %d of %d sampled tiles under this study are cached "+
+			"partial terrain: %d of %d tiles under this study's links are cached "+
 				"and the rest is bare earth, so some of this answer is free space "+
 				"and nothing in it says which part", g.Cached, g.Sampled)
 	}
