@@ -81,10 +81,7 @@ func (c callbacks) wire() {
 		// defaulted to one opened onto a wall of watermarks. With a key in the
 		// environment the CARTO dark map is the better ground for data, which
 		// is what it was designed to be. A remembered choice still wins.
-		layerID := "osm"
-		if basemap.CartoKey() != "" {
-			layerID = "carto-dark"
-		}
+		layerID := basemap.DefaultID()
 		if id := c.sm.Basemap(); id != "" {
 			layerID = id
 		}

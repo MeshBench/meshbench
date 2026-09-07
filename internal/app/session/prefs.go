@@ -16,6 +16,7 @@ import (
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/diag"
 	"github.com/MeshBench/meshbench/internal/rf/terrain"
+	"github.com/MeshBench/meshbench/internal/world/basemap"
 )
 
 // Prefs are the machine-level choices, as the file stores them.
@@ -195,7 +196,18 @@ func registerBasemap(st *state.Store, s *Sim) {
 				w.Say("the basemap is " + id + " for this session")
 			}
 		}
-		return map[string]any{"id": s.prefs.Basemap}, nil
+		// The map being drawn, not whether somebody has chosen one.
+		//
+		// It answered the stored preference, which is empty until the first
+		// choice is made - so on every fresh profile a caller asking which
+		// basemap was in force got "" while the window was plainly drawing
+		// one, and every profile is fresh once. The default is asked of the
+		// same function the renderer asks.
+		id := s.prefs.Basemap
+		if id == "" {
+			id = basemap.DefaultID()
+		}
+		return map[string]any{"id": id}, nil
 	})
 }
 
