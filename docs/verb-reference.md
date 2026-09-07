@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 256 verbs: 219 a script may call and
+The store registers 257 verbs: 220 a script may call and
 37 the workbench calls on itself, which the socket refuses. Of those,
-256 say what they are for and 0 do not yet; the ones that
+257 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -2726,7 +2726,7 @@ Answer why two particular places do or do not hear each other, without the engin
 | `a` | object | required | one end: a node's name as a bare string or as {node}, or a place as {lat, lon} with an optional height_m that defaults to 2 m head height; anything else is refused, as is a name this network has not got |
 | `b` | object | required | the other end, in the same two forms; refused when it labels the same place as a, since a link needs two |
 
-**Answers** `from`, `to`, `ground`. It answers with the two labels as soon as the worker starts, and with the `ground` between them in the shape `terrain.ground` returns. Said rather than refused, unlike the rasters: this verb exists to answer before a warm has happened, and a cut-through with nothing under it is visibly flat. The cut-through and both margins arrive later through the internal `link.pair_set`, and there are two margins because there are two answers: each end's gain is evaluated on the bearing towards the other, so A to B and B to A can differ by tens of decibels on a beam. Both are best cases - bare earth, the calibrated excess loss, a default noise floor and no multipath - which is what the profile's assumption line says. A clicked place with no scenario loaded is priced at 868 MHz, and says so.
+**Answers** `from`, `to`, `ground`, `note`. It answers with the two labels as soon as the worker starts, and with the `ground` between them in the shape `terrain.ground` returns. Said rather than refused, unlike the rasters: this verb exists to answer before a warm has happened, and a cut-through with nothing under it is visibly flat. The cut-through and both margins arrive later through the internal `link.pair_set`, and there are two margins because there are two answers: each end's gain is evaluated on the bearing towards the other, so A to B and B to A can differ by tens of decibels on a beam. Both are best cases - bare earth, the calibrated excess loss, a default noise floor and no multipath - which is what the profile's assumption line says. A clicked place with no scenario loaded is priced at 868 MHz, and says so.
 
 **Example** - ask why two repeaters do or do not hear each other
 
@@ -2783,6 +2783,26 @@ Hold the finished cut-through for the panel to draw, or clear it where the analy
 **Answers** `from`, `to`, `km`, `edges`. Answers nothing at all when it is handed no profile, which is how a failed analysis takes the old picture off the panel rather than leaving one of the wrong pair there.
 
 **Client** none: the profile worker publishing its answer
+
+### `link.result`
+
+Read back the link the last link.pair or link.profile analysed: the cut-through's shape and both directions' margins, which the analysis already computes and only a panel could reach.
+
+**Takes** nothing.
+
+**Answers** `from`, `to`, `km`, `a_to_b_db`, `b_to_a_db`, `verdict`, `assumed`, `edges`, `samples`, `worst_at_km`, `directions`, `note`. why these two hear each other or do not, in both directions - a margin that does not say which direction is wrong even when the arithmetic is right
+
+**Example** - read back the cut-through and both margins of the link just analysed
+
+```json
+{"id":1,"method":"link.result","params":{}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.links.result()`
+
+Planned, not written: no client defines `wb.links` yet - the link matrix, one pair, and a terrain profile through it. Call the verb itself in the meantime.
 
 ### `links.recompute`
 

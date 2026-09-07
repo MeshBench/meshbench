@@ -2467,7 +2467,8 @@
       "returns": [
         "from",
         "to",
-        "ground"
+        "ground",
+        "note"
       ],
       "answers": "It answers with the two labels as soon as the worker starts, and with the `ground` between them in the shape `terrain.ground` returns. Said rather than refused, unlike the rasters: this verb exists to answer before a warm has happened, and a cut-through with nothing under it is visibly flat. The cut-through and both margins arrive later through the internal `link.pair_set`, and there are two margins because there are two answers: each end's gain is evaluated on the bearing towards the other, so A to B and B to A can differ by tens of decibels on a beam. Both are best cases - bare earth, the calibrated excess loss, a default noise floor and no multipath - which is what the profile's assumption line says. A clicked place with no scenario loaded is priced at 868 MHz, and says so.",
       "example": {
@@ -2509,6 +2510,28 @@
         "edges"
       ],
       "answers": "Answers nothing at all when it is handed no profile, which is how a failed analysis takes the old picture off the panel rather than leaving one of the wrong pair there."
+    },
+    "link.result": {
+      "what": "read back the link the last link.pair or link.profile analysed: the cut-through's shape and both directions' margins, which the analysis already computes and only a panel could reach",
+      "returns": [
+        "from",
+        "to",
+        "km",
+        "a_to_b_db",
+        "b_to_a_db",
+        "verdict",
+        "assumed",
+        "edges",
+        "samples",
+        "worst_at_km",
+        "directions",
+        "note"
+      ],
+      "answers": "why these two hear each other or do not, in both directions - a margin that does not say which direction is wrong even when the arithmetic is right",
+      "example": {
+        "params": {},
+        "what": "read back the cut-through and both margins of the link just analysed"
+      }
     },
     "links.recompute": {
       "what": "measure every pair's path loss again over the real terrain, which is what a moved node, a changed radio or a new calibration needs before any margin on screen means anything",

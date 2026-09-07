@@ -9,4 +9,5 @@ import "github.com/MeshBench/meshbench/internal/app/session"
 func init() {
 	session.RegisterDomain(registerLinkPair)
 	session.RegisterDomain(registerLinkProfile)
+	session.RegisterDomain(registerLinkResult)
 }

@@ -274,7 +274,8 @@
     "update.checked": "",
     "update.staged": "",
     "node.boardview": "wb.board_view(node)",
-    "board.reset": "node.device.reset()"
+    "board.reset": "node.device.reset()",
+    "link.result": "wb.links.result()"
   },
   "no_facade": {
     "node.reflashed": "the store telling itself a reflash finished",
