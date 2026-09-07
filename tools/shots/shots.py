@@ -19,12 +19,14 @@ One window at a time, deliberately. Several workbenches at once will make the
 control socket time out, which reads as a hung capture rather than as a
 loaded machine.
 
-It photographs the workbench and nothing else. Not "the active window": during
-a nine-second settle the active window is whatever the person at the keyboard
-last clicked, and this wrote two of those to disk under the names of panels
-before it was tightened. Every capture now identifies the workbench window,
-raises it, and refuses if it cannot - so a missing picture is the failure mode
-rather than a picture of something private.
+It photographs a window of the workbench and nothing else. The active window
+during a nine-second settle is whatever the person at the keyboard last
+clicked, and this wrote two of those to disk under the names of panels before
+it was tightened: a remote-desktop session, then a browser. The test is now
+that the window belongs to the process we launched - not that it carries a
+particular title, because half these steps are about another of our own
+windows and a popped-out panel is titled after the panel. A missing picture is
+the failure mode, which is the right one.
 """
 
 import argparse
@@ -45,14 +47,6 @@ STEPS = os.path.join(HERE, "steps.json")
 SETTLE = 9.0
 
 
-# The window we are entitled to photograph, by its exact title.
-#
-# Not a substring: a browser with the project open has "MeshBench" in its tab
-# titles and matched a looser search. Not --pid either, which looked like the
-# right handle and returned a stale id for a window that had already gone.
-WINDOW_TITLE = "^MeshBench workbench$"
-
-
 def _kdotool(*args):
     """One kdotool call, or "" if it is not installed or says nothing."""
     if not shutil.which("kdotool"):
@@ -65,42 +59,49 @@ def _kdotool(*args):
     return out.stdout.strip()
 
 
-def our_window():
-    """The id of the one workbench window, or "" if that is not what is there.
+def ours(pid):
+    """Every process id the capture may belong to: the workbench and its own.
 
-    Exactly one, deliberately. Two would mean a workbench from an earlier step
-    had not gone, and there would be no way to tell which of them the picture
-    was of.
+    A popped-out panel is a window of the same process, so one pid covers the
+    main window, the node windows and the board view alike.
     """
-    ids = [l for l in _kdotool("search", "--name", WINDOW_TITLE).splitlines() if l]
-    return ids[0] if len(ids) == 1 else ""
+    out = {pid}
+    try:
+        kids = subprocess.run(["pgrep", "-P", str(pid)], capture_output=True,
+                              text=True, timeout=5).stdout.split()
+        out |= {int(k) for k in kids}
+    except (subprocess.SubprocessError, ValueError):
+        pass
+    return out
 
 
-def capture(out):
-    """One picture of *our* window, or none at all.
+def capture(out, pid):
+    """One picture of a window belonging to *our* workbench, or none at all.
 
     It used to photograph whatever had focus. The intent was always
     window-only - a fullscreen grab takes the rest of the desktop with it, and
-    what is on the rest of the desktop is nobody's business - but `spectacle -a`
-    means "the active window", which during a nine-second settle is whatever the
-    person at the keyboard last clicked. On one run that was a remote-desktop
-    session and on the next a browser, both written to disk under the name of a
-    panel. A picture of the wrong window named after the right one is worse than
-    no picture, because it gets reviewed as though it were the right one.
+    what is on the rest of the desktop is nobody's business - but the active
+    window during a nine-second settle is whatever the person at the keyboard
+    last clicked. On one run that was a remote-desktop session and on the next
+    a browser, both written to disk under the name of a panel.
 
-    So the window is found, raised, and checked to still be the active one on
-    both sides of the shutter. Anything else refuses rather than guesses.
+    The test is ownership, not the title. Half these steps are *about* another
+    of our own windows - a popped-out panel is titled after the panel, a node
+    window after the node - so insisting on the main window's title would
+    photograph the wrong one of ours, which is the same fault wearing our own
+    colours. A pid cannot be borrowed by a browser that happens to have the
+    project open.
     """
-    win = our_window()
+    win = _kdotool("getactivewindow")
     if not win:
-        print("  no single workbench window to photograph"
-              " (is kdotool installed?)", file=sys.stderr)
+        print("  no active window to photograph (is kdotool installed?)",
+              file=sys.stderr)
         return False
-    _kdotool("windowactivate", win)
-    time.sleep(1.5)
-    if _kdotool("getactivewindow") != win:
-        print("  could not bring the workbench to the front; not photographing"
-              " whatever is there instead", file=sys.stderr)
+    owner = _kdotool("getwindowpid", win)
+    if not owner.isdigit() or int(owner) not in ours(pid):
+        name = _kdotool("getwindowname", win)
+        print(f"  the active window is not ours ({name!r}); not photographing it",
+              file=sys.stderr)
         return False
 
     if shutil.which("spectacle"):
@@ -126,7 +127,6 @@ def capture(out):
 
     after = _kdotool("getactivewindow")
     if ok and after and after != win:
-        # Something took focus mid-grab. What landed in the file is not ours.
         os.remove(out)
         print("  focus moved during the grab; the picture was discarded",
               file=sys.stderr)
@@ -188,13 +188,13 @@ def run(step, binary, fixture, outdir):
         if said := tail(errf):
             print("  the workbench refused something:", said, file=sys.stderr)
             return False
-        ok = capture(out)
+        ok = capture(out, proc.pid)
         if step.get("then"):
             # A step needing a click cannot be finished by a script: the
             # window is left up and the operator is told what to do with it.
             print("  left open -", step["then"])
             input("  press enter once done> ")
-            ok = capture(out)
+            ok = capture(out, proc.pid)
         return ok
     finally:
         proc.terminate()
