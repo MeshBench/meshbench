@@ -1,6 +1,7 @@
 package firmwarelib
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/firmware/emulated"
@@ -37,5 +38,19 @@ func TestOnlyABootableImageIsAChoice(t *testing.T) {
 	}}
 	if len(emulated.Runnable(uf2, nil)) != 1 {
 		t.Error("Runnable rejected an nRF52 .uf2, which is how those are published")
+	}
+}
+
+// The refusal names the real reason. Runnable leaves out more than bare
+// applications, and "no bootloader" about a merged BLE image sends somebody
+// looking for a partition table that is there.
+func TestTheRefusalNamesTheRealReason(t *testing.T) {
+	ble := emulated.BoardImage{Format: "bin", Merged: true, Transport: "ble"}
+	if got := notBootableBecause(ble); !strings.Contains(got, "Bluetooth") {
+		t.Errorf("a merged BLE image was refused for %q", got)
+	}
+	bare := emulated.BoardImage{Format: "bin", Merged: false}
+	if got := notBootableBecause(bare); !strings.Contains(got, "application on its own") {
+		t.Errorf("a bare application was refused for %q", got)
 	}
 }

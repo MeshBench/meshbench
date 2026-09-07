@@ -178,12 +178,8 @@ func downloadBuildProgress(ctx context.Context, role, version, board string,
 		// right there.
 		for _, img := range imgs {
 			if img.RoleName() == role && img.Board == board && img.Version == version {
-				return fmt.Errorf(
-					"the only %s %s published for %s is %s, which is the "+
-						"application on its own rather than a whole flash image: "+
-						"it starts at 0x10000 and a board starts from the "+
-						"bootloader. Nothing here can boot it",
-					role, version, board, img.Name)
+				return fmt.Errorf("the only %s %s published for %s is %s, which %s",
+					role, version, board, img.Name, notBootableBecause(img))
 			}
 		}
 		return fmt.Errorf("no %s build of %s for %s", role, version, board)
@@ -209,4 +205,24 @@ func downloadJob(role, version, board string) (id, what string) {
 		what += " for " + board
 	}
 	return id, what
+}
+
+// notBootableBecause is why Runnable left an image out, in the image's own
+// terms. Runnable excludes more than bare applications - a BLE companion is a
+// merged image it still refuses - and saying "no bootloader" about one of
+// those sends somebody looking for a partition table that is there.
+func notBootableBecause(img emulated.BoardImage) string {
+	switch {
+	case img.Transport == "ble":
+		return "expects a phone over Bluetooth, and there is no Bluetooth here: " +
+			"it boots and then waits for a client that cannot arrive. The usb " +
+			"build of the same companion is the one an emulator can use"
+	case img.Format == "bin" && !img.Merged:
+		return "is the application on its own rather than a whole flash image: " +
+			"it starts at 0x10000 and a board starts from the bootloader. " +
+			"Nothing here can boot it"
+	case img.Format != "bin" && img.Format != "uf2":
+		return "is a " + img.Format + " file, which neither emulator loads"
+	}
+	return "no emulator here can boot"
 }
