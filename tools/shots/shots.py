@@ -75,6 +75,87 @@ def ours(pid):
     return out
 
 
+def captureDarwin(out, pid):
+    """One window of ours, by window id, using the screencapture that ships
+    with macOS.
+
+    The id comes from Quartz's own window list, filtered to our process, so the
+    same ownership rule holds as on Linux: a picture is of our window or there
+    is no picture. Frontmost of ours, matching what the active-window route
+    does elsewhere - the list is returned in front-to-back order.
+    """
+    try:
+        import Quartz  # provided by pyobjc-framework-Quartz
+    except ImportError:
+        print("  macOS capture needs pyobjc-framework-Quartz "
+              "(pip install pyobjc-framework-Quartz)", file=sys.stderr)
+        return False
+    ours_pids = ours(pid)
+    info = Quartz.CGWindowListCopyWindowInfo(
+        Quartz.kCGWindowListOptionOnScreenOnly
+        | Quartz.kCGWindowListExcludeDesktopElements,
+        Quartz.kCGNullWindowID)
+    win = None
+    for w in info or []:
+        if int(w.get("kCGWindowOwnerPID", -1)) in ours_pids:
+            win = int(w["kCGWindowNumber"])
+            break
+    if win is None:
+        print("  no window of ours is on screen; not photographing anything",
+              file=sys.stderr)
+        return False
+    ok = subprocess.call(["screencapture", "-x", "-o", "-l", str(win), out],
+                         stderr=subprocess.DEVNULL) == 0
+    if not ok or not os.path.exists(out):
+        print("  screencapture wrote nothing. It needs Screen Recording "
+              "permission for the terminal running it (System Settings > "
+              "Privacy & Security), and fails with no prompt without it",
+              file=sys.stderr)
+        return False
+    return True
+
+
+# PowerShell that photographs one window by its handle, so nothing but our own
+# window reaches the file. GetWindowRect gives the box and CopyFromScreen takes
+# it; there is no window-only grab in the shell otherwise.
+WIN_CAPTURE = r"""
+param([int]$ProcId, [string]$Out)
+Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;using System.Runtime.InteropServices;
+public struct R{public int L,T,Ri,B;}
+public class W{
+ [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+}
+"@
+$p = Get-Process -Id $ProcId -ErrorAction Stop
+$h = $p.MainWindowHandle
+if ($h -eq 0) { Write-Error "no main window"; exit 1 }
+$r = New-Object R
+[void][W]::GetWindowRect($h, [ref]$r)
+$w = $r.Ri - $r.L; $ht = $r.B - $r.T
+if ($w -le 0 -or $ht -le 0) { Write-Error "window has no size"; exit 1 }
+$bmp = New-Object System.Drawing.Bitmap $w, $ht
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+$bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
+"""
+
+
+def captureWindows(out, pid):
+    """One window of ours, by the handle of a process we started."""
+    for p in ours(pid):
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", WIN_CAPTURE,
+             "-ProcId", str(p), "-Out", out],
+            capture_output=True, text=True)
+        if r.returncode == 0 and os.path.exists(out):
+            return True
+    print("  no window of ours could be photographed on Windows",
+          file=sys.stderr)
+    return False
+
+
 def capture(out, pid):
     """One picture of a window belonging to *our* workbench, or none at all.
 
@@ -91,7 +172,20 @@ def capture(out, pid):
     photograph the wrong one of ours, which is the same fault wearing our own
     colours. A pid cannot be borrowed by a browser that happens to have the
     project open.
+
+    Each platform keeps that rule its own way, because each has its own idea of
+    what a window is: kdotool's active window and its owning pid on Linux,
+    Quartz's on-screen window list filtered to our process on macOS, and the
+    main window handle of a process we started on Windows. The tool was
+    Linux-only by construction until those two existed, which made part two of
+    the release pass a check only one platform could ever carry out - and the
+    other two are where the last several passes found the most.
     """
+    if sys.platform == "darwin":
+        return captureDarwin(out, pid)
+    if os.name == "nt":
+        return captureWindows(out, pid)
+
     win = _kdotool("getactivewindow")
     if not win:
         print("  no active window to photograph (is kdotool installed?)",
@@ -137,6 +231,16 @@ def capture(out, pid):
 # What every launch writes to stderr and nobody needs to hear about.
 QUIET = ("session log:", "control socket:", "closing:")
 
+# Lines that are the machine talking about itself rather than the workbench
+# refusing anything.
+#
+# A GPU driver wgpu dislikes makes it chatty, and every one of those lines used
+# to be read as a refusal - so on a machine with an older Intel driver all 117
+# steps failed, each reported as "the workbench refused something", while the
+# window was up and perfectly usable. The refusal check is right to exist; it
+# just could not tell a warning from a refusal.
+NOISE = ("[wgpu]", "libEGL", "libGL", "MESA-", "xkbcommon:", "WARNING:", "warning:")
+
 
 def tail(path):
     """What the workbench said for itself, minus its own startup chatter."""
@@ -146,7 +250,8 @@ def tail(path):
     except OSError:
         return ""
     keep = [l for l in said.splitlines()
-            if l.strip() and not l.startswith(QUIET)]
+            if l.strip() and not l.startswith(QUIET)
+            and not l.lstrip().startswith(NOISE)]
     return " / ".join(keep)[-400:]
 
 
@@ -204,13 +309,28 @@ def run(step, binary, fixture, outdir):
             proc.kill()
 
 
+def defaultBinary():
+    """Where the binary is, under the name this platform builds it as.
+
+    `go build -o meshbench` produces meshbench.exe on Windows, and the path
+    checked had no extension - so the script refused before doing anything,
+    printing the build instruction that had just been followed.
+    """
+    plain = os.path.join(ROOT, "meshbench")
+    if os.name == "nt" or not os.path.exists(plain):
+        exe = plain + ".exe"
+        if os.path.exists(exe):
+            return exe
+    return plain
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("buckets", nargs="*", help="only these buckets")
     ap.add_argument("--list", action="store_true", help="say what would run")
     ap.add_argument("--out", default=os.path.join(ROOT, "shots"))
     ap.add_argument("--binary", default=os.environ.get(
-        "MESHBENCH_BINARY", os.path.join(ROOT, "meshbench")))
+        "MESHBENCH_BINARY", defaultBinary()))
     ap.add_argument("--fixture", default="fixture-fife-strict")
     a = ap.parse_args()
 
