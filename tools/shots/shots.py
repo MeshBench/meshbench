@@ -18,6 +18,13 @@ thing works. This launches the binary the way somebody would.
 One window at a time, deliberately. Several workbenches at once will make the
 control socket time out, which reads as a hung capture rather than as a
 loaded machine.
+
+It photographs the workbench and nothing else. Not "the active window": during
+a nine-second settle the active window is whatever the person at the keyboard
+last clicked, and this wrote two of those to disk under the names of panels
+before it was tightened. Every capture now identifies the workbench window,
+raises it, and refuses if it cannot - so a missing picture is the failure mode
+rather than a picture of something private.
 """
 
 import argparse
@@ -38,17 +45,93 @@ STEPS = os.path.join(HERE, "steps.json")
 SETTLE = 9.0
 
 
+# The window we are entitled to photograph, by its exact title.
+#
+# Not a substring: a browser with the project open has "MeshBench" in its tab
+# titles and matched a looser search. Not --pid either, which looked like the
+# right handle and returned a stale id for a window that had already gone.
+WINDOW_TITLE = "^MeshBench workbench$"
+
+
+def _kdotool(*args):
+    """One kdotool call, or "" if it is not installed or says nothing."""
+    if not shutil.which("kdotool"):
+        return ""
+    try:
+        out = subprocess.run(["kdotool", *args], capture_output=True,
+                             text=True, timeout=10)
+    except subprocess.SubprocessError:
+        return ""
+    return out.stdout.strip()
+
+
+def our_window():
+    """The id of the one workbench window, or "" if that is not what is there.
+
+    Exactly one, deliberately. Two would mean a workbench from an earlier step
+    had not gone, and there would be no way to tell which of them the picture
+    was of.
+    """
+    ids = [l for l in _kdotool("search", "--name", WINDOW_TITLE).splitlines() if l]
+    return ids[0] if len(ids) == 1 else ""
+
+
 def capture(out):
-    """One window-only picture. A fullscreen grab takes the rest of the desktop
-    with it, and what is on the rest of the desktop is nobody's business."""
+    """One picture of *our* window, or none at all.
+
+    It used to photograph whatever had focus. The intent was always
+    window-only - a fullscreen grab takes the rest of the desktop with it, and
+    what is on the rest of the desktop is nobody's business - but `spectacle -a`
+    means "the active window", which during a nine-second settle is whatever the
+    person at the keyboard last clicked. On one run that was a remote-desktop
+    session and on the next a browser, both written to disk under the name of a
+    panel. A picture of the wrong window named after the right one is worse than
+    no picture, because it gets reviewed as though it were the right one.
+
+    So the window is found, raised, and checked to still be the active one on
+    both sides of the shutter. Anything else refuses rather than guesses.
+    """
+    win = our_window()
+    if not win:
+        print("  no single workbench window to photograph"
+              " (is kdotool installed?)", file=sys.stderr)
+        return False
+    _kdotool("windowactivate", win)
+    time.sleep(1.5)
+    if _kdotool("getactivewindow") != win:
+        print("  could not bring the workbench to the front; not photographing"
+              " whatever is there instead", file=sys.stderr)
+        return False
+
     if shutil.which("spectacle"):
-        return subprocess.call(
+        ok = subprocess.call(
             ["spectacle", "-a", "--new-instance", "-b", "-n", "-o", out],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
-    if shutil.which("grim"):
-        return subprocess.call(["grim", out],
-                               stderr=subprocess.DEVNULL) == 0
-    sys.exit("no window capture tool found: install spectacle or grim")
+    elif shutil.which("grim"):
+        # grim with no geometry photographs the whole screen, which is the one
+        # thing this must not do. Only the geometry form is allowed.
+        geom = _kdotool("getwindowgeometry", "--shell", win)
+        box = dict(l.split("=", 1) for l in geom.splitlines() if "=" in l)
+        try:
+            x, y = int(box["X"]), int(box["Y"])
+            w, h = int(box["WIDTH"]), int(box["HEIGHT"])
+        except (KeyError, ValueError):
+            print("  grim needs the window geometry and kdotool did not give"
+                  " it; refusing to photograph the whole screen", file=sys.stderr)
+            return False
+        ok = subprocess.call(["grim", "-g", f"{x},{y} {w}x{h}", out],
+                             stderr=subprocess.DEVNULL) == 0
+    else:
+        sys.exit("no window capture tool found: install spectacle or grim")
+
+    after = _kdotool("getactivewindow")
+    if ok and after and after != win:
+        # Something took focus mid-grab. What landed in the file is not ours.
+        os.remove(out)
+        print("  focus moved during the grab; the picture was discarded",
+              file=sys.stderr)
+        return False
+    return ok
 
 
 # What every launch writes to stderr and nobody needs to hear about.
