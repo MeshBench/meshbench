@@ -10,6 +10,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -435,16 +436,40 @@ func pinFrom(nodes []scenario.Node, latest map[string]string) int {
 
 // latestNativeByRole is the newest installed host build per role.
 //
-// ListInstalled sorts by version ascending, so the last one seen for a role is
-// the newest by that ordering. Board images are skipped: an imported node has
-// no hardware named for it, and a board image only means anything alongside
-// the board it was built for.
+// Newest by the binary's own modification time, which is literally "the
+// newest build on this machine". Version order will not do: ListInstalled
+// sorts by the version string, and repeater-v1.17.1 sorts before
+// repeater-v1.9.0, so with both installed a string order pinned v1.9 and
+// called it the latest - and a local build, which sorts before every tag,
+// could never be the newest even when it was built this morning. Board images
+// are skipped: an imported node has no hardware named for it, and a board
+// image only means anything alongside the board it was built for.
 func latestNativeByRole() map[string]string {
+	installed := firmware.ListInstalled(firmware.DefaultCacheDir())
+	return newestByRole(installed, func(b firmware.Installed) time.Time {
+		fi, err := os.Stat(b.Path)
+		if err != nil {
+			return time.Time{}
+		}
+		return fi.ModTime()
+	})
+}
+
+// newestByRole is the decision on its own, with the clock injected, so it can
+// be tested without a firmware cache on disk.
+func newestByRole(installed []firmware.Installed,
+	builtAt func(firmware.Installed) time.Time) map[string]string {
 	out := map[string]string{}
-	for _, b := range firmware.ListInstalled(firmware.DefaultCacheDir()) {
+	when := map[string]time.Time{}
+	for _, b := range installed {
 		if !b.Native || b.Role == "" || b.Version == "" {
 			continue
 		}
+		at := builtAt(b)
+		if seen, ok := when[b.Role]; ok && !at.After(seen) {
+			continue
+		}
+		when[b.Role] = at
 		out[b.Role] = b.Version
 	}
 	return out

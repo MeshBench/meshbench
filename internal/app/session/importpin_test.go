@@ -2,6 +2,9 @@ package session
 
 import (
 	"testing"
+	"time"
+
+	"github.com/MeshBench/meshbench/internal/firmware"
 
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -57,5 +60,40 @@ func TestAnImportWithNoBuildsPinsNothing(t *testing.T) {
 	}
 	if nodes[0].Firmware.Version != "" {
 		t.Errorf("a node was pinned to %q from nothing", nodes[0].Firmware.Version)
+	}
+}
+
+// Newest by when it was built, not by the version string: repeater-v1.17.1
+// sorts before repeater-v1.9.0 as a string, and a local build sorts before
+// every tag however new it is.
+func TestTheNewestBuildIsByTimeNotByString(t *testing.T) {
+	built := map[string]time.Time{
+		"repeater-v1.9.0":    time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+		"repeater-v1.17.1":   time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+		"local-this-morning": time.Date(2026, 9, 7, 9, 0, 0, 0, time.UTC),
+		"companion-v1.17.1":  time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+	}
+	installed := []firmware.Installed{
+		{Native: true, Role: "simple_repeater", Version: "repeater-v1.17.1"},
+		{Native: true, Role: "simple_repeater", Version: "repeater-v1.9.0"},
+		{Native: true, Role: "companion_radio", Version: "companion-v1.17.1"},
+		// A board image never counts, however new.
+		{Native: false, Role: "simple_repeater", Version: "v9.9.9", Board: "Heltec_v3"},
+	}
+	at := func(b firmware.Installed) time.Time { return built[b.Version] }
+
+	got := newestByRole(installed, at)
+	if got["simple_repeater"] != "repeater-v1.17.1" {
+		t.Errorf("with v1.9 and v1.17 installed the newest repeater is %q", got["simple_repeater"])
+	}
+	if got["companion_radio"] != "companion-v1.17.1" {
+		t.Errorf("the newest companion is %q", got["companion_radio"])
+	}
+
+	// A local build made this morning is the newest build on this machine.
+	installed = append(installed, firmware.Installed{
+		Native: true, Role: "simple_repeater", Version: "local-this-morning"})
+	if got := newestByRole(installed, at)["simple_repeater"]; got != "local-this-morning" {
+		t.Errorf("a build made this morning lost to %q", got)
 	}
 }
