@@ -110,6 +110,11 @@ type Toolchain struct {
 	// tool, keyed by the tool's name, so a missing row reads as blocking
 	// rather than optional.
 	Needed map[string]int
+	// Find is the lookup a booting node does - the environment, then beside
+	// the binary, then the tools directory, then PATH. Injected so this
+	// package needs no emulator to be tested, and so the row and the node
+	// cannot answer differently about the same machine.
+	Find func(name string) (string, error)
 }
 
 func (t *Toolchain) Kind() Kind { return ToolchainKind }
@@ -127,6 +132,16 @@ func (r toolRelease) asset() (toolAsset, bool) {
 // take with it: the unpacked tree as well as the name the lookup finds.
 func (t *Toolchain) installedAt(r toolRelease) string {
 	return filepath.Join(t.Dir, r.Name)
+}
+
+// findElsewhere is the lookup a booting node does, injected rather than called
+// directly so this package stays testable without a machine that has the
+// tools on it. Nil means "only the cache counts", which is what a test wants.
+func (t *Toolchain) findElsewhere(name string) (string, error) {
+	if t.Find == nil {
+		return "", nil
+	}
+	return t.Find(name)
 }
 
 func (t *Toolchain) List(_ context.Context) ([]Row, error) {
@@ -163,6 +178,24 @@ func (t *Toolchain) row(r toolRelease) Row {
 	// not what the disk gave up: Renode unpacks to several times its download.
 	if n, err := treeBytes(t.installedAt(r), a, t.Dir); err == nil && n > 0 {
 		row.State, row.Path, row.Bytes, row.Estimated = OnDisk, t.installedAt(r), n, false
+		return row
+	}
+	// Not in the cache, which is not the same as not here.
+	//
+	// This looked only in the tools directory, and a release bundle carries
+	// the emulators beside the binary instead - so on every bundled install
+	// these rows said "needed" with no path, while setup.check, which asks the
+	// lookup a booting node asks, said ready and named where they were. Two
+	// verbs, one machine, opposite answers.
+	//
+	// Asked through the same function a node uses, for the reason its own
+	// comment gives: a readiness check that disagrees with the thing it is
+	// predicting is worse than no check.
+	if p, err := t.findElsewhere(r.Name); err == nil && p != "" {
+		row.State, row.Path = OnDisk, p
+		if fi, err := os.Stat(p); err == nil && fi.Size() > 0 {
+			row.Bytes, row.Estimated = fi.Size(), false
+		}
 		return row
 	}
 	if t.Needed[r.Name] > 0 {
