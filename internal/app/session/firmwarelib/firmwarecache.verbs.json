@@ -50,7 +50,7 @@
       "board",
       "job"
     ],
-    "answers": "It answers as soon as the fetch has been started, not when the file lands. Progress arrives on a job called `fw-<version>-<role>`, counted in kilobytes, and a failure is reported there rather than here; the installed list and the library are re-read either way.",
+    "answers": "It answers as soon as the fetch has been started, not when the file lands. Progress arrives on a job called `fw-<version>-<role>` for a host build and `fw-<version>-<role>-<board>` for a board image - one row per thing being downloaded, and the reply's `job` names it, counted in kilobytes, and a failure is reported there rather than here; the installed list and the library are re-read either way.",
     "example": {
       "params": {
         "role": "simple_repeater",

@@ -1753,7 +1753,7 @@ Fetch a published build now rather than at the moment a node first needs it, whi
 | `version` | string | required | the published release tag; refused when absent |
 | `board` | string | optional | the board image to fetch; absent means the native build for this machine |
 
-**Answers** `downloading`, `role`, `version`, `board`, `job`. It answers as soon as the fetch has been started, not when the file lands. Progress arrives on a job called `fw-<version>-<role>`, counted in kilobytes, and a failure is reported there rather than here; the installed list and the library are re-read either way.
+**Answers** `downloading`, `role`, `version`, `board`, `job`. It answers as soon as the fetch has been started, not when the file lands. Progress arrives on a job called `fw-<version>-<role>` for a host build and `fw-<version>-<role>-<board>` for a board image - one row per thing being downloaded, and the reply's `job` names it, counted in kilobytes, and a failure is reported there rather than here; the installed list and the library are re-read either way.
 
 **Example** - fetch a repeater build before working without a network
 
