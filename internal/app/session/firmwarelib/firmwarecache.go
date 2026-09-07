@@ -26,12 +26,17 @@ func registerFirmwareCache(st *state.Store, s *session.Sim) {
 		if role == "" || version == "" {
 			return nil, fmt.Errorf("firmware.download needs a role and a version")
 		}
-		id := "fw-" + version + "-" + role
-		w.Jobs = append(w.Jobs, state.Job{
-			ID: id, What: "downloading " + role + " " + version, Total: 1})
+		// The board is part of the id, because it is part of what is being
+		// downloaded. Without it every board image for one role and version
+		// shared a row, so downloading three boards in turn left three rows
+		// under one id: the second download's progress overwrote the first's
+		// "finished", the finished row came back to life as unfinished, and
+		// job.list never went idle again for the rest of the session. A host
+		// build has no board, and its id is unchanged.
+		id, what := downloadJob(role, version, board)
+		w.Jobs = append(w.Jobs, state.Job{ID: id, What: what, Total: 1})
 		go func() {
 			ctx := context.Background()
-			what := "downloading " + role + " " + version
 			// Bytes rather than one step: the job used to sit at 0 of 1 until
 			// the file landed, which on a slow link is what a stall looks
 			// like. Reported per whole percent by the catalogue.
@@ -43,6 +48,9 @@ func registerFirmwareCache(st *state.Store, s *session.Sim) {
 					})
 				})
 			done := "downloaded " + role + " " + version
+			if board != "" {
+				done += " for " + board
+			}
 			if err != nil {
 				done = "download failed: " + err.Error()
 			}
@@ -57,7 +65,8 @@ func registerFirmwareCache(st *state.Store, s *session.Sim) {
 			_, _ = st.Do(ctx, "firmware.installed", nil)
 			_, _ = st.Do(ctx, "firmware.library", nil)
 		}()
-		return map[string]any{"downloading": true, "role": role, "version": version}, nil
+		return map[string]any{"downloading": true, "role": role,
+			"version": version, "board": board, "job": id}, nil
 	})
 
 	st.Handle("firmware.import", func(w *state.World, p any) (any, error) {
@@ -156,4 +165,22 @@ func downloadBuildProgress(ctx context.Context, role, version, board string,
 	nc := &firmware.NativeCatalogue{CacheDir: cache}
 	_, err := nc.Ensure(ctx, role, version)
 	return err
+}
+
+// downloadJob is one download's row: its id and what it says it is doing.
+//
+// The board is part of both, because it is part of what is being downloaded.
+// Without it every board image for one role and version shared a row, so
+// downloading three boards in turn left three rows under one id: the second
+// download's progress overwrote the first's "finished", the finished row came
+// back to life as unfinished, and job.list never went idle again for the rest
+// of the session. A host build has no board and keeps the id it had.
+func downloadJob(role, version, board string) (id, what string) {
+	id = "fw-" + version + "-" + role
+	what = "downloading " + role + " " + version
+	if board != "" {
+		id += "-" + board
+		what += " for " + board
+	}
+	return id, what
 }
