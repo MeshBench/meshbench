@@ -21,6 +21,23 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The emulator pin moves to `sx1262-15`, and ESP32 boards boot again.** The
+  UART's `apb_freq` was a static qdev property, and the classic ESP32's clock
+  handler sets it when the second-stage bootloader switches to the PLL - long
+  after realize, where qdev aborts rather than refuses. Every ESP32 board on
+  Linux, macOS and Windows died at hand-over on "Attempt to set property
+  'apb_freq' ... after it was realized", with an empty console because the
+  firmware had not printed a line yet. The property is now registered the way
+  the two timer devices beside it always have been, and the fork's CI runs the
+  binary against every device that clock handler writes to, on a pull request
+  as well as on a tag.
+- **A node dropped from a run says what the emulator said.** "Stopped
+  answering and has been dropped from this run" is equally true of a board
+  whose firmware hung and one whose emulator never got past reset, and the
+  second one's reason was already on disk with nothing pointing at it.
+
 ## [0.0.10] - 2026-09-07
 
 The last of the Windows pass, and the board status the published pages were
