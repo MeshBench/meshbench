@@ -790,9 +790,9 @@ Open one node's own window, the thing people put on a second monitor.
 | parameter | type | | what |
 |---|---|---|---|
 | `node` | string | required, primary | which node |
-| `tab` | string | optional | which tab to open on; the window's default when absent |
+| `tab` | string | optional | which tab to open on, and which tab to switch to when the window is already out there; the window's default when absent |
 
-**Answers** `node`, `tab`, `console`. `tab` is the tab this request settled on, which is not always the one asked for: a node whose board declares nothing grows no Hardware tab, an observer has no console, and a request for a tab the node has not got lands on the first one it does have. A window already open is recalled rather than reopened, and keeps whatever tab it is showing; `tab` is still what the request settled on. Refused outright in a headless session, there being no window to open one beside.
+**Answers** `node`, `tab`, `console`. `tab` is the tab this request settled on, which is not always the one asked for: a node whose board declares nothing grows no Hardware tab, an observer has no console, and a request for a tab the node has not got lands on the first one it does have. A window already open is recalled rather than reopened, and switches to the tab asked for; `tab` is what the request settled on, which the window then shows. Refused outright in a headless session, there being no window to open one beside.
 
 **Example** - put one node on a second monitor
 

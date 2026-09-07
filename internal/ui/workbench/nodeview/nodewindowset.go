@@ -6,6 +6,8 @@
 package nodeview
 
 import (
+	"sync"
+
 	"image"
 
 	"gioui.org/io/key"
@@ -19,10 +21,38 @@ import (
 // rather than opening a duplicate.
 type WindowSet struct {
 	*shell.WindowRegistry
+	mu sync.Mutex
+	// wantTab is the tab a window already open has been asked to switch to.
+	//
+	// A wish rather than an action, like the registry's own raising and
+	// closing and for the same reason: the window belongs to another event
+	// loop, and writing its state from this goroutine is a data race. The
+	// window takes it on its next frame.
+	wantTab map[string]Tab
 }
 
 func NewWindowSet() *WindowSet {
-	return &WindowSet{WindowRegistry: shell.NewWindowRegistry()}
+	return &WindowSet{WindowRegistry: shell.NewWindowRegistry(),
+		wantTab: map[string]Tab{}}
+}
+
+// askTab leaves a wish for an open window to change tab.
+func (w *WindowSet) askTab(node string, tab Tab) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.wantTab == nil {
+		w.wantTab = map[string]Tab{}
+	}
+	w.wantTab[node] = tab
+}
+
+// takeTab collects that wish, once.
+func (w *WindowSet) takeTab(node string) (Tab, bool) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	tab, ok := w.wantTab[node]
+	delete(w.wantTab, node)
+	return tab, ok
 }
 
 // WindowHooks is how a node window reaches the rest of the application.
@@ -58,15 +88,20 @@ func (w *WindowSet) OpenFor(node string, tab Tab,
 	// than a second opinion that can drift from it.
 	p.hasHardware = p.boardPanel(st.Snapshot()).HasAnything()
 	p.Tab = settleTab(tab, p.visibleTabs())
+	p.set = w
 	// Already out there: recall it rather than doing nothing. A second press
 	// used to return in silence, which is indistinguishable from a dead menu
 	// entry - and for a layered window dragged out of reach, the recall is
 	// the only way back.
 	//
-	// A recalled window keeps the tab it is on, which may be one somebody
-	// clicked to since. What comes back is what this request settled on, and
-	// the verb's own description says which of the two it is.
+	// The recalled window is also switched to the tab it was asked for. It
+	// used to keep whatever tab it was on while this returned the tab that had
+	// been requested, so a caller naming one was told it had what it asked for
+	// and nothing moved. Every panel and section here is reachable by flag and
+	// by verb precisely so a capture can reach it, and a window that ignores
+	// the argument it was given cannot be driven onto a pane.
 	if !w.Claim(node) {
+		w.askTab(node, p.Tab)
 		return p.Tab
 	}
 	go shell.RunPopout(w.WindowRegistry, shell.Popout{

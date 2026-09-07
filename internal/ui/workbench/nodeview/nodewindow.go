@@ -25,6 +25,9 @@ type WindowPanel struct {
 	Node string
 	Tab  Tab
 	tabs [numNodeTabs]widget.Clickable
+	// set is the window set this panel belongs to, for the tab a later
+	// node.window asked it to switch to while it was already open.
+	set *WindowSet
 	// radioScroll is the Radio tab's own list state.
 	radioScroll widget.List
 	Companion   companionTab
@@ -211,6 +214,14 @@ func (p *WindowPanel) clicks(gtx layout.Context) {
 }
 
 func (p *WindowPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
+	// A tab this window was asked for while it was already open. Taken here
+	// rather than written from the caller's goroutine, because this window
+	// runs its own event loop.
+	if p.set != nil {
+		if tab, ok := p.set.takeTab(p.Node); ok {
+			p.Tab = tab
+		}
+	}
 	// A companion has no console tab, and TabConsole is the zero value every
 	// window opens on - left alone it would draw a pane its own strip does
 	// not offer.
