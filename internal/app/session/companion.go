@@ -55,7 +55,6 @@ func registerCompanion(st *state.Store, s *Sim) {
 		// watching; a script sees only what comes back, and a caller whose
 		// endpoint has just stopped answering should not have to infer it
 		// from a connection refused several steps later.
-		tookPort := false
 		took, err := s.takeIdlePort(node)
 		if err != nil {
 			return nil, err
@@ -63,7 +62,6 @@ func registerCompanion(st *state.Store, s *Sim) {
 		if took {
 			w.Endpoints = s.endpoints()
 			w.Say("took " + node + "'s port back from an idle listener")
-			tookPort = true
 		}
 		c := &compSession{node: node}
 		c.release = en.Firmware.Bridge.Claim(c)
@@ -103,7 +101,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		s.publishCompanions(w)
 		w.Say("connected to " + node + " as a companion")
 		out := map[string]any{"connected": node}
-		if tookPort {
+		if took {
 			out["took_port"] = true
 			out["note"] = node + " was being served to nobody, so its port was taken back; " +
 				"bench.serve gives it out again"
