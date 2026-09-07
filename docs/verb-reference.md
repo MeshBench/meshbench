@@ -2792,6 +2792,14 @@ Read back the link the last link.pair or link.profile analysed: the cut-through'
 
 **Answers** `from`, `to`, `km`, `a_to_b_db`, `b_to_a_db`, `verdict`, `assumed`, `edges`, `samples`, `worst_at_km`, `directions`, `note`. why these two hear each other or do not, in both directions - a margin that does not say which direction is wrong even when the arithmetic is right
 
+**Example** - read back the cut-through and both margins of the link just analysed
+
+```json
+{"id":1,"method":"link.result","params":{}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
 **Client** `wb.links.result()`
 
 Planned, not written: no client defines `wb.links` yet - the link matrix, one pair, and a terrain profile through it. Call the verb itself in the meantime.

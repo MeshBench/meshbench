@@ -57,6 +57,10 @@
       "directions",
       "note"
     ],
-    "answers": "why these two hear each other or do not, in both directions - a margin that does not say which direction is wrong even when the arithmetic is right"
+    "answers": "why these two hear each other or do not, in both directions - a margin that does not say which direction is wrong even when the arithmetic is right",
+    "example": {
+      "params": {},
+      "what": "read back the cut-through and both margins of the link just analysed"
+    }
   }
 }
