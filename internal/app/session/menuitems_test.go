@@ -35,24 +35,30 @@ func TestMenuItemsWorkWithNoParameters(t *testing.T) {
 	// runs, because the verb needs something a menu entry cannot carry. They
 	// must fail without it - a verb that quietly invents a name or a pair of
 	// nodes is worse than one that refuses.
+	// gates marks the entries that may refuse because the machine is not ready
+	// for them - no build downloaded for a role, say. That refusal is the
+	// feature: starting anyway leaves half a mesh up and the run measuring a
+	// network that does not exist. What it must not do is refuse without
+	// saying what to do about it, which is what is asserted below.
 	items := []struct {
 		menu, label, verb string
 		asks              bool
+		gates             bool
 	}{
-		{"File", "Open a saved network", "project.open", true},
-		{"File", "Save this network", "project.save", true},
-		{"File", "Save this run", "run.save", false},
-		{"File", "Export the event log", "events.dump", false},
-		{"Simulation", "One step", "sim.step", false},
-		{"Simulation", "Back to the start", "sim.reset", false},
-		{"Simulation", "Start firmware on every node", "firmware.start", false},
-		{"Simulation", "Wipe every node's memory", "firmware.wipe", false},
-		{"Simulation", "Originate a packet", "sim.inject", false},
-		{"Simulation", "Capture the waterfall", "waterfall.capture", false},
-		{"Simulation", "Capture to a pcapng file", "capture.file", false},
-		{"Repeaters", "Coverage from the selection", "coverage.compute", false},
-		{"Planning", "Routes between two selected nodes", "plan.routes", true},
-		{"Help", "What this run assumes", "panel.Configuration", false},
+		{"File", "Open a saved network", "project.open", true, false},
+		{"File", "Save this network", "project.save", true, false},
+		{"File", "Save this run", "run.save", false, false},
+		{"File", "Export the event log", "events.dump", false, false},
+		{"Simulation", "One step", "sim.step", false, false},
+		{"Simulation", "Back to the start", "sim.reset", false, false},
+		{"Simulation", "Start firmware on every node", "firmware.start", false, true},
+		{"Simulation", "Wipe every node's memory", "firmware.wipe", false, false},
+		{"Simulation", "Originate a packet", "sim.inject", false, false},
+		{"Simulation", "Capture the waterfall", "waterfall.capture", false, false},
+		{"Simulation", "Capture to a pcapng file", "capture.file", false, false},
+		{"Repeaters", "Coverage from the selection", "coverage.compute", false, false},
+		{"Planning", "Routes between two selected nodes", "plan.routes", true, false},
+		{"Help", "What this run assumes", "panel.Configuration", false, false},
 	}
 
 	var broken []string
@@ -69,6 +75,17 @@ func TestMenuItemsWorkWithNoParameters(t *testing.T) {
 			} else {
 				t.Logf("asks %s > %s: %v", it.menu, it.label, err)
 			}
+			continue
+		}
+		if err != nil && it.gates {
+			// A refusal an operator can act on, or it is no better than a
+			// failure: every refusal in this application says why.
+			if !strings.Contains(err.Error(), "Firmware panel") {
+				broken = append(broken, it.menu+" > "+it.label+
+					" refused without saying what to do: "+err.Error())
+				continue
+			}
+			t.Logf("gate %s > %s: %v", it.menu, it.label, err)
 			continue
 		}
 		if err != nil {
