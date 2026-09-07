@@ -144,3 +144,22 @@ func termsOf(in []linkbudget.Term) []state.BudgetTerm {
 	}
 	return out
 }
+
+// EventLedger is every event the engine still holds, for a caller writing them
+// all out rather than drawing them.
+//
+// Separate from eventTail, which exists to bound what the tables draw. The two
+// answer different questions and conflating them is what made events.dump
+// write the last two thousand of a run and call it the run.
+func (s *Sim) EventLedger() ([]state.Event, int) {
+	if s.liveEngine() == nil {
+		return nil, 0
+	}
+	// One read, not two. Asking for the total and then for that many events
+	// took the engine's lock twice, and a run records events between the two
+	// from another goroutine - so the second call returned the last N of a
+	// slice that had since grown, a window shifted by however many arrived in
+	// between, under a count from before they did. EventsTail clamps a large
+	// n to what there is, so one call returns everything and the true total.
+	return s.eventTail(math.MaxInt32)
+}

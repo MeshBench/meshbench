@@ -74,17 +74,34 @@ func registerInventory(st *state.Store, s *session.Sim) {
 			return nil, err
 		}
 		defer func() { _ = f.Close() }()
+		// The engine's own ledger, not the snapshot's.
+		//
+		// The snapshot keeps a bounded tail because the tables draw from it,
+		// and this wrote that tail: a run of 2732 events produced a file of
+		// 2000 and said so honestly, which is not the same as being useful.
+		// Writing to a file has no drawing budget to protect, and this is the
+		// documented way to get a run's whole ledger out for analysis, so it
+		// takes everything the engine still holds.
+		//
+		// It falls back to the snapshot when there is no live engine - a
+		// loaded capture has a readout and nothing behind it - so a dump after
+		// a run has finished still writes what is there.
+		evs, total := w.Events, w.EventTotal
+		if all, n := s.EventLedger(); all != nil {
+			evs, total = all, n
+		}
 		enc := json.NewEncoder(f)
-		for _, e := range w.Events {
+		for _, e := range evs {
 			if err := enc.Encode(eventAsMap(e)); err != nil {
 				return nil, fmt.Errorf("writing %s: %w", path, err)
 			}
 		}
-		// The count written, not the count that exists: the store keeps a
-		// bounded tail, and a caller told "38,000 events" who receives 2,000
-		// lines would reasonably think the file was truncated by a bug.
+		// The count written beside the count that exists, still: they can
+		// differ when the engine has retired events of its own, and a caller
+		// told "38,000" who receives fewer lines would reasonably think the
+		// file was truncated by a bug.
 		return map[string]any{
-			"path": path, "written": len(w.Events), "total": w.EventTotal,
+			"path": path, "written": len(evs), "total": total,
 		}, nil
 	})
 }

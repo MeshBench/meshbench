@@ -187,3 +187,11 @@ func (e *Engine) EventCounts() map[Class]int {
 	}
 	return out
 }
+
+// RecordForTest puts one event straight into the ledger.
+//
+// The engine records events as a side effect of running a mesh, which is more
+// apparatus than a test about the ledger itself needs. Exported rather than
+// reached through a same-package test because the readout that reads it lives
+// in another package.
+func (e *Engine) RecordForTest(ev Event) { e.record(ev) }
