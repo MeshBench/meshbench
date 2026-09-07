@@ -239,7 +239,7 @@ Two verbs are **not** in this table:
 | `companion.add_channel` | *a bare string*, `node` string, `index` number | `asked_for_channel` | `node.companion.add_channel(index)` |
 | `companion.advert` | *a bare string*, `node` string, `flood` bool | `advert`, `flood` | `node.companion.advert(flood=False)` |
 | `companion.configure` | *a bare string*, `node` string, `name` string, `lat` number, `lon` number, `tx_dbm` number, `freq_khz` number, `bw_khz` number, `sf` number, `cr` number, `path_hash` number | `set` | `node.companion.configure(...)` |
-| `companion.connect` | *a bare string*, `node` string | `connected` | `node.companion.connect()` |
+| `companion.connect` | *a bare string*, `node` string | `connected`, `took_port`, `note` | `node.companion.connect()` |
 | `companion.disconnect` | *a bare string*, `node` string | `disconnected` | `node.companion.disconnect()` |
 | `companion.raw` | *a bare string*, `node` string, `bytes` array | `sent_bytes` | `node.companion.raw(bytes)` |
 | `companion.read` | *a bare string*, `node` string, `channel` number | `node`, `channel` | `node.companion.messages(channel=)` |

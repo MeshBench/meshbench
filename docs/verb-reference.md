@@ -2225,7 +2225,7 @@ Claim a node's serial port for the companion protocol and make the same opening 
 |---|---|---|---|
 | `node` | string | required, primary | the node to attach to; refused when it is absent, runs no firmware, is already connected, or its port is being served to an attached outside client |
 
-**Answers** `connected`. A listener that is serving the port but has nobody on it is taken back rather than refused. Everything the node says in reply arrives later as frames, so read it with `companion.state`.
+**Answers** `connected`, `took_port`, `note`. A listener that is serving the port but has nobody on it is taken back rather than refused. Everything the node says in reply arrives later as frames, so read it with `companion.state`.
 
 **Example** - attach to a node the way a phone would
 

@@ -121,10 +121,13 @@ func (s *Sim) connectCompanion(node string) error {
 	if _, already := s.comps[node]; already {
 		return nil
 	}
-	// The same refusal companion.connect makes: typing a CLI line must not
-	// quietly take the port from an attached outside client.
-	if _, serving := s.servedLink(node); serving {
-		return fmt.Errorf("%s is being served to an outside client; stop serving first", node)
+	// The same rule companion.connect makes, from the same function: typing a
+	// CLI line must not quietly take the port from an attached outside client,
+	// and must not be refused by an idle listener either. This used to refuse
+	// on merely served, so a node whose port was served to nobody could not be
+	// typed at at all.
+	if _, err := s.takeIdlePort(node); err != nil {
+		return err
 	}
 	if s.eng == nil {
 		return fmt.Errorf("no network loaded")
