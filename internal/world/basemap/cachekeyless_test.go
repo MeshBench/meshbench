@@ -27,14 +27,36 @@ func TestAKeylessTileIsCachedApartFromAKeyedOne(t *testing.T) {
 		t.Fatalf("both fetches cache under %q, so a keyless run poisons a "+
 			"keyed one for ever", keyed)
 	}
-	if keyed != carto.ID {
-		t.Errorf("a keyed build caches under %q, not the layer's own id %q - "+
-			"which would strand every tile already fetched correctly",
-			keyed, carto.ID)
+	for _, d := range []string{keyed, keyless} {
+		if !strings.Contains(d, carto.ID) {
+			t.Errorf("the directory %q does not name the layer, so what is in "+
+				"it cannot be recognised", d)
+		}
 	}
-	if !strings.Contains(keyless, carto.ID) {
-		t.Errorf("the keyless directory %q does not name the layer, so what "+
-			"is in it cannot be recognised", keyless)
+}
+
+// Neither side keeps the layer's bare id, because that is where the mixed
+// tiles already are.
+//
+// The first fix left the keyed build on l.ID so tiles already fetched
+// correctly were not stranded. But every tile written before the split is in
+// that directory, keyed and keyless together and nothing to tell them apart -
+// so a keyed build reading it still serves whatever a keyless run left there,
+// which is the machine this was reported from. Retiring the id costs a refetch
+// of the tiles somebody actually looks at; keeping it costs the fix.
+func TestNeitherSideReadsWhatWasCachedBeforeTheSplit(t *testing.T) {
+	carto := Layer{ID: "carto-dark",
+		URL: "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"}
+
+	t.Setenv("MESHBENCH_CARTO_KEY", "a-real-key")
+	if got := cacheDirFor(carto); got == carto.ID {
+		t.Errorf("a keyed build still reads %q, where the pre-split tiles are, "+
+			"so a poisoned cache stays poisoned", got)
+	}
+	t.Setenv("MESHBENCH_CARTO_KEY", "")
+	if got := cacheDirFor(carto); got == carto.ID {
+		t.Errorf("a keyless build still writes to %q, where a keyed build "+
+			"used to read", got)
 	}
 }
 
