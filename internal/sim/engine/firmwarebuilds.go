@@ -15,12 +15,21 @@ import (
 )
 
 // FirmwareCount is how many nodes are running a real build.
+//
+// A node the run has dropped does not count. It used to: a process that had
+// gone still had its Firmware set, because markFirmwareDown records the name
+// and leaves the field alone so the bridge can still be closed. So the count
+// stayed at its full figure for the whole life of a run in which a node was
+// dead from the first tick - and firmware.state is what a script waits on
+// before it measures anything, so the answer to "is the mesh up" was yes on a
+// mesh that was not. Four minutes of a fifty-six node figure, with one of the
+// fifty-six aborted at hand-over, is how it was found.
 func (e *Engine) FirmwareCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	n := 0
 	for _, node := range e.nodes {
-		if node.Firmware != nil {
+		if node.Firmware != nil && !e.firmwareDown[node.specRef().Name] {
 			n++
 		}
 	}
