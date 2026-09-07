@@ -35,6 +35,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -70,7 +71,10 @@ def ours(pid):
         kids = subprocess.run(["pgrep", "-P", str(pid)], capture_output=True,
                               text=True, timeout=5).stdout.split()
         out |= {int(k) for k in kids}
-    except (subprocess.SubprocessError, ValueError):
+    except (OSError, subprocess.SubprocessError, ValueError):
+        # OSError covers FileNotFoundError, which is what a machine with no
+        # pgrep raises - Windows. It is not a SubprocessError, so it used to
+        # come out of here as a traceback rather than as one pid.
         pass
     return out
 
@@ -119,39 +123,105 @@ def captureDarwin(out, pid):
 # window reaches the file. GetWindowRect gives the box and CopyFromScreen takes
 # it; there is no window-only grab in the shell otherwise.
 WIN_CAPTURE = r"""
-param([int]$ProcId, [string]$Out)
+param([string]$ProcIds, [string]$Out)
+# The window this photographs has to be *the* window of ours the step is
+# about, not merely one of ours. Process.MainWindowHandle is always the
+# workbench's own window, and 49 of the 115 steps are about another window of
+# the same process - a popped-out panel, a node window, the board view - so
+# taking the main handle would file the workbench under the popout's name.
+# That is the "wrong one of ours" fault the ownership rule exists to stop,
+# wearing our own colours.
+#
+# EnumWindows returns top-level windows in Z-order, topmost first. Ours is the
+# foreground window when the workbench has just opened one, and the topmost of
+# ours otherwise, which is the same rule the other two platforms keep: the
+# active window on Linux, front-to-back order on macOS.
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
-using System;using System.Runtime.InteropServices;
-public struct R{public int L,T,Ri,B;}
-public class W{
- [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public struct R { public int L, T, Ri, B; }
+public class W {
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr l);
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  public static uint PidOf(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
+  public static List<IntPtr> Visible() {
+    List<IntPtr> found = new List<IntPtr>();
+    EnumWindows(delegate(IntPtr h, IntPtr l) {
+      if (IsWindowVisible(h)) { found.Add(h); }
+      return true;
+    }, IntPtr.Zero);
+    return found;
+  }
 }
 "@
-$p = Get-Process -Id $ProcId -ErrorAction Stop
-$h = $p.MainWindowHandle
-if ($h -eq 0) { Write-Error "no main window"; exit 1 }
+$mine = @{}
+foreach ($p in $ProcIds.Split(',')) { if ($p) { $mine[[uint32]$p] = $true } }
+
+# A window with no size is a tooltip, a shadow or a menu overlay, and is never
+# what a step is about. The same trap the macOS list has.
+function Usable([IntPtr]$h) {
+  if (-not $mine.ContainsKey([W]::PidOf($h))) { return $false }
+  $r = New-Object R
+  if (-not [W]::GetWindowRect($h, [ref]$r)) { return $false }
+  return (($r.Ri - $r.L) -gt 64) -and (($r.B - $r.T) -gt 64)
+}
+
+$h = [IntPtr]::Zero
+$fg = [W]::GetForegroundWindow()
+if ($fg -ne [IntPtr]::Zero -and (Usable $fg)) {
+  $h = $fg
+} else {
+  foreach ($w in [W]::Visible()) { if (Usable $w) { $h = $w; break } }
+}
+if ($h -eq [IntPtr]::Zero) { Write-Error "no window of ours on screen"; exit 1 }
+
 $r = New-Object R
 [void][W]::GetWindowRect($h, [ref]$r)
 $w = $r.Ri - $r.L; $ht = $r.B - $r.T
-if ($w -le 0 -or $ht -le 0) { Write-Error "window has no size"; exit 1 }
 $bmp = New-Object System.Drawing.Bitmap $w, $ht
 $g = [System.Drawing.Graphics]::FromImage($bmp)
 $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
 $bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose(); $bmp.Dispose()
 """
 
 
 def captureWindows(out, pid):
-    """One window of ours, by the handle of a process we started."""
-    for p in ours(pid):
+    """One window of ours, chosen among the top-level windows of our pids.
+
+    Through a file rather than -Command. A leading param() block does not bind
+    under -Command: PowerShell reads the rest of the line as more command text,
+    so -ProcId arrived as nothing, Get-Process -Id 0 was the Idle process, and
+    every step reported "no main window" while the workbench sat there.
+    """
+    fd, script = tempfile.mkstemp(prefix="shots-", suffix=".ps1")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(WIN_CAPTURE)
+        # All our pids in one call: the chooser wants to see every candidate
+        # window at once to pick the foreground one, which it cannot do if it
+        # is handed a pid at a time.
         r = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", WIN_CAPTURE,
-             "-ProcId", str(p), "-Out", out],
+            ["powershell", "-NoProfile", "-NonInteractive",
+             "-ExecutionPolicy", "Bypass", "-File", script,
+             "-ProcIds", ",".join(str(p) for p in sorted(ours(pid))),
+             "-Out", out],
             capture_output=True, text=True)
-        if r.returncode == 0 and os.path.exists(out):
-            return True
-    print("  no window of ours could be photographed on Windows",
+    finally:
+        try:
+            os.unlink(script)
+        except OSError:
+            pass
+    if r.returncode == 0 and os.path.exists(out):
+        return True
+    print("  no window of ours could be photographed on Windows:",
+          (r.stderr or r.stdout).strip().splitlines()[-1] if (r.stderr or r.stdout).strip() else "no output",
           file=sys.stderr)
     return False
 
