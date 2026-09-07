@@ -25,9 +25,16 @@ func statRows(stats []state.NodeStat) []map[string]any {
 		out = append(out, map[string]any{
 			"name": n.Name, "backend": n.Backend, "firmware": n.Firmware,
 			"running": n.Running, "state": st, "board": n.Board,
-			"pid": n.PID, "rss_bytes": n.RSSBytes, "cpu_ms": n.CPUms,
-			"cpu_pct": n.CPUPct,
-			"sent":    n.Sent, "heard": n.Heard,
+			"pid": n.PID,
+			// Absent rather than zero where nothing measured them. A caller
+			// reading a number believes it, and 0 CPU for every node on a Mac
+			// is not a light mesh, it is a sampler that reads /proc on a
+			// platform that has none.
+			"rss_bytes":     costOrNil(n.CostMeasured, float64(n.RSSBytes)),
+			"cpu_ms":        costOrNil(n.CostMeasured, float64(n.CPUms)),
+			"cpu_pct":       costOrNil(n.CostMeasured, n.CPUPct),
+			"cost_measured": n.CostMeasured,
+			"sent":          n.Sent, "heard": n.Heard,
 			"last_sent_ms": n.LastSentMs, "last_heard_ms": n.LastHeardMs,
 			"last_sent_to": n.LastSentTo, "last_heard_from": n.LastHeardFrom,
 			// The chip's own counters: the only way to tell a busy mesh from
@@ -37,4 +44,12 @@ func statRows(stats []state.NodeStat) []map[string]any {
 		})
 	}
 	return out
+}
+
+// costOrNil is a reading, or nothing where there was no reading to take.
+func costOrNil(measured bool, v float64) any {
+	if !measured {
+		return nil
+	}
+	return v
 }
