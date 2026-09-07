@@ -108,19 +108,36 @@ func (s *Store) path(l Layer, z, x, y int) string {
 // installed afterwards re-served them for ever. The map looked keyless on a
 // machine whose key was working perfectly.
 //
-// Separating them fixes it in both directions and needs no migration: a keyed
-// build stops reading what a keyless one wrote, a keyless build keeps its own
-// tiles rather than poisoning the good ones, and whatever is already poisoned
-// simply stops being looked at.
+// Separating them fixes it in both directions: a keyed build stops reading what
+// a keyless one wrote, and a keyless build keeps its own tiles rather than
+// poisoning the good ones.
+//
+// Both sides move off the layer's bare id, and that is the point rather than an
+// accident. The first version of this kept the keyed build on l.ID so that
+// tiles already fetched correctly were not stranded - but every tile written
+// before this distinction existed is in that directory, keyed and keyless
+// mixed, with nothing to tell them apart. Leaving the keyed build there means
+// the machines this was reported from - the ones that already have a poisoned
+// cache - are the ones it does not fix, and they cannot be told from the rest.
+// So the bare id is retired: read by neither, and what a machine refetches is
+// the tiles it happens to look at, a few kilobytes each, on demand.
+//
+// The stranded directory is left where it is rather than deleted. It is a
+// cache, the Resources page counts it and offers to remove it, and quietly
+// deleting a user's files to reclaim a megabyte is a worse trade than leaving
+// one visible on a page built to show exactly this.
 //
 // Only for the layers where it is true. A tile server that does not take a key
 // serves the same bytes either way, and splitting its cache would double the
 // disk for nothing.
 func cacheDirFor(l Layer) string {
-	if wantsCartoKey(l) && CartoKey() == "" {
+	if !wantsCartoKey(l) {
+		return l.ID
+	}
+	if CartoKey() == "" {
 		return l.ID + "-keyless"
 	}
-	return l.ID
+	return l.ID + "-keyed"
 }
 
 // wantsCartoKey reports whether this layer's tiles come from CARTO, which is
