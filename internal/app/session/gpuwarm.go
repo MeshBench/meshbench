@@ -302,6 +302,8 @@ func (s *Sim) gpuState() map[string]any {
 	} else {
 		out["why"] = probe.why
 	}
+	// A warm that was skipped because nothing needed measuring has no device
+	// and a reason, which is why the reason alone is enough to publish one.
 	if last.Device != "" || last.Why != "" {
 		lastOut := map[string]any{"used": last.Used, "pairs": last.Pairs}
 		if last.CellM > 0 {
