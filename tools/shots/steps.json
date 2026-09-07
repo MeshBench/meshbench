@@ -80,7 +80,10 @@
         "3s"
       ],
       "expect": "the panel draws its own content, with no empty region and no placeholder text",
-      "play": true
+      "play": true,
+      "env": {
+        "MESHBENCH_ENERGY": "1"
+      }
     },
     {
       "name": "panel-events",
@@ -464,7 +467,10 @@
         "3s"
       ],
       "expect": "a window of its own with a title bar, draggable, and the same content as the docked panel",
-      "play": true
+      "play": true,
+      "env": {
+        "MESHBENCH_ENERGY": "1"
+      }
     },
     {
       "name": "popout-events",

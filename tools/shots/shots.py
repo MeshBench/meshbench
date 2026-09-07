@@ -171,9 +171,19 @@ def run(step, binary, fixture, outdir):
         settle = SETTLE + 12
     # Into a file rather than a pipe: a refusal has to be readable while the
     # window is still up, and a pipe can only be drained once the process ends.
+    # A step may need a setting switched on. The Energy panel is behind
+    # MESHBENCH_ENERGY until its model is trusted, and panelMenus lists it
+    # unconditionally - so the manifest asked for a picture of a panel a
+    # default build does not register, and the two steps could never pass.
+    # Switching it on for those steps photographs the real panel, which is what
+    # the manifest is for.
+    env = None
+    if step.get("env"):
+        env = dict(os.environ)
+        env.update(step["env"])
     errf = os.path.join(outdir, step["name"] + ".stderr")
     with open(errf, "wb") as e:
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=e)
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=e, env=env)
     try:
         time.sleep(settle)
         if proc.poll() is not None:
