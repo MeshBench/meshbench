@@ -26,6 +26,13 @@ import (
 // labeller places labels for one frame.
 type labeller struct {
 	taken []image.Rectangle
+	// blocked is the map's own panels - the layer switches and the coverage
+	// key - which a label may not be placed under. Both are drawn over the
+	// labels and neither is fully opaque, so a name that landed beneath one
+	// showed through it as ghost text across the switches. The scale bar is
+	// not among them: it is a bar and a line of text drawn straight onto the
+	// map, not a surface that hides what is under it.
+	blocked []image.Rectangle
 	// Max is how many labels will be placed before the rest are dropped, in
 	// priority order. Not an arbitrary tidiness rule: each label is a shaping
 	// and a draw, and at a full-window national scale the map was spending
@@ -53,18 +60,26 @@ var labelSpots = [4]image.Point{
 // Returns the chosen top-left corner per point index. An index that is absent
 // had nowhere to go, and is not drawn: a label that overlaps another is worse
 // than no label, because it makes both unreadable rather than one absent.
+// marked says which points have a marker drawn under them. A point that has
+// none takes no label: the name would say a node is here without anything
+// saying where here is.
 func (l *labeller) place(pts []projected, sz image.Point, hover int,
-	size func(int) image.Point) map[int]image.Point {
+	marked []bool, size func(int) image.Point) map[int]image.Point {
 
-	l.taken = l.taken[:0]
+	l.taken = append(l.taken[:0], l.blocked...)
 	max := l.Max
 	if max == 0 {
 		max = defaultMaxLabels
 	}
 	out := make(map[int]image.Point, len(pts))
 	for _, i := range labelOrder(pts, hover) {
-		if max > 0 && len(l.taken) >= max {
+		// Against the labels placed, not against everything in taken: the
+		// chrome seeded into it is not a label and must not eat the budget.
+		if max > 0 && len(out) >= max {
 			break
+		}
+		if marked != nil && !marked[i] {
+			continue
 		}
 		p := pts[i]
 		if offscreen(p, sz) {
@@ -168,4 +183,27 @@ func unbounded(gtx layout.Context) layout.Context {
 	gtx.Constraints.Min = image.Point{}
 	gtx.Constraints.Max = image.Pt(1<<14, 1<<14)
 	return gtx
+}
+
+// kindPaintOrder is the order the marker kinds are painted in, back to front.
+//
+// A fixed order rather than whatever a map range gives, and that is the whole
+// point: byKind was a map, Go randomises map iteration, and every frame
+// therefore painted the kinds in a different order. Two nodes close enough to
+// overlap swapped which one was on top several times a second, which reads as
+// the map flickering. Rendering is meant to be deterministic here for the same
+// reason the engine is.
+//
+// Companions last, so they are the ones on top. They are what a person is
+// usually looking for on a crowded map - the phone at the end of the link -
+// and there are far fewer of them than repeaters. The two repeater kinds go
+// first because they are the bulk of any real network and the thing everything
+// else is read against.
+var kindPaintOrder = [...]theme.NodeKind{
+	theme.SimpleRepeater,
+	theme.AdvancedRepeater,
+	theme.Emitter,
+	theme.Observer,
+	theme.RoomServer,
+	theme.Companion,
 }

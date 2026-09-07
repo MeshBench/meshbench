@@ -271,6 +271,7 @@ func (m *MapView) layerPanel(t *theme.Theme, gtx layout.Context, sz image.Point,
 	off := op.Offset(at).Push(gtx.Ops)
 	defer off.Pop()
 
+	m.chrome = append(m.chrome, image.Rectangle{Min: at, Max: at.Add(box)})
 	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.88), clip.Rect{Max: box}.Op())
 	Border(gtx, box, 2, 1, t.P.Rule)
 
