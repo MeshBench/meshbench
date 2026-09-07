@@ -83,10 +83,10 @@ func registerExperimentControl(st *state.Store, s *session.Sim, e *experiment) {
 		// cannot produce is worth knowing before the hour is spent rather than
 		// over the table afterwards. Only where there is more than one seed,
 		// since one seed is already reported as one draw.
-		if len(e.Seeds) > 1 {
-			w.Say("sweep started: the seeds will not separate the arms, because " +
-				"a cell runs the calculated model and nothing on that path is " +
-				"drawn per packet. Senders are what gives a spread here")
+		if len(e.Seeds) > 1 && s.RFModeName() != "waveform" {
+			w.Say("sweep started in calculated mode: the seeds will not separate " +
+				"the arms, because nothing on that path is drawn per packet. " +
+				"Senders, or waveform mode, are what give a spread here")
 		}
 		w.Jobs = append(w.Jobs, state.Job{
 			ID: "experiment", What: "running arms", Total: e.runsTotal()})

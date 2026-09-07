@@ -39,18 +39,22 @@ func (e *experiment) describe() map[string]any {
 // what they appear to.
 // seedsCannotSeparate is why adding seeds is not the remedy it looks like.
 //
-// A cell runs the calculated model - engine.Config's zero RFMode - and nothing
-// on that path is drawn per reception: the noise floor is the thermal figure
-// for a bandwidth and a noise figure, and MeshCore's own relay delay is a
-// function of the score and the airtime with no RNG in it. So the seed reaches
-// every node correctly and has nothing to perturb, and a message telling
-// somebody to add seeds sends them to spend machine time on a number that
-// cannot move.
+// In calculated mode nothing is drawn per reception: the noise floor is the
+// thermal figure for a bandwidth and a noise figure, and MeshCore's own relay
+// delay is a function of the score and the airtime with no RNG in it. So the
+// seed reaches every node correctly and has nothing to perturb, and a message
+// telling somebody to add seeds sends them to spend machine time on a number
+// that cannot move.
 //
-// Adding senders can help, because more originators means more contention.
-const seedsCannotSeparate = "Adding seeds will not change that: a cell runs " +
-	"the calculated model, where reception is decided by geometry alone and " +
-	"nothing is drawn per packet. Add senders, or quote the deltas as unbounded."
+// Two things do help. More senders means more contention. And waveform draws
+// its receiver noise per packet-receiver pair from this very seed, so a sweep
+// in that mode has a spread the seeds genuinely produce - which is why a cell
+// now runs the mode the session is set to rather than the zero value.
+const seedsCannotSeparate = "In calculated mode adding seeds will not change " +
+	"that: reception is decided by geometry alone and nothing is drawn per " +
+	"packet, so every repeat of an arm is the same run. Add senders, switch " +
+	"the RF mode to waveform - which draws its receiver noise from the seed - " +
+	"or quote the deltas as unbounded."
 
 func (e *experiment) notAResultYet() string {
 	switch {

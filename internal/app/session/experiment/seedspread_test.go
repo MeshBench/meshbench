@@ -21,7 +21,7 @@ func TestTheAdviceDoesNotSendSomebodyToAddSeeds(t *testing.T) {
 	if !strings.Contains(seedsCannotSeparate, "Add senders") {
 		t.Errorf("the advice does not name what does help: %q", seedsCannotSeparate)
 	}
-	if !strings.Contains(seedsCannotSeparate, "calculated model") {
+	if !strings.Contains(seedsCannotSeparate, "nothing is drawn per packet") {
 		t.Errorf("the advice does not say why seeds cannot help: %q", seedsCannotSeparate)
 	}
 }
@@ -35,5 +35,18 @@ func TestOneSeedIsReportedAsOneDraw(t *testing.T) {
 	}
 	if got := e.notAResultYet(); !strings.Contains(got, "one draw") {
 		t.Errorf("one seed reported as %q", got)
+	}
+}
+
+// The advice names the mode, because it is only true in one of them: waveform
+// draws its receiver noise per packet-receiver pair from the same seed, so a
+// sweep in that mode has a spread the seeds genuinely produce.
+func TestTheAdviceNamesTheModeAndTheWayOut(t *testing.T) {
+	if !strings.Contains(seedsCannotSeparate, "calculated mode") {
+		t.Errorf("the advice does not say which mode it is about: %q", seedsCannotSeparate)
+	}
+	if !strings.Contains(seedsCannotSeparate, "waveform") {
+		t.Errorf("the advice does not offer the mode that does separate: %q",
+			seedsCannotSeparate)
 	}
 }
