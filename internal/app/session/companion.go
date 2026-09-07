@@ -51,11 +51,15 @@ func registerCompanion(st *state.Store, s *Sim) {
 		// itself, and a dead end: the only way on was to stop serving, and
 		// nothing said so. An idle port has no client to steal from, so it is
 		// taken back and said out loud.
-		if l, serving := s.servedLink(node); serving {
-			if l.Attached() {
-				return nil, fmt.Errorf("%s is being served to an outside client; stop serving first", node)
-			}
-			s.stopServing(node)
+		// Said in the reply as well as in the window. w.Say reaches somebody
+		// watching; a script sees only what comes back, and a caller whose
+		// endpoint has just stopped answering should not have to infer it
+		// from a connection refused several steps later.
+		took, err := s.takeIdlePort(node)
+		if err != nil {
+			return nil, err
+		}
+		if took {
 			w.Endpoints = s.endpoints()
 			w.Say("took " + node + "'s port back from an idle listener")
 		}
@@ -96,7 +100,13 @@ func registerCompanion(st *state.Store, s *Sim) {
 		}
 		s.publishCompanions(w)
 		w.Say("connected to " + node + " as a companion")
-		return map[string]any{"connected": node}, nil
+		out := map[string]any{"connected": node}
+		if took {
+			out["took_port"] = true
+			out["note"] = node + " was being served to nobody, so its port was taken back; " +
+				"bench.serve gives it out again"
+		}
+		return out, nil
 	})
 
 	st.Handle("companion.disconnect", func(w *state.World, p any) (any, error) {

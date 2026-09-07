@@ -301,3 +301,28 @@ func (s *Sim) dropClients() int {
 	}
 	return len(names)
 }
+
+// takeIdlePort decides what connecting to a node whose port is served should
+// do, and is shared so the two callers cannot answer differently.
+//
+// An outside client that is actually attached outranks us: taking its port
+// would steal it with nothing said at either end. A listener with nobody on it
+// has no client to steal from, so it is taken back and said out loud - being
+// refused by one with "is being served to an outside client" while the panel
+// beside it says "waiting" is the interface contradicting itself, and a dead
+// end, because the only way on was to stop serving and nothing said so.
+//
+// companion.connect had this rule and the CLI path did not, so typing a line
+// at an idle served node hit exactly the dead end the rule exists to remove.
+func (s *Sim) takeIdlePort(node string) (took bool, err error) {
+	l, serving := s.servedLink(node)
+	if !serving {
+		return false, nil
+	}
+	if l.Attached() {
+		return false, fmt.Errorf(
+			"%s is being served to an outside client; stop serving first", node)
+	}
+	s.stopServing(node)
+	return true, nil
+}

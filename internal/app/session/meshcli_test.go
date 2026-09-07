@@ -113,12 +113,12 @@ func TestTheEchoPrecedesTheAnswer(t *testing.T) {
 // The command line connects on first use, and connecting claims the UART -
 // which, over a served port, unplugged whatever real client was on the other
 // end without a word at either side.
-func TestTheCLIRefusesAServedPort(t *testing.T) {
+func TestTheCLIRefusesAServedPortWithAClientOnIt(t *testing.T) {
 	st, s, ctx, cancel := cliSim(t)
 	defer cancel()
 
 	delete(s.comps, "Alpha")
-	s.served = map[string]*engine.CompanionLink{"Alpha": {Node: "Alpha", Kind: "tcp", Addr: "127.0.0.1:1"}}
+	s.served = map[string]*engine.CompanionLink{"Alpha": engine.LinkForTest("Alpha", true)}
 	res, err := st.Do(ctx, "console.cli",
 		map[string]any{"node": "Alpha", "command": "infos"})
 	if err != nil {
@@ -126,13 +126,47 @@ func TestTheCLIRefusesAServedPort(t *testing.T) {
 	}
 	m, _ := res.(map[string]any)
 	if m["failed"] != true {
-		t.Fatal("a CLI command took a served port instead of being refused")
+		t.Fatal("a CLI command took a port an outside client holds instead of being refused")
 	}
 	if _, connected := s.comps["Alpha"]; connected {
 		t.Fatal("the refused command claimed the port anyway")
 	}
 	if !strings.Contains(strings.Join(st.Snapshot().Console, "\n"), "served") {
 		t.Errorf("the refusal should say the port is served, in the console")
+	}
+}
+
+// A listener with nobody on it has no client to steal from, so it is taken
+// back and the command runs - the same rule companion.connect keeps. This
+// path used to refuse on merely served, so a node whose port was served to
+// nobody could not be typed at at all, with "is being served to an outside
+// client" while the panel beside it said "waiting".
+func TestTheCLITakesAnIdleServedPort(t *testing.T) {
+	st, s, ctx, cancel := cliSim(t)
+	defer cancel()
+
+	delete(s.comps, "Alpha")
+	s.served = map[string]*engine.CompanionLink{"Alpha": engine.LinkForTest("Alpha", false)}
+	res, err := st.Do(ctx, "console.cli",
+		map[string]any{"node": "Alpha", "command": "infos"})
+	if err != nil {
+		t.Fatalf("console.cli on an idle served port: %v", err)
+	}
+	// What this asserts is the rule and only the rule: the idle listener is
+	// taken back and the command is not refused for being served. cliSim's
+	// Alpha runs no firmware, so the command still cannot complete here -
+	// but that refusal is a different one, and the test says so if the two
+	// are ever confused again.
+	if _, stillServed := s.served["Alpha"]; stillServed {
+		t.Error("the idle listener was left open after its port was taken")
+	}
+	said := strings.Join(st.Snapshot().Console, " | ")
+	if strings.Contains(said, "served") {
+		t.Errorf("a listener nobody was on refused the command as served: %s", said)
+	}
+	m, _ := res.(map[string]any)
+	if m["failed"] == true && !strings.Contains(said, "no firmware") {
+		t.Errorf("refused for a reason other than the fixture's own: %v", m["reply"])
 	}
 }
 
