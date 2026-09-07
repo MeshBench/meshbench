@@ -743,7 +743,9 @@
         }
       ],
       "returns": [
-        "connected"
+        "connected",
+        "took_port",
+        "note"
       ],
       "answers": "A listener that is serving the port but has nobody on it is taken back rather than refused. Everything the node says in reply arrives later as frames, so read it with `companion.state`.",
       "example": {
