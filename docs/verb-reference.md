@@ -2790,7 +2790,7 @@ Read back the link the last link.pair or link.profile analysed: the cut-through'
 
 **Takes** nothing.
 
-**Answers** `from`, `to`, `km`, `a_to_b_db`, `b_to_a_db`, `verdict`, `assumed`, `edges`, `samples`, `worst_at_km`, `directions`. why these two hear each other or do not, in both directions - a margin that does not say which direction is wrong even when the arithmetic is right
+**Answers** `from`, `to`, `km`, `a_to_b_db`, `b_to_a_db`, `verdict`, `assumed`, `edges`, `samples`, `worst_at_km`, `directions`, `note`. why these two hear each other or do not, in both directions - a margin that does not say which direction is wrong even when the arithmetic is right
 
 **Client** `wb.links.result()`
 

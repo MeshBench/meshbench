@@ -54,7 +54,8 @@
       "edges",
       "samples",
       "worst_at_km",
-      "directions"
+      "directions",
+      "note"
     ],
     "answers": "why these two hear each other or do not, in both directions - a margin that does not say which direction is wrong even when the arithmetic is right"
   }

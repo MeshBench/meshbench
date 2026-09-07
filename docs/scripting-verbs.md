@@ -281,7 +281,7 @@ Two verbs are **not** in this table:
 | `link.pair_set` | — | `from`, `to`, `km`, `edges` | *none* — the pair worker publishing its answer |
 | `link.profile` | — | `from`, `to` | `wb.links.profile(a, b)` - *planned*, no client defines `wb.links` yet; call the verb |
 | `link.profile_set` | — | `from`, `to`, `km`, `edges` | *none* — the profile worker publishing its answer |
-| `link.result` | — | `from`, `to`, `km`, `a_to_b_db`, `b_to_a_db`, `verdict`, `assumed`, `edges`, `samples`, `worst_at_km`, `directions` | `wb.links.result()` - *planned*, no client defines `wb.links` yet; call the verb |
+| `link.result` | — | `from`, `to`, `km`, `a_to_b_db`, `b_to_a_db`, `verdict`, `assumed`, `edges`, `samples`, `worst_at_km`, `directions`, `note` | `wb.links.result()` - *planned*, no client defines `wb.links` yet; call the verb |
 | `links.recompute` | — | `warming` | `wb.links.recompute()` - *planned*, no client defines `wb.links` yet; call the verb |
 | `links.set` | — | `links` | *none* — the warm publishing its matrix |
 | `study.margin` | *a bare string*, `km` number | `km` | `wb.study.margin_km = n` - *planned*, no client defines `wb.study` yet; call the verb |

@@ -230,23 +230,49 @@ func registerLinkResult(st *state.Store, _ *session.Sim) {
 				"no link has been analysed yet: ask for one with link.pair or " +
 					"link.profile, then read it here")
 		}
-		dirs := make([]map[string]any, 0, len(w.Budgets))
-		for _, b := range w.Budgets {
-			terms := make([]map[string]any, 0, len(b.Terms))
-			for _, t := range b.Terms {
-				terms = append(terms, map[string]any{"name": t.Name, "db": t.DB})
-			}
-			dirs = append(dirs, map[string]any{
-				"from": b.From, "to": b.To, "margin_db": b.MarginDB, "terms": terms,
-			})
-		}
-		return map[string]any{
+		out := map[string]any{
 			"from": p.From, "to": p.To, "km": p.DistanceKm,
+			// The two margins from the profile itself, which always agree
+			// with its ends. w.Budgets is written by link.pair and not by
+			// link.profile, so it can be empty after the selection route and
+			// stale after a different pair - and a breakdown for one link
+			// under the headline of another is two answers reported as one.
 			"a_to_b_db": p.AtoB, "b_to_a_db": p.BtoA,
 			"verdict": p.Verdict, "assumed": p.Assumed,
 			"edges": len(p.Edges), "samples": len(p.Samples),
 			"worst_at_km": p.Worst.DistM / 1000,
-			"directions":  dirs,
-		}, nil
+		}
+		if dirs := budgetsFor(p, w.Budgets); dirs != nil {
+			out["directions"] = dirs
+		} else {
+			out["note"] = "the per-term breakdown is computed by link.pair; " +
+				"the two margins above are the profile's own"
+		}
+		return out, nil
 	})
+}
+
+// budgetsFor is the per-direction breakdown for exactly this profile, or nil
+// where what is held is for some other pair or for none.
+func budgetsFor(p *state.Profile, budgets []state.Budget) []map[string]any {
+	if len(budgets) != 2 {
+		return nil
+	}
+	ends := map[string]bool{p.From: true, p.To: true}
+	for _, b := range budgets {
+		if !ends[b.From] || !ends[b.To] || b.From == b.To {
+			return nil
+		}
+	}
+	dirs := make([]map[string]any, 0, 2)
+	for _, b := range budgets {
+		terms := make([]map[string]any, 0, len(b.Terms))
+		for _, t := range b.Terms {
+			terms = append(terms, map[string]any{"name": t.Name, "db": t.DB})
+		}
+		dirs = append(dirs, map[string]any{
+			"from": b.From, "to": b.To, "margin_db": b.MarginDB, "terms": terms,
+		})
+	}
+	return dirs
 }

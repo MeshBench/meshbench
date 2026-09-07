@@ -76,3 +76,40 @@ func TestLinkResultAnswersBothDirections(t *testing.T) {
 		t.Errorf("the loss model was not reported: %q", s)
 	}
 }
+
+// Budgets are written by link.pair and not by link.profile, so after the
+// selection route they are empty, and after a different pair they belong to
+// somebody else. A breakdown for one link under the headline of another is
+// two answers reported as one.
+func TestStaleBudgetsAreNotReportedUnderAnotherLink(t *testing.T) {
+	st := state.New(10)
+	registerLinkResult(st, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	go st.Run(ctx)
+	defer cancel()
+
+	st.Handle("test.seed", func(w *state.World, _ any) (any, error) {
+		w.LinkProfile = &state.Profile{From: "C", To: "D", AtoB: 3, BtoA: 1}
+		w.Budgets = []state.Budget{ // left over from an A-B pair
+			{From: "A", To: "B", MarginDB: 9.5}, {From: "B", To: "A", MarginDB: -2.5},
+		}
+		return nil, nil
+	})
+	if _, err := st.Do(ctx, "test.seed", nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.Do(ctx, "link.result", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := got.(map[string]any)
+	if _, has := m["directions"]; has {
+		t.Errorf("A-B's breakdown was reported under C-D: %v", m["directions"])
+	}
+	if m["a_to_b_db"] != 3.0 || m["b_to_a_db"] != 1.0 {
+		t.Errorf("the headline margins are not the profile's own: %v %v", m["a_to_b_db"], m["b_to_a_db"])
+	}
+	if _, has := m["note"]; !has {
+		t.Error("nothing says why the breakdown is absent")
+	}
+}
