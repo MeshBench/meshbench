@@ -374,16 +374,26 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 	}
 	if !r.decoded {
 		rec.Outcome = capture.NotDemodulated
+		// Both SNRs, named, because they are two different numbers and only
+		// the estimate decides the class. The measured figure saturates at the
+		// top of the reportable scale, so a miss classed "floor" on an
+		// estimate of -4 dB used to print "at +15.0 dB measured SNR" - and
+		// "too quiet on its own" beside a number at the top of the scale
+		// sends somebody to check an antenna that is fine.
+		est := estimatedSNRdB(c)
 		why := fmt.Sprintf(
-			"waveform: header unreadable at %.1f dB measured SNR", r.snrdB)
+			"waveform: header unreadable at %.1f dB measured, %.1f dB estimated",
+			r.snrdB, est)
 		if !r.synced {
 			why = fmt.Sprintf(
-				"waveform: no preamble lock at %.1f dB measured SNR", r.snrdB)
+				"waveform: no preamble lock at %.1f dB measured, %.1f dB estimated",
+				r.snrdB, est)
 		}
 		if r.stats.HeaderOK {
 			why = fmt.Sprintf(
-				"waveform: %d codeword(s) beyond repair, %d repaired, CRC %v, at %.1f dB",
-				r.stats.Failed, r.stats.Corrected, r.stats.CRCOK, r.snrdB)
+				"waveform: %d codeword(s) beyond repair, %d repaired, CRC %v, "+
+					"at %.1f dB measured, %.1f dB estimated",
+				r.stats.Failed, r.stats.Corrected, r.stats.CRCOK, r.snrdB, est)
 		}
 		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
