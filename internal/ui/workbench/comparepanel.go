@@ -65,8 +65,16 @@ func (p *comparePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		p.tb.SetRows(p.rows)
 		return p.tb.Layout(t, gtx, nil)
 	}
+	// The title names the panel while there is nothing to compare, and names
+	// the comparison once there is.
+	//
+	// It used to be p.head either way, so with no saved runs the same sentence
+	// was drawn twice - as a section title running into the window edge, and
+	// again centred in the body with nothing between them. A title is what
+	// this pane is; the sentence in the middle is what to do about it, and
+	// they are not the same thing said twice.
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(comp.SectionTitle(t, p.head)),
+		layout.Rigid(comp.SectionTitle(t, compareTitle(p))),
 		layout.Flexed(1, body),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = 0
@@ -142,4 +150,13 @@ func spark(a, b float64) string {
 		return "down"
 	}
 	return "same"
+}
+
+// compareTitle names the panel while there is nothing to compare, and names
+// the comparison once there is.
+func compareTitle(p *comparePanel) string {
+	if len(p.rows) > 0 {
+		return p.head
+	}
+	return "compare two saved runs"
 }
