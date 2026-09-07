@@ -155,7 +155,11 @@ func (s *Sim) EventLedger() ([]state.Event, int) {
 	if s.liveEngine() == nil {
 		return nil, 0
 	}
-	_, total := s.liveEngine().EventsTail(0)
-	all, _ := s.eventTail(total)
-	return all, total
+	// One read, not two. Asking for the total and then for that many events
+	// took the engine's lock twice, and a run records events between the two
+	// from another goroutine - so the second call returned the last N of a
+	// slice that had since grown, a window shifted by however many arrived in
+	// between, under a count from before they did. EventsTail clamps a large
+	// n to what there is, so one call returns everything and the true total.
+	return s.eventTail(math.MaxInt32)
 }
