@@ -19,12 +19,7 @@ func (p *configPanel) overview(t *theme.Theme, s *state.Snapshot) []layout.Widge
 			return comp.CellGrid(t, gtx, 190, cells)
 		}
 	}
-	lastWarm := "not yet"
-	warmCap := "nothing has been measured on it"
-	if s.GPU.Pairs > 0 {
-		lastWarm = fmt.Sprintf("%d pairs in %d ms", s.GPU.Pairs, s.GPU.Ms)
-		warmCap = "what the last warm actually did"
-	}
+	lastWarm, warmCap := lastWarmWords(s.GPU)
 	return []layout.Widget{
 		p.mark.brandCard(t),
 		comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
@@ -426,4 +421,24 @@ func updateNote(s *state.Snapshot) string {
 		"A release pins the emulator toolchain, the firmware tags and the " +
 		"fixtures, so an old build fetching today's published firmware is a " +
 		"combination nobody tested"
+}
+
+// lastWarmWords is what the Overview says about the device's last warm.
+//
+// Three answers, not two. It keyed on the pair count alone, and a warm that
+// was skipped because the matrix already answered every pair had no pairs and
+// no words - so it read "not yet, nothing has been measured on it" for ever,
+// beside a Graphics card saying the links were measured on the GPU. Giving the
+// skipped warm a pair count would have been worse: "71253 pairs in 0 ms - what
+// the last warm actually did" over a warm that measured nothing is the claim
+// this page exists not to make.
+func lastWarmWords(g state.GPUState) (value, caption string) {
+	switch {
+	case g.Used:
+		return fmt.Sprintf("%d pairs in %d ms", g.Pairs, g.Ms),
+			"what the last warm actually did"
+	case g.Why != "":
+		return "nothing needed measuring", g.Why
+	}
+	return "not yet", "nothing has been measured on it"
 }

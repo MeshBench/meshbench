@@ -88,6 +88,23 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 		// The GPU first, if it is switched on and can answer honestly. What
 		// it fills, the cores below no longer have to: WarmLinks asks the
 		// cache before it measures anything.
+		if s.gpuWarm && primed {
+			// Recorded, so the page stops saying nothing has ever been
+			// measured on the device. Nothing needed measuring is a different
+			// answer from nothing was measured, and the second one stood for
+			// ever once a matrix had been restored from disk - beside a
+			// Graphics card that said the links were measured on the GPU.
+			s.gpuMu.Lock()
+			// No Pairs on it: a count here reads as pairs measured, and the
+			// Overview card drew one as "N pairs in 0 ms - what the last warm
+			// actually did", which is the claim this exists to stop.
+			s.lastGPU = GPUWarmResult{
+				Why: "the matrix already answered every pair, so nothing " +
+					"needed measuring",
+			}
+			s.gpuMu.Unlock()
+			_, _ = st.Do(ctx, "gpu.state", nil)
+		}
 		if s.gpuWarm && !primed {
 			res := s.warmOnGPU(eng, warmNodes, freqMHz, func(what string, done, total int) {
 				_, _ = st.Do(ctx, "job.progress", state.Job{
@@ -109,14 +126,25 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 			_, _ = st.Do(ctx, "gpu.state", nil)
 		}
 
+		// What the sweep below is actually doing, said as it is.
+		//
+		// It always said "on the processor", including when the cache already
+		// answered every pair and the sweep was map hits - so a page could
+		// report "links measured on the GPU: yes" beside a job saying "on the
+		// processor", over a warm that measured nothing at all. Three true
+		// sentences that together are misleading is the shape this project
+		// tries not to produce.
+		doing := "measuring every link on the processor"
+		if primed {
+			doing = "reading every link from the matrix already measured"
+		}
 		eng.WarmLinks(ctx, func(done, of int) {
 			// No second throttle here: the engine already reports every 512th
 			// pair, and a filter stacked on a filter only let through their
 			// common multiples - the first status update came at pair 32,000,
 			// which on the processor is most of the warm spent looking hung.
 			_, _ = st.Do(ctx, "job.progress", state.Job{
-				ID: "links", What: "measuring every link on the processor",
-				Done: done, Total: of})
+				ID: "links", What: doing, Done: done, Total: of})
 		})
 
 		if ctx.Err() != nil {

@@ -8,6 +8,8 @@
 package gpu
 
 import (
+	"strings"
+
 	_ "embed"
 	"fmt"
 	"sync"
@@ -61,14 +63,40 @@ type Device struct {
 // So an adapter that reports itself as CPU is declined and the reason is
 // returned, which is the promise the project makes about every GPU path: a
 // machine without a usable one loses time, not features.
+// adapterName is the best name this adapter can give for itself.
+//
+// wgpu-native fills Name from the driver, and on Metal it puts a device id
+// there rather than a name - "0x0" on an Apple M4, which is not a plausible id
+// either and reads as a null. The Configuration page drew that as the whole
+// answer, and the refusal above it said "0x0 is a software rasteriser" where a
+// person needed to be told which device.
+//
+// The name where it is one, then what the driver says about itself, then the
+// architecture, then the vendor - so the answer degrades to something true
+// rather than to a number nobody can act on.
+func adapterName(info wgpu.AdapterInfo) string {
+	for _, s := range []string{info.Name, info.DriverDescription,
+		info.Architecture, info.VendorName} {
+		if s = strings.TrimSpace(s); usefulName(s) {
+			return s
+		}
+	}
+	if b := info.BackendType.String(); b != "" {
+		return "the " + b + " adapter"
+	}
+	return "the adapter"
+}
+
+// usefulName rejects the ids wgpu-native puts where a name should be.
+func usefulName(s string) bool {
+	return s != "" && !strings.HasPrefix(s, "0x")
+}
+
 func usable(info wgpu.AdapterInfo) error {
 	if info.AdapterType != wgpu.AdapterTypeCPU {
 		return nil
 	}
-	name := info.Name
-	if name == "" {
-		name = "the adapter"
-	}
+	name := adapterName(info)
 	return fmt.Errorf(
 		"gpu: %s is a software rasteriser on the %s backend, not a GPU: the "+
 			"processor reference path computes the same answer faster",
@@ -122,7 +150,7 @@ func Open() (*Device, error) {
 	actual := dev.GetLimits()
 	d := &Device{
 		instance: inst, adapter: ad, device: dev, queue: dev.GetQueue(),
-		Name: info.Name, Backend: info.BackendType.String(),
+		Name: adapterName(info), Backend: info.BackendType.String(),
 		MaxStorageMB: actual.Limits.MaxStorageBufferBindingSize / (1 << 20),
 	}
 	mod, err := dev.CreateShaderModule(&wgpu.ShaderModuleDescriptor{
