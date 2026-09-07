@@ -206,7 +206,7 @@ Two verbs are **not** in this table:
 | `firmware.built` | — | `built` | *none* — the build worker telling the store it finished |
 | `firmware.delete` | *a bare string*, `path` string | `deleted` | `wb.firmware.delete(build)` |
 | `firmware.details` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `card_required`, `notes` | `wb.firmware.details(build)` |
-| `firmware.download` | *a bare string*, `role` string, `version` string, `board` string | `downloading`, `role`, `version` | `wb.firmware.download(role, version, board=None)` |
+| `firmware.download` | *a bare string*, `role` string, `version` string, `board` string | `downloading`, `role`, `version`, `board`, `job` | `wb.firmware.download(role, version, board=None)` |
 | `firmware.failed` | *a bare string*, `reason` string | — | *none* — the firmware starter reporting a failure |
 | `firmware.import` | *a bare string*, `path` string, `role` string, `board` string, `label` string, `version` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None, label="")` |
 | `firmware.installed` | — | `cache`, `installed` | `wb.firmware.installed` |
