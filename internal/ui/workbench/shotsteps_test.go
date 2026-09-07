@@ -59,6 +59,30 @@ func TestEveryPanelHasACaptureStep(t *testing.T) {
 	}
 }
 
+// A panel behind a setting needs its steps to switch the setting on.
+//
+// panelMenus lists every panel unconditionally, and the registration is what is
+// gated - so the manifest could ask for a picture of a panel a default build
+// does not register, the sweep failed on it every time, and nothing in this
+// file could see the gap. Two of 115 steps could never pass.
+func TestAGatedPanelsStepsSwitchItOn(t *testing.T) {
+	// The panels a default build does not register, and what turns each on.
+	gated := map[string]string{"Energy": "MESHBENCH_ENERGY"}
+
+	steps := loadShotSteps(t)
+	for _, s := range steps["panels"] {
+		env, ok := gated[s.Panel()]
+		if !ok {
+			continue
+		}
+		if s.Env[env] == "" {
+			t.Errorf("step %q photographs %q, which a default build does not "+
+				"register: give it \"env\": {%q: \"1\"} in steps.json",
+				s.Name, s.Panel(), env)
+		}
+	}
+}
+
 // Every step says what it runs and what somebody should see.
 //
 // A step with no expectation is a screenshot nobody can judge: the point of
@@ -259,13 +283,14 @@ func TestASkippedStepSaysWhatItNeeds(t *testing.T) {
 }
 
 type shotStep struct {
-	Name    string   `json:"name"`
-	What    string   `json:"what"`
-	Flags   []string `json:"flags"`
-	Expect  string   `json:"expect"`
-	Fixture string   `json:"fixture,omitempty"`
-	Needs   string   `json:"needs,omitempty"`
-	Then    string   `json:"then,omitempty"`
+	Name    string            `json:"name"`
+	What    string            `json:"what"`
+	Flags   []string          `json:"flags"`
+	Expect  string            `json:"expect"`
+	Fixture string            `json:"fixture,omitempty"`
+	Needs   string            `json:"needs,omitempty"`
+	Env     map[string]string `json:"env,omitempty"`
+	Then    string            `json:"then,omitempty"`
 }
 
 // Panel is the panel this step is about, read from the flags rather than from
