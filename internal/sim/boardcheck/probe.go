@@ -158,9 +158,15 @@ func Probe(ctx context.Context, board, version string) (report BoardReport) {
 	}
 	if said, ok := under.Firmware.Backend.(interface{ EmulatorLog() ([]byte, error) }); ok {
 		defer func() {
-			if log, err := said.EmulatorLog(); err == nil {
-				report.downgradeIfWedged(log)
+			log, err := said.EmulatorLog()
+			if err != nil {
+				return
 			}
+			report.downgradeIfWedged(log)
+			// After the wedge check, and last of the two, because an abort
+			// outranks it: a machine that was never built cannot have been
+			// stuck reading an address.
+			report.downgradeIfAborted(log)
 		}()
 	}
 
