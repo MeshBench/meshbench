@@ -252,7 +252,8 @@ func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
 					kids = append(kids,
 						layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink, it.Label)),
 						layout.Flexed(1, comp.Spacer),
-						layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, it.Shortcut)),
+						layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint,
+							shortcutCaption(it.Shortcut))),
 					)
 					return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
 				})
@@ -405,30 +406,6 @@ func (sh *Shell) shortcuts(gtx layout.Context) {
 				}
 				break
 			}
-		}
-	}
-}
-
-// parseShortcut reads the human caption: "Ctrl+O", "Ctrl+Shift+S", "Space".
-func parseShortcut(s string) (key.Name, key.Modifiers, bool) {
-	var mods key.Modifiers
-	rest := s
-	for {
-		switch {
-		case cutPrefix(&rest, "Ctrl+"):
-			mods |= key.ModCtrl
-		case cutPrefix(&rest, "Shift+"):
-			mods |= key.ModShift
-		case cutPrefix(&rest, "Alt+"):
-			mods |= key.ModAlt
-		default:
-			if rest == "Space" {
-				return key.NameSpace, mods, true
-			}
-			if len(rest) == 1 {
-				return key.Name(rest), mods, true
-			}
-			return "", 0, false
 		}
 	}
 }
