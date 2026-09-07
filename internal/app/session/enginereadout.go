@@ -144,3 +144,18 @@ func termsOf(in []linkbudget.Term) []state.BudgetTerm {
 	}
 	return out
 }
+
+// EventLedger is every event the engine still holds, for a caller writing them
+// all out rather than drawing them.
+//
+// Separate from eventTail, which exists to bound what the tables draw. The two
+// answer different questions and conflating them is what made events.dump
+// write the last two thousand of a run and call it the run.
+func (s *Sim) EventLedger() ([]state.Event, int) {
+	if s.liveEngine() == nil {
+		return nil, 0
+	}
+	_, total := s.liveEngine().EventsTail(0)
+	all, _ := s.eventTail(total)
+	return all, total
+}
