@@ -3,6 +3,8 @@
 package shell
 
 import (
+	"runtime"
+
 	"image"
 	"sort"
 	"strings"
@@ -252,7 +254,8 @@ func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
 					kids = append(kids,
 						layout.Rigid(comp.Text(t, t.Sz.Body, t.P.Ink, it.Label)),
 						layout.Flexed(1, comp.Spacer),
-						layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, it.Shortcut)),
+						layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint,
+							shortcutCaption(it.Shortcut))),
 					)
 					return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
 				})
@@ -409,14 +412,22 @@ func (sh *Shell) shortcuts(gtx layout.Context) {
 	}
 }
 
-// parseShortcut reads the human caption: "Ctrl+O", "Ctrl+Shift+S", "Space".
+// parseShortcut reads the neutral caption: "Ctrl+O", "Ctrl+Shift+S", "Space".
+//
+// "Ctrl+" in the table means the platform's shortcut modifier, not the control
+// key: key.ModShortcut is Command on macOS and Ctrl everywhere else, and Gio
+// carries the constant for exactly this. It used to bind key.ModCtrl outright,
+// and modifiers are matched exactly rather than by containment - so on a Mac
+// Ctrl+S saved and Command+S did nothing, which is the opposite of what every
+// application on that platform does. Command+Q especially: it is muscle memory
+// for every Mac user alive.
 func parseShortcut(s string) (key.Name, key.Modifiers, bool) {
 	var mods key.Modifiers
 	rest := s
 	for {
 		switch {
 		case cutPrefix(&rest, "Ctrl+"):
-			mods |= key.ModCtrl
+			mods |= key.ModShortcut
 		case cutPrefix(&rest, "Shift+"):
 			mods |= key.ModShift
 		case cutPrefix(&rest, "Alt+"):
@@ -489,3 +500,19 @@ func (sh *Shell) MenuItems(name string) []MenuItem {
 // OpenMenuIndex is which menu is open, or -1. A menu that will not open is a
 // different fault from one whose entries do nothing.
 func (sh *Shell) OpenMenuIndex() int { return sh.openMenu }
+
+// shortcutCaption spells a shortcut the way the platform does.
+//
+// The table holds one neutral spelling and this renders it, because the
+// binding and the caption have to agree and only one of them can be the
+// source. On macOS the modifier is Command, drawn as the symbol every menu
+// there uses; everywhere else it is Ctrl and the caption is unchanged.
+func shortcutCaption(s string) string {
+	if runtime.GOOS != "darwin" {
+		return s
+	}
+	s = strings.ReplaceAll(s, "Ctrl+", "\u2318")
+	s = strings.ReplaceAll(s, "Shift+", "\u21e7")
+	s = strings.ReplaceAll(s, "Alt+", "\u2325")
+	return s
+}
