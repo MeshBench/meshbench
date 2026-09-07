@@ -24,6 +24,7 @@
 // called once per clocked byte and must answer that byte before the next.
 //
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace Antmicro.Renode.Peripherals.Radio
@@ -165,8 +166,16 @@ namespace Antmicro.Renode.Peripherals.Radio
             return Marshal.GetDelegateForFunctionPointer(symbol, type);
         }
 
-        // The platform's loader, by hand. Windows is the odd one; everywhere
-        // else is dlopen, and macOS resolves it in libSystem.
+        // The platform's loader, by hand, and it is three loaders rather than
+        // two.
+        //
+        // Windows is the odd one, and macOS is the other odd one: dlopen lives
+        // in libSystem there, not in a libdl.so.2 - that is a Linux SONAME and
+        // naming it on a Mac fails at the P/Invoke rather than at the file
+        // being loaded. "Unable to load shared library 'libdl.so.2'" is what
+        // came back, which reads as the chip model being missing when the chip
+        // model was sitting right there, and left every nRF52 board on macOS
+        // running for ever with no radio.
         private static bool OnWindows
         {
             get
@@ -176,17 +185,40 @@ namespace Antmicro.Renode.Peripherals.Radio
             }
         }
 
+        private static bool OnMac
+        {
+            get
+            {
+                if(OnWindows)
+                {
+                    return false;
+                }
+                // Platform 6 is what Mono reports; modern .NET reports Unix for
+                // macOS too, so the directory every Mac has is the tiebreak.
+                return (int)Environment.OSVersion.Platform == 6
+                    || Directory.Exists("/System/Library/Frameworks");
+            }
+        }
+
         private static IntPtr NativeOpen(string path)
         {
             // RTLD_NOW | RTLD_LOCAL: every symbol is resolved below anyway, and
             // a missing one should be named here rather than crash the machine
             // at the first SPI byte.
-            return OnWindows ? LoadLibraryW(path) : dlopen(path, 2);
+            if(OnWindows)
+            {
+                return LoadLibraryW(path);
+            }
+            return OnMac ? mac_dlopen(path, 2) : dlopen(path, 2);
         }
 
         private static IntPtr NativeSymbol(IntPtr handle, string name)
         {
-            return OnWindows ? GetProcAddress(handle, name) : dlsym(handle, name);
+            if(OnWindows)
+            {
+                return GetProcAddress(handle, name);
+            }
+            return OnMac ? mac_dlsym(handle, name) : dlsym(handle, name);
         }
 
         private static string NativeError()
@@ -195,7 +227,7 @@ namespace Antmicro.Renode.Peripherals.Radio
             {
                 return string.Format("error {0}", Marshal.GetLastWin32Error());
             }
-            var err = dlerror();
+            var err = OnMac ? mac_dlerror() : dlerror();
             return err == IntPtr.Zero ? "no reason given" : Marshal.PtrToStringAnsi(err);
         }
 
@@ -207,6 +239,17 @@ namespace Antmicro.Renode.Peripherals.Radio
         private static extern IntPtr dlsym(IntPtr handle, string name);
         [DllImport("libdl.so.2", EntryPoint = "dlerror")]
         private static extern IntPtr dlerror();
+
+        // The same three, from where macOS keeps them. Separate declarations
+        // rather than one name resolved per platform, because a DllImport name
+        // is fixed at compile time and Renode compiles this file at load time
+        // on whichever runtime it is running.
+        [DllImport("libSystem.B.dylib", EntryPoint = "dlopen")]
+        private static extern IntPtr mac_dlopen(string path, int flags);
+        [DllImport("libSystem.B.dylib", EntryPoint = "dlsym")]
+        private static extern IntPtr mac_dlsym(IntPtr handle, string name);
+        [DllImport("libSystem.B.dylib", EntryPoint = "dlerror")]
+        private static extern IntPtr mac_dlerror();
 
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern IntPtr LoadLibraryW(string path);
