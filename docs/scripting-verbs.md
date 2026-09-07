@@ -144,7 +144,7 @@ Two verbs are **not** in this table:
 | `node.start` | *a bare string*, `node` string | `started` | `node.start()` |
 | `node.stop` | *a bare string*, `node` string | `stopped` | `node.stop()` |
 | `node.truerf` | *a bare string*, `node` string, `on` bool | `node`, `true_rf` | `node.true_rf = bool` |
-| `node.window` 🪟 | *a bare string*, `node` string, `tab` string | `node`, `tab` | `wb.window(node, tab=None)` |
+| `node.window` 🪟 | *a bare string*, `node` string, `tab` string | `node`, `tab`, `console` | `wb.window(node, tab=None)` |
 | `node.wipe` | *a bare string*, `node` string, `confirm` bool | `node`, `wiped`, `removed`, `would_remove` | `node.wipe()` |
 | `nodes.add_to_selection` | *a bare string*, `names` array | `added` | `wb.nodes.select(*names, add=True)` |
 | `nodes.allow_flood` | *a bare string*, `on` bool, `node` string | `nodes`, `allow_any_flood` | `node.allow_flood = bool` |
