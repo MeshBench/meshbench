@@ -42,6 +42,12 @@ func TestTheCaptionMatchesThePlatform(t *testing.T) {
 		if !strings.Contains(got, "⌘") {
 			t.Errorf("a Mac caption is %q, want the command symbol", got)
 		}
+		// Shift before command: a Mac menu writes its modifiers in the order
+		// control, option, shift, command, and a caption in the table's own
+		// order reads as a menu that was not made for the platform.
+		if got != "⇧⌘S" {
+			t.Errorf("a Mac caption is %q, want ⇧⌘S", got)
+		}
 		return
 	}
 	if got != "Ctrl+Shift+S" {

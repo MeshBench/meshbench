@@ -511,8 +511,33 @@ func shortcutCaption(s string) string {
 	if runtime.GOOS != "darwin" {
 		return s
 	}
-	s = strings.ReplaceAll(s, "Ctrl+", "\u2318")
-	s = strings.ReplaceAll(s, "Shift+", "\u21e7")
-	s = strings.ReplaceAll(s, "Alt+", "\u2325")
-	return s
+	// Parsed into a set and emitted in the platform's own order, not
+	// substituted in place: substitution kept the table's order, so
+	// Ctrl+Shift+S came out as command-shift-S, and a Mac menu writes its
+	// modifiers control, option, shift, command - shift before command, always.
+	var alt, shift, cmd bool
+	rest := s
+	for {
+		switch {
+		case cutPrefix(&rest, "Ctrl+"):
+			cmd = true
+		case cutPrefix(&rest, "Shift+"):
+			shift = true
+		case cutPrefix(&rest, "Alt+"):
+			alt = true
+		default:
+			var b strings.Builder
+			if alt {
+				b.WriteString("\u2325")
+			}
+			if shift {
+				b.WriteString("\u21e7")
+			}
+			if cmd {
+				b.WriteString("\u2318")
+			}
+			b.WriteString(rest)
+			return b.String()
+		}
+	}
 }
