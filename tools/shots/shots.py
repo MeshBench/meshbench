@@ -5,6 +5,11 @@
     tools/shots/shots.py panels views    only those buckets
     tools/shots/shots.py --list          what would run, and nothing else
 
+On macOS the capture needs pyobjc-framework-Quartz (pip install
+pyobjc-framework-Quartz) to turn our pid into a window id, and Screen
+Recording permission for the terminal running it. Linux needs kdotool and
+spectacle or grim; Windows needs nothing beyond PowerShell.
+
 The steps are in steps.json beside this file, and internal/ui/workbench's
 shotsteps_test.go checks that list against the application's own panel table -
 so a panel added without a step is a red build rather than a picture nobody
@@ -35,6 +40,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -70,9 +76,169 @@ def ours(pid):
         kids = subprocess.run(["pgrep", "-P", str(pid)], capture_output=True,
                               text=True, timeout=5).stdout.split()
         out |= {int(k) for k in kids}
-    except (subprocess.SubprocessError, ValueError):
+    except (OSError, subprocess.SubprocessError, ValueError):
+        # OSError covers FileNotFoundError, which is what a machine with no
+        # pgrep raises - Windows. It is not a SubprocessError, so it used to
+        # come out of here as a traceback rather than as one pid.
         pass
     return out
+
+
+def captureDarwin(out, pid):
+    """One window of ours, by window id, using the screencapture that ships
+    with macOS.
+
+    The id comes from Quartz's own window list, filtered to our process, so the
+    same ownership rule holds as on Linux: a picture is of our window or there
+    is no picture. Frontmost of ours, matching what the active-window route
+    does elsewhere - the list is returned in front-to-back order.
+    """
+    try:
+        import Quartz  # provided by pyobjc-framework-Quartz
+    except ImportError:
+        print("  macOS capture needs pyobjc-framework-Quartz "
+              "(pip install pyobjc-framework-Quartz)", file=sys.stderr)
+        return False
+    ours_pids = ours(pid)
+    info = Quartz.CGWindowListCopyWindowInfo(
+        Quartz.kCGWindowListOptionOnScreenOnly
+        | Quartz.kCGWindowListExcludeDesktopElements,
+        Quartz.kCGNullWindowID)
+    win = None
+    for w in info or []:
+        if int(w.get("kCGWindowOwnerPID", -1)) not in ours_pids:
+            continue
+        # Layer 0 and a real size, or it is not a window a step is about: the
+        # list carries tooltips, menu overlays and a popout's shadow, and any
+        # of those in front of ours would come back as a picture of nothing.
+        # The same trap the Windows chooser guards against.
+        if int(w.get("kCGWindowLayer", 0)) != 0:
+            continue
+        b = w.get("kCGWindowBounds") or {}
+        if b.get("Width", 0) <= 64 or b.get("Height", 0) <= 64:
+            continue
+        win = int(w["kCGWindowNumber"])
+        break
+    if win is None:
+        print("  no window of ours is on screen; not photographing anything",
+              file=sys.stderr)
+        return False
+    ok = subprocess.call(["screencapture", "-x", "-o", "-l", str(win), out],
+                         stderr=subprocess.DEVNULL) == 0
+    if not ok or not os.path.exists(out):
+        print("  screencapture wrote nothing. It needs Screen Recording "
+              "permission for the terminal running it (System Settings > "
+              "Privacy & Security), and fails with no prompt without it",
+              file=sys.stderr)
+        return False
+    return True
+
+
+# PowerShell that photographs one window by its handle, so nothing but our own
+# window reaches the file. GetWindowRect gives the box and CopyFromScreen takes
+# it; there is no window-only grab in the shell otherwise.
+WIN_CAPTURE = r"""
+param([string]$ProcIds, [string]$Out)
+# The window this photographs has to be *the* window of ours the step is
+# about, not merely one of ours. Process.MainWindowHandle is always the
+# workbench's own window, and 49 of the 115 steps are about another window of
+# the same process - a popped-out panel, a node window, the board view - so
+# taking the main handle would file the workbench under the popout's name.
+# That is the "wrong one of ours" fault the ownership rule exists to stop,
+# wearing our own colours.
+#
+# EnumWindows returns top-level windows in Z-order, topmost first. Ours is the
+# foreground window when the workbench has just opened one, and the topmost of
+# ours otherwise, which is the same rule the other two platforms keep: the
+# active window on Linux, front-to-back order on macOS.
+Add-Type -AssemblyName System.Drawing
+Add-Type @"
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+public struct R { public int L, T, Ri, B; }
+public class W {
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr l);
+  public delegate bool EnumProc(IntPtr h, IntPtr l);
+  public static uint PidOf(IntPtr h) { uint p; GetWindowThreadProcessId(h, out p); return p; }
+  public static List<IntPtr> Visible() {
+    List<IntPtr> found = new List<IntPtr>();
+    EnumWindows(delegate(IntPtr h, IntPtr l) {
+      if (IsWindowVisible(h)) { found.Add(h); }
+      return true;
+    }, IntPtr.Zero);
+    return found;
+  }
+}
+"@
+$mine = @{}
+foreach ($p in $ProcIds.Split(',')) { if ($p) { $mine[[uint32]$p] = $true } }
+
+# A window with no size is a tooltip, a shadow or a menu overlay, and is never
+# what a step is about. The same trap the macOS list has.
+function Usable([IntPtr]$h) {
+  if (-not $mine.ContainsKey([W]::PidOf($h))) { return $false }
+  $r = New-Object R
+  if (-not [W]::GetWindowRect($h, [ref]$r)) { return $false }
+  return (($r.Ri - $r.L) -gt 64) -and (($r.B - $r.T) -gt 64)
+}
+
+$h = [IntPtr]::Zero
+$fg = [W]::GetForegroundWindow()
+if ($fg -ne [IntPtr]::Zero -and (Usable $fg)) {
+  $h = $fg
+} else {
+  foreach ($w in [W]::Visible()) { if (Usable $w) { $h = $w; break } }
+}
+if ($h -eq [IntPtr]::Zero) { Write-Error "no window of ours on screen"; exit 1 }
+
+$r = New-Object R
+[void][W]::GetWindowRect($h, [ref]$r)
+$w = $r.Ri - $r.L; $ht = $r.B - $r.T
+$bmp = New-Object System.Drawing.Bitmap $w, $ht
+$g = [System.Drawing.Graphics]::FromImage($bmp)
+$g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+$bmp.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
+$g.Dispose(); $bmp.Dispose()
+"""
+
+
+def captureWindows(out, pid):
+    """One window of ours, chosen among the top-level windows of our pids.
+
+    Through a file rather than -Command. A leading param() block does not bind
+    under -Command: PowerShell reads the rest of the line as more command text,
+    so -ProcId arrived as nothing, Get-Process -Id 0 was the Idle process, and
+    every step reported "no main window" while the workbench sat there.
+    """
+    fd, script = tempfile.mkstemp(prefix="shots-", suffix=".ps1")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(WIN_CAPTURE)
+        # All our pids in one call: the chooser wants to see every candidate
+        # window at once to pick the foreground one, which it cannot do if it
+        # is handed a pid at a time.
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive",
+             "-ExecutionPolicy", "Bypass", "-File", script,
+             "-ProcIds", ",".join(str(p) for p in sorted(ours(pid))),
+             "-Out", out],
+            capture_output=True, text=True)
+    finally:
+        try:
+            os.unlink(script)
+        except OSError:
+            pass
+    if r.returncode == 0 and os.path.exists(out):
+        return True
+    print("  no window of ours could be photographed on Windows:",
+          (r.stderr or r.stdout).strip().splitlines()[-1] if (r.stderr or r.stdout).strip() else "no output",
+          file=sys.stderr)
+    return False
 
 
 def capture(out, pid):
@@ -91,7 +257,20 @@ def capture(out, pid):
     photograph the wrong one of ours, which is the same fault wearing our own
     colours. A pid cannot be borrowed by a browser that happens to have the
     project open.
+
+    Each platform keeps that rule its own way, because each has its own idea of
+    what a window is: kdotool's active window and its owning pid on Linux,
+    Quartz's on-screen window list filtered to our process on macOS, and the
+    main window handle of a process we started on Windows. The tool was
+    Linux-only by construction until those two existed, which made part two of
+    the release pass a check only one platform could ever carry out - and the
+    other two are where the last several passes found the most.
     """
+    if sys.platform == "darwin":
+        return captureDarwin(out, pid)
+    if os.name == "nt":
+        return captureWindows(out, pid)
+
     win = _kdotool("getactivewindow")
     if not win:
         print("  no active window to photograph (is kdotool installed?)",
@@ -137,6 +316,16 @@ def capture(out, pid):
 # What every launch writes to stderr and nobody needs to hear about.
 QUIET = ("session log:", "control socket:", "closing:")
 
+# Lines that are the machine talking about itself rather than the workbench
+# refusing anything.
+#
+# A GPU driver wgpu dislikes makes it chatty, and every one of those lines used
+# to be read as a refusal - so on a machine with an older Intel driver all 117
+# steps failed, each reported as "the workbench refused something", while the
+# window was up and perfectly usable. The refusal check is right to exist; it
+# just could not tell a warning from a refusal.
+NOISE = ("[wgpu]", "libEGL", "libGL", "MESA-", "xkbcommon:", "WARNING:", "warning:")
+
 
 def tail(path):
     """What the workbench said for itself, minus its own startup chatter."""
@@ -146,7 +335,8 @@ def tail(path):
     except OSError:
         return ""
     keep = [l for l in said.splitlines()
-            if l.strip() and not l.startswith(QUIET)]
+            if l.strip() and not l.startswith(QUIET)
+            and not l.lstrip().startswith(NOISE)]
     return " / ".join(keep)[-400:]
 
 
@@ -214,13 +404,28 @@ def run(step, binary, fixture, outdir):
             proc.kill()
 
 
+def defaultBinary():
+    """Where the binary is, under the name this platform builds it as.
+
+    `go build -o meshbench` produces meshbench.exe on Windows, and the path
+    checked had no extension - so the script refused before doing anything,
+    printing the build instruction that had just been followed.
+    """
+    plain = os.path.join(ROOT, "meshbench")
+    if os.name == "nt" or not os.path.exists(plain):
+        exe = plain + ".exe"
+        if os.path.exists(exe):
+            return exe
+    return plain
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("buckets", nargs="*", help="only these buckets")
     ap.add_argument("--list", action="store_true", help="say what would run")
     ap.add_argument("--out", default=os.path.join(ROOT, "shots"))
     ap.add_argument("--binary", default=os.environ.get(
-        "MESHBENCH_BINARY", os.path.join(ROOT, "meshbench")))
+        "MESHBENCH_BINARY", defaultBinary()))
     ap.add_argument("--fixture", default="fixture-fife-strict")
     a = ap.parse_args()
 
