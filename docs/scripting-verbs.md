@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**219**<!--verbdoc:public--> public verbs a script can call and
-**37**<!--verbdoc:internal--> internal callbacks it cannot, **256**<!--verbdoc:total-->
+**220**<!--verbdoc:public--> public verbs a script can call and
+**37**<!--verbdoc:internal--> internal callbacks it cannot, **257**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **219**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
-  the workbench keeps to itself, **256**<!--verbdoc:total--> registered in
+- **220**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
+  the workbench keeps to itself, **257**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -277,10 +277,11 @@ Two verbs are **not** in this table:
 | verb | takes | returns | façade |
 |---|---|---|---|
 | `budget.for_selection` | — | `budgets` | `wb.links.budget()` - *planned*, no client defines `wb.links` yet; call the verb |
-| `link.pair` | `a` object, `b` object | `from`, `to`, `ground` | `wb.links.pair(a, b)` - *planned*, no client defines `wb.links` yet; call the verb |
+| `link.pair` | `a` object, `b` object | `from`, `to`, `ground`, `note` | `wb.links.pair(a, b)` - *planned*, no client defines `wb.links` yet; call the verb |
 | `link.pair_set` | — | `from`, `to`, `km`, `edges` | *none* — the pair worker publishing its answer |
 | `link.profile` | — | `from`, `to` | `wb.links.profile(a, b)` - *planned*, no client defines `wb.links` yet; call the verb |
 | `link.profile_set` | — | `from`, `to`, `km`, `edges` | *none* — the profile worker publishing its answer |
+| `link.result` | — | `from`, `to`, `km`, `a_to_b_db`, `b_to_a_db`, `verdict`, `assumed`, `edges`, `samples`, `worst_at_km`, `directions` | `wb.links.result()` - *planned*, no client defines `wb.links` yet; call the verb |
 | `links.recompute` | — | `warming` | `wb.links.recompute()` - *planned*, no client defines `wb.links` yet; call the verb |
 | `links.set` | — | `links` | *none* — the warm publishing its matrix |
 | `study.margin` | *a bare string*, `km` number | `km` | `wb.study.margin_km = n` - *planned*, no client defines `wb.study` yet; call the verb |

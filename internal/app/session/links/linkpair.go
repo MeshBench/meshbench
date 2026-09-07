@@ -183,8 +183,15 @@ func registerLinkPair(st *state.Store, s *session.Sim) {
 		under := s.GroundUnder([]scenario.Node{a.n, b.n})
 		session.NoteGround(w, "link.pair", under)
 		pairProfile(s, st, a, b)
+		// The two labels and the ground, and a note saying where the rest of
+		// the answer lands: the cut-through and both margins are computed on
+		// a worker, because the terrain can reach the network, so they cannot
+		// come back in this reply. Same shape as console.type and
+		// console.read.
 		return map[string]any{"from": a.label, "to": b.label,
-			"ground": under.Map()}, nil
+			"ground": under.Map(),
+			"note":   "the cut-through and both margins land when the worker finishes; read them with link.result",
+		}, nil
 	})
 
 	st.HandleInternal("link.pair_set", func(w *state.World, p any) (any, error) {
@@ -200,5 +207,46 @@ func registerLinkPair(st *state.Store, s *session.Sim) {
 		w.Budgets = r.budgets
 		return map[string]any{"from": r.profile.From, "to": r.profile.To,
 			"km": r.profile.DistanceKm, "edges": len(r.profile.Edges)}, nil
+	})
+}
+
+// registerLinkResult adds the read half of link.pair.
+//
+// link.pair starts a worker and returns the two labels: the cut-through and
+// both margins land in the snapshot through the internal link.pair_set, where
+// only a panel could reach them. So the question the verb exists to answer -
+// why do these two hear each other, or not - could be asked from a script and
+// not read back. Both directions especially: a reply that does not say which
+// direction is wrong even when the arithmetic is right.
+//
+// A separate read rather than a synchronous link.pair, because the analysis
+// asks the terrain and the terrain can reach the network. Same shape as
+// console.type and console.read, and link.pair's note now says so.
+func registerLinkResult(st *state.Store, _ *session.Sim) {
+	st.Handle("link.result", func(w *state.World, _ any) (any, error) {
+		p := w.LinkProfile
+		if p == nil {
+			return nil, fmt.Errorf(
+				"no link has been analysed yet: ask for one with link.pair or " +
+					"link.profile, then read it here")
+		}
+		dirs := make([]map[string]any, 0, len(w.Budgets))
+		for _, b := range w.Budgets {
+			terms := make([]map[string]any, 0, len(b.Terms))
+			for _, t := range b.Terms {
+				terms = append(terms, map[string]any{"name": t.Name, "db": t.DB})
+			}
+			dirs = append(dirs, map[string]any{
+				"from": b.From, "to": b.To, "margin_db": b.MarginDB, "terms": terms,
+			})
+		}
+		return map[string]any{
+			"from": p.From, "to": p.To, "km": p.DistanceKm,
+			"a_to_b_db": p.AtoB, "b_to_a_db": p.BtoA,
+			"verdict": p.Verdict, "assumed": p.Assumed,
+			"edges": len(p.Edges), "samples": len(p.Samples),
+			"worst_at_km": p.Worst.DistM / 1000,
+			"directions":  dirs,
+		}, nil
 	})
 }
