@@ -94,6 +94,9 @@ type MapView struct {
 	OnSize func(image.Point)
 	labels labeller
 	sizes  labelSizer
+	// chrome is where this frame's panels ended up, kept for the next frame's
+	// label placement. See the note at the place() call.
+	chrome []image.Rectangle
 	// Layers is what is drawn. Exported so a window, a menu or a script can
 	// set it without reaching through the map.
 	Layers Layers
@@ -279,8 +282,14 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// one path can only have one colour.
 	byKind := map[theme.NodeKind][]projected{}
 	dimKind := map[theme.NodeKind][]projected{}
+	// Which points get a marker. Recorded rather than recomputed, because the
+	// labels have to follow it exactly: a name floating with no dot under it
+	// says a node is somewhere without saying where, which is worse than not
+	// naming it. Hiding a kind from the key, and turning the Nodes layer off,
+	// both used to leave every one of those names on the map.
+	marked := make([]bool, len(pts))
 	filterWant := strings.ToLower(strings.TrimSpace(m.Filter))
-	for _, p := range pts {
+	for i, p := range pts {
 		if offscreen(p, sz) {
 			continue
 		}
@@ -288,6 +297,7 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		if int(k) < len(m.Layers.HideKind) && m.Layers.HideKind[k] {
 			continue
 		}
+		marked[i] = m.Layers.Nodes
 		if filterWant != "" && !nodeMatches(p.n, filterWant) {
 			dimKind[k] = append(dimKind[k], p)
 			continue
@@ -298,7 +308,11 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		// The ones that do not match are drawn first and faint, so they stay
 		// on the map. A node that vanishes reads as a node that is not in the
 		// scenario, which is a different and much more alarming thing.
-		for k, list := range dimKind {
+		for _, k := range kindPaintOrder {
+			list := dimKind[k]
+			if len(list) == 0 {
+				continue
+			}
 			var np clip.Path
 			np.Begin(gtx.Ops)
 			for _, p := range list {
@@ -312,13 +326,17 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 		// changing colour with the layer.
 		var ring clip.Path
 		ring.Begin(gtx.Ops)
-		for _, list := range byKind {
-			for _, p := range list {
+		for _, k := range kindPaintOrder {
+			for _, p := range byKind[k] {
 				dot(&ring, f32.Pt(p.x, p.y), 6)
 			}
 		}
 		paint.FillShape(gtx.Ops, t.P.MapPlate, clip.Outline{Path: ring.End()}.Op())
-		for k, list := range byKind {
+		for _, k := range kindPaintOrder {
+			list := byKind[k]
+			if len(list) == 0 {
+				continue
+			}
 			var np clip.Path
 			np.Begin(gtx.Ops)
 			for _, p := range list {
@@ -351,9 +369,17 @@ func (m *MapView) Layout(t *theme.Theme, gtx layout.Context, s *state.Snapshot) 
 	// and why stable.
 	spots := map[int]image.Point{}
 	if m.Layers.Labels {
-		spots = m.labels.place(pts, sz, m.cam.hover,
+		// The chrome the last frame drew is where this frame's labels may not
+		// go. Last frame's, because the panels are laid out after the labels -
+		// they have to paint over the map - and their size is not known until
+		// then. It changes only on a resize or when a layer grows its own
+		// controls, so a frame of lag is invisible, where a name printed
+		// across the layer switches is not.
+		m.labels.blocked = m.chrome
+		spots = m.labels.place(pts, sz, m.cam.hover, marked,
 			func(i int) image.Point { return m.sizes.measure(gtx, t, pts[i].n.Name) })
 	}
+	m.chrome = m.chrome[:0]
 	ink := m.baseInk(t)
 	for i, at := range spots {
 		col := theme.Alpha(ink, 0.85)
