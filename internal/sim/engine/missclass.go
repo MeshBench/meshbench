@@ -47,11 +47,22 @@ func weakMissCause(snr, effective, required, interferenceDBm float64, sf int) (s
 // threshold the cause was not isolated, and saying so is better than naming
 // the likeliest one and being believed.
 func waveformMissClass(c wfCandidate, sf int) Class {
-	if c.rxDBm-c.noiseDBm < requiredSNRdB(sf) {
+	if estimatedSNRdB(c) < requiredSNRdB(sf) {
 		return ClassFloor
 	}
 	return ClassUnclassified
 }
+
+// estimatedSNRdB is the figure the class is decided on: what the gates worked
+// out from received power and the noise floor, before the demodulator looked.
+//
+// Named because two different SNRs travel with a waveform miss and only one of
+// them decides anything. The other is r.snrdB, what the demodulator measured
+// off the samples, which saturates at the top of the reportable scale - so a
+// miss classed "floor" on an estimate of -4 dB was printing "+15.0 dB measured
+// SNR", and "too quiet on its own" beside a number at the top of the scale is
+// a sentence that sends somebody to check their antenna for no reason.
+func estimatedSNRdB(c wfCandidate) float64 { return c.rxDBm - c.noiseDBm }
 
 // noTerrainDataClass is the cause for a path the terrain could not cover.
 //
