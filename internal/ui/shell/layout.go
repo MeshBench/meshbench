@@ -405,7 +405,7 @@ func (sh *Shell) statusBar(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 				// in. Mono because a version is compared by eye against
 				// another one, and faint because it is only ever wanted when
 				// something has gone wrong.
-				layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, version.String()+" · Gio")),
+				layout.Rigid(comp.Mono(t, t.Sz.Caption, t.P.Faint, versionMark()+" · Gio")),
 			)
 		})
 }
@@ -421,4 +421,19 @@ func EmptyPanel(name, what string) *Panel {
 				comp.Text(t, t.Sz.Caption, t.P.Faint, what))
 		},
 	}
+}
+
+// versionMark is the version for the status bar, with the channel said where
+// it is not the stable one.
+//
+// A development build looks exactly like a release in a screenshot, and a
+// screenshot is what reaches an issue. "v0.0.11-dev.3" already says it in the
+// tag, but a reader skimming a bug report does not parse tags; the word does
+// the work. A working copy already names its commit, and needs no more.
+func versionMark() string {
+	v := version.String()
+	if version.IsDevelopment() && version.Release() != "" {
+		return v + " · development build"
+	}
+	return v
 }

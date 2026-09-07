@@ -28,6 +28,7 @@ func statusWire(u state.Update, allowed, asked bool) map[string]any {
 		"build":     version.Release(),
 		"latest":    u.Latest,
 		"tag":       u.Tag,
+		"channel":   u.Channel,
 		"newer":     update.Newer(version.Release(), u.Latest),
 		"available": available(u),
 		"notes":     u.Notes,

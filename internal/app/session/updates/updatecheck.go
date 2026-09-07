@@ -22,6 +22,20 @@ const checkJob = "update"
 const checkTimeout = 30 * time.Second
 
 func registerCheck(st *state.Store, s *session.Sim) {
+	// update.channel: which releases this machine is offered.
+	st.Handle("update.channel", func(w *state.World, p any) (any, error) {
+		if name, ok := session.StringField(p, "channel"); ok && name != "" {
+			if err := s.SetUpdateChannel(w, name); err != nil {
+				return nil, err
+			}
+			w.Say("release channel: " + name + ", here and on the next launch")
+		}
+		return map[string]any{
+			"channel": s.UpdateChannel(),
+			"build":   version.Channel(),
+		}, nil
+	})
+
 	st.Handle("update.allow", func(w *state.World, p any) (any, error) {
 		// Allow by default: this verb exists to grant permission, and a caller
 		// who wrote no argument at all wrote the common case.
@@ -85,14 +99,14 @@ func registerCheck(st *state.Store, s *session.Sim) {
 
 // startCheck asks the feed on a worker and posts the answer back.
 func startCheck(st *state.Store, s *session.Sim) {
-	feed := s.UpdateFeed()
+	feed, channel := s.UpdateFeed(), s.UpdateChannel()
 	go func() {
 		ctx, stop := context.WithTimeout(context.Background(), checkTimeout)
 		defer stop()
 		_, _ = st.Do(ctx, "job.progress", state.Job{
 			ID: checkJob, What: "asking whether a newer release exists",
 			Done: 0, Total: 1})
-		u := ask(ctx, feed)
+		u := ask(ctx, feed, channel)
 		done, release := session.Finishing(ctx)
 		defer release()
 		_, _ = st.Do(done, "job.done", checkJob)
@@ -101,11 +115,12 @@ func startCheck(st *state.Store, s *session.Sim) {
 }
 
 // ask is the check itself: what the feed says, against what this build is.
-func ask(ctx context.Context, feed string) state.Update {
+func ask(ctx context.Context, feed, channel string) state.Update {
 	c := update.Checker{Feed: feed}
 	u := state.Update{
 		Checked:  time.Now().UTC().Format(time.RFC3339),
 		Artefact: string(update.This()),
+		Channel:  channel,
 	}
 	if c.Redirected() {
 		u.Feed = feed
@@ -114,7 +129,7 @@ func ask(ctx context.Context, feed string) state.Update {
 	// unauthenticated caller sixty requests an hour per address, and an address
 	// is a household, an office or an ISP doing carrier-grade NAT - so a check
 	// on every launch would spend everybody's on that address.
-	rel, err := c.Latest(ctx)
+	rel, err := c.LatestOn(ctx, channel)
 	if err != nil {
 		// Held as an error rather than folded into "nothing newer". A rate
 		// limit, a captive portal and an up-to-date build are three different
@@ -148,12 +163,15 @@ func detail(ctx context.Context, c update.Checker, u state.Update) state.Update 
 	if !rel.Published.IsZero() {
 		u.Published = rel.Published.UTC().Format(time.RFC3339)
 	}
-	if rel.Prerelease {
-		// Never offered. The redirect this followed is GitHub's own "latest",
-		// which never names one, so this is only reachable from a feed somebody
-		// pointed here by hand - and a pre-release installed by a machine that
-		// was asking about releases is not what anybody meant.
-		u.Why = rel.Tag + " is a pre-release, and pre-releases are not offered here"
+	if rel.Prerelease && u.Channel != "development" {
+		// Never offered on the stable channel. The redirect that channel
+		// follows is GitHub's own "latest", which never names one, so this is
+		// only reachable from a feed somebody pointed here by hand - and a
+		// pre-release installed by a machine that was asking about releases is
+		// not what anybody meant. The development channel asked for exactly
+		// this, and refusing it here would have found the build and then
+		// declined it.
+		u.Why = rel.Tag + " is a pre-release, and pre-releases are not offered on the stable channel"
 		u.Latest = ""
 		return u
 	}

@@ -21,6 +21,23 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+### Added
+
+- **Two release channels.** A plain tag - `v0.0.11` - is the stable channel;
+  a tag with a pre-release suffix - `v0.0.11-dev.3` - is the development
+  channel, published as a GitHub pre-release and never offered to a stable
+  build, because the release page's own redirect never names one. A build
+  follows its own channel unless told otherwise: `update.channel` reads or
+  changes it, and it is remembered in the settings file. A development build
+  says "development build" beside its version in the status bar, since a
+  screenshot is what reaches an issue. The apt repository and the Homebrew
+  tap carry stable only. `dev cut` in Actions tags the next development build
+  from `main` with one press; a stable tag stays a deliberate act by hand.
+- **A pre-release is a release of its own.** The same-release rule between a
+  client and a workbench compares the whole tag, so a stable client meeting a
+  development workbench is refused as a mismatch rather than let through as
+  though one end were a working copy.
+
 ### Fixed
 
 - **The emulator pin moves to `sx1262-15`, and ESP32 boards boot again.** The

@@ -2,7 +2,9 @@ package update
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -35,6 +37,12 @@ type httpDoer interface {
 // PublishedLatest is the redirect that names the newest release.
 const PublishedLatest = "https://github.com/MeshBench/meshbench/releases/latest"
 
+// publishedList is the API call that lists releases newest first, pre-releases
+// included. The development channel asks this, because the redirect above
+// never answers with a pre-release - GitHub's "latest" is stable by definition,
+// which is exactly the property the stable channel wants for free.
+const publishedList = "https://api.github.com/repos/MeshBench/meshbench/releases?per_page=20"
+
 // publishedTag is the API call that describes one release, tag appended.
 const publishedTag = "https://api.github.com/repos/MeshBench/meshbench/releases/tags/"
 
@@ -66,6 +74,61 @@ func (c Checker) latestURL() string {
 		return PublishedLatest
 	}
 	return strings.TrimSuffix(c.Feed, "/") + "/releases/latest"
+}
+
+func (c Checker) listURL() string {
+	if c.Feed == "" {
+		return publishedList
+	}
+	return strings.TrimSuffix(c.Feed, "/") + "/releases?per_page=20"
+}
+
+// LatestOn is Latest for a channel. "stable" is the redirect, cheap and never
+// a pre-release. "development" is the list, one API call, and takes the
+// newest published release whether or not it is a pre-release - so a build on
+// that channel is offered 0.0.11-dev.4 over 0.0.11-dev.3, and 0.0.11 itself
+// once it exists, since the release outranks the pre-releases it closes.
+func (c Checker) LatestOn(ctx context.Context, channel string) (Release, error) {
+	if channel != "development" {
+		return c.Latest(ctx)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.listURL(), nil)
+	if err != nil {
+		return Release{}, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	resp, err := c.do(req, followRedirects)
+	if err != nil {
+		return Release{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return Release{}, fmt.Errorf("update: %s answered %s listing releases, "+
+			"so whether a development build exists is unknown", hostOf(c.listURL()), resp.Status)
+	}
+	var feed []json.RawMessage
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxFeed)).Decode(&feed); err != nil {
+		return Release{}, fmt.Errorf("update: reading the release list: %w", err)
+	}
+	// Newest by version, not by position: the list is newest-published first,
+	// and a stable cut on an older commit is published after the dev builds
+	// it closes. Each entry goes through the same reader a single release
+	// does, so a draft is refused there rather than here.
+	var best Release
+	for _, raw := range feed {
+		r, err := parseFeed(raw)
+		if err != nil || r.Version == "" {
+			continue
+		}
+		if best.Tag == "" || Newer(best.Version, r.Version) {
+			best = r
+		}
+	}
+	if best.Tag == "" {
+		return Release{}, fmt.Errorf("update: %s lists no published release", hostOf(c.listURL()))
+	}
+	return best, nil
 }
 
 func (c Checker) tagURL(tag string) string {

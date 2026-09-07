@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 257 verbs: 220 a script may call and
+The store registers 258 verbs: 221 a script may call and
 37 the workbench calls on itself, which the socket refuses. Of those,
-257 say what they are for and 0 do not yet; the ones that
+258 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -4671,6 +4671,30 @@ Allow or refuse update checks on this machine, and remember it.
 ```
 
 **Client** `wb.update.allow(on=True)`
+
+Planned, not written: no client defines `wb.update` yet - whether a newer release exists and getting it onto the disk. Call the verb itself in the meantime.
+
+### `update.channel`
+
+Choose which releases this machine is offered - stable, or the development builds cut from main between them - and remember it; asked with nothing it reports the channel in force.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `channel` | string | optional, primary | stable or development; absent or empty reads the current choice, and any other name is refused rather than stored |
+
+**Answers** `channel`, `build`. `channel` is what the next check asks for and `build` is the channel this binary was cut on; they differ only when somebody has switched. Empty in the settings file means follow the build, so a development build follows development without being asked and a stable one stays stable. The stable channel is the release page's own redirect, which never names a pre-release; the development channel lists releases and takes the newest by version, pre-release or not, so a development build is offered the stable release that closes its series as well as the next development build.
+
+**Example** - follow the development builds
+
+```json
+{"id":1,"method":"update.channel","params":{"channel":"development"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.update.channel(channel)`
 
 Planned, not written: no client defines `wb.update` yet - whether a newer release exists and getting it onto the disk. Call the verb itself in the meantime.
 

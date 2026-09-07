@@ -1025,7 +1025,14 @@ jobs:
             echo "the bundle carries its own source wherever it ends up."
           } > /tmp/notes.md
 
-          gh release create "$TAG" dist/* --target "${GITHUB_SHA}" \
+          # A tag with a pre-release suffix - v0.0.11-dev.3 - is the
+          # development channel, and GitHub's pre-release flag is what keeps
+          # it off the stable one: the /releases/latest redirect the stable
+          # checker asks never names a pre-release, so nobody on stable is
+          # offered a development build without anything else having to know.
+          prerelease=""
+          case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$TAG" dist/* --target "${GITHUB_SHA}" $prerelease \
             --title "MeshBench $VERSION" --notes-file /tmp/notes.md \
             || gh release upload "$TAG" dist/* --clobber
 
@@ -1068,7 +1075,9 @@ jobs:
   apt:
     name: apt repository
     needs: release
-    if: needs.release.result == 'success'
+    # Stable only. The repository and the tap are what a stable install
+    # follows; a development build goes to the release page and nowhere else.
+    if: needs.release.result == 'success' && !contains(github.ref_name, '-')
     uses: ./.github/workflows/publish-apt.yml
     secrets: inherit
     with:
@@ -1077,7 +1086,9 @@ jobs:
   tap:
     name: Homebrew tap
     needs: release
-    if: needs.release.result == 'success'
+    # Stable only. The repository and the tap are what a stable install
+    # follows; a development build goes to the release page and nowhere else.
+    if: needs.release.result == 'success' && !contains(github.ref_name, '-')
     uses: ./.github/workflows/publish-tap.yml
     secrets: inherit
     with:

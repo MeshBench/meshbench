@@ -88,11 +88,21 @@ func moduleRelease() string {
 	return ""
 }
 
-// plainRelease keeps X.Y.Z, with or without a leading v, and rejects everything
-// else - a pseudo-version, a release candidate, "(devel)", the empty string.
+// plainRelease keeps X.Y.Z, with or without a leading v and with or without a
+// pre-release suffix - X.Y.Z-dev.3 - and rejects everything else: a
+// pseudo-version, "(devel)", the empty string.
+//
+// The suffix is kept, not stripped. A development build is a release of its
+// own on the development channel, and the same-release rule between a client
+// and a workbench compares whatever this returns: keeping the suffix is what
+// makes a stable client meeting a development workbench a mismatch rather
+// than a match, and stripping it would have been the quiet way to let that
+// pair through. Before this accepted suffixes at all, a development build
+// read as unreleased and paired with anything.
 func plainRelease(v string) string {
 	v = strings.TrimPrefix(v, "v")
-	parts := strings.Split(v, ".")
+	base, pre, _ := strings.Cut(v, "-")
+	parts := strings.Split(base, ".")
 	if len(parts) != 3 {
 		return ""
 	}
@@ -101,7 +111,37 @@ func plainRelease(v string) string {
 			return ""
 		}
 	}
+	if pre == "" && strings.Contains(v, "-") {
+		return ""
+	}
+	// A pseudo-version - a timestamp and a commit after the dash - is a
+	// working copy with a longer name, not a pre-release.
+	if ids := strings.Split(pre, "-"); len(ids) == 2 && len(ids[0]) == 14 && len(ids[1]) == 12 {
+		return ""
+	}
+	for _, id := range strings.Split(pre, ".") {
+		if pre != "" && (id == "" || strings.Trim(id, "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") != "") {
+			return ""
+		}
+	}
 	return v
+}
+
+// Channel is which release channel this build belongs to: "stable" for a
+// plain X.Y.Z tag, "development" for one carrying a pre-release suffix, and
+// "development" for a working copy too, since that is what an unstamped build
+// most resembles and it must never be told it is behind a stable release.
+func Channel() string {
+	if IsDevelopment() {
+		return "development"
+	}
+	return "stable"
+}
+
+// IsDevelopment reports whether this build is a pre-release or a working copy.
+func IsDevelopment() bool {
+	r := Release()
+	return r == "" || strings.Contains(r, "-")
 }
 
 // Detail is the long form, for `--version` and anywhere with room.

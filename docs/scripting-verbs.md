@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**220**<!--verbdoc:public--> public verbs a script can call and
-**37**<!--verbdoc:internal--> internal callbacks it cannot, **257**<!--verbdoc:total-->
+**221**<!--verbdoc:public--> public verbs a script can call and
+**37**<!--verbdoc:internal--> internal callbacks it cannot, **258**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **220**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
-  the workbench keeps to itself, **257**<!--verbdoc:total--> registered in
+- **221**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
+  the workbench keeps to itself, **258**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -412,6 +412,7 @@ Two verbs are **not** in this table:
 | `terrain.shade_failed` | — | — | *none* — the hillshade worker reporting a failure |
 | `terrain.shade_set` | — | — | *none* — the hillshade worker publishing its raster |
 | `update.allow` | *a bare string*, `on` bool | `on`, `asked`, `checking` | `wb.update.allow(on=True)` - *planned*, no client defines `wb.update` yet; call the verb |
+| `update.channel` | *a bare string*, `channel` string | `channel`, `build` | `wb.update.channel(channel)` - *planned*, no client defines `wb.update` yet; call the verb |
 | `update.check` | — | `checking`, `build` | `wb.update.check()` - *planned*, no client defines `wb.update` yet; call the verb |
 | `update.checked` | — | — | *none* — the release check reporting back from its own worker |
 | `update.download` | — | `downloading`, `bytes`, `release`, `into` | `wb.update.download()` - *planned*, no client defines `wb.update` yet; call the verb |
