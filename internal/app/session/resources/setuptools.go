@@ -174,7 +174,14 @@ func toolPurpose(tool string) string {
 
 func softDeviceRow(r state.ResourceRow) state.SetupRow {
 	row := state.SetupRow{
-		Name: r.Name + " SoftDevice", What: r.Why, Cost: costWords(r),
+		// The version in the name, because there are two and they differ by
+		// nothing else a reader can see: two builds of the same Nordic
+		// SoftDevice for two application base addresses, listed one under the
+		// other as "s140 SoftDevice" twice with only their sizes apart, which
+		// reads as the page listing one thing twice. They cannot be merged -
+		// an image based at 0x27000 will not boot against the 6.1.1 build, and
+		// Xiao_nrf52 is such an image - so the answer is to say which is which.
+		Name: r.Name + " " + r.Version + " SoftDevice", What: r.Why, Cost: costWords(r),
 		Where: r.Path,
 	}
 	switch resource.State(r.State) {

@@ -62,6 +62,11 @@ func softDeviceProvider(s *session.Sim) *resource.SoftDevice {
 func toolchainProvider(s *session.Sim) *resource.Toolchain {
 	return &resource.Toolchain{
 		Dir: emulated.ToolsDir(), Needed: s.EmulatorToolsNeeded(),
+		// The same lookup setup.check asks and a booting node does, so the
+		// two cannot answer differently about the same machine. A bundled
+		// install carries these beside the binary, where the tools directory
+		// alone can never see them.
+		Find: emulated.FindTool,
 	}
 }
 
