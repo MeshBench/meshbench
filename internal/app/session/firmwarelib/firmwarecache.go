@@ -151,13 +151,39 @@ func downloadBuildProgress(ctx context.Context, role, version, board string,
 		if err != nil {
 			return err
 		}
-		for _, img := range imgs {
+		// Through Runnable first, which is the rule for "an emulator could
+		// actually boot this" and lives one file away.
+		//
+		// Upstream publishes both variants for every ESP32 board, named apart
+		// only by "-merged", and the catalogue's regex makes that an optional
+		// group - so both parse to the same board, role and version, and this
+		// took whichever the listing happened to yield first. For most boards
+		// that was the bare application: no bootloader, no partition table,
+		// and the ROM reads the application header as a bootloader and panics
+		// with a Guru Meditation the workbench never sees. Generic_E22_sx1262
+		// happened to yield the merged one, which is why every earlier pass of
+		// the emulated-board scenario used that board and worked.
+		runnable := emulated.Runnable(imgs, nil)
+		for _, img := range runnable {
 			// Matched on the role the library offered, which carries the
 			// transport for a companion: two images share the plain role and
 			// only one of them is the one that was asked for.
 			if img.RoleName() == role && img.Board == board && img.Version == version {
 				_, err := bc.Ensure(ctx, img)
 				return err
+			}
+		}
+		// Nothing bootable, but something matching: say which, because "no
+		// build" is wrong and sends somebody looking for a release that is
+		// right there.
+		for _, img := range imgs {
+			if img.RoleName() == role && img.Board == board && img.Version == version {
+				return fmt.Errorf(
+					"the only %s %s published for %s is %s, which is the "+
+						"application on its own rather than a whole flash image: "+
+						"it starts at 0x10000 and a board starts from the "+
+						"bootloader. Nothing here can boot it",
+					role, version, board, img.Name)
 			}
 		}
 		return fmt.Errorf("no %s build of %s for %s", role, version, board)
