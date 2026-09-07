@@ -21,6 +21,15 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		if s.eng == nil {
 			return nil, fmt.Errorf("no network loaded: %w", ErrNoSimulation)
 		}
+		// The same question sim.play asks before it starts a mesh, asked here
+		// too: this verb starts one directly, and a script calling it reached
+		// none of the gates. An import committed with no builds on the machine
+		// started 561 processes through the override path, counted every one
+		// as running, and produced no traffic - with nothing refused and
+		// nothing said.
+		if err := s.firmwareStartBlocker(); err != nil {
+			return nil, err
+		}
 		w.Say("starting firmware on every node")
 		// Before the boot rather than during it. The nodes that need a tool
 		// this machine has not got will fail one by one, minutes in, each with

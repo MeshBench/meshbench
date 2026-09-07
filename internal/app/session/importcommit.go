@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/world/provider"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
@@ -122,6 +123,13 @@ func registerImport(st *state.Store, s *Sim) {
 			}
 		default:
 			return nil, fmt.Errorf("no strategy %q; there is replace-all and add", strategy)
+		}
+		// Before the build, so the engine is made from nodes that name a
+		// version rather than from nodes that do not.
+		if n := pinLatestBuilds(nodes); n > 0 {
+			w.Say(fmt.Sprintf(
+				"pinned %d imported node(s) to the newest build on this machine; "+
+					"change it in the Firmware panel", n))
 		}
 		s.buildSeeded(nodes, 869.618, s.seed)
 		w.Nodes = stateNodes(nodes)
@@ -376,3 +384,68 @@ var (
 	_ = strings.TrimSpace
 	_ = time.Now
 )
+
+// pinLatestBuilds gives every imported node the newest native build installed
+// for the role its kind runs.
+//
+// An import carries no firmware version - a deployment's feed says what a node
+// is and where it stands, not which MeshCore it should be simulated with - and
+// nothing filled the gap. So a committed import left every node with an empty
+// version, started them anyway through the override path where the version is
+// never consulted, counted all of them as running, and produced no traffic at
+// all: 562 nodes, two simulated minutes, zero events.
+//
+// The newest rather than a fixed tag, because what is on this disk is what can
+// actually start, and the alternative - pinning a version that has to be
+// downloaded - turns a commit into a network fetch nobody asked for. A node
+// that already names a version keeps it, so an "add" onto a scenario somebody
+// has pinned by hand is untouched.
+//
+// Silent where the cache is empty. The start gate is the place that says "no
+// firmware for N of M nodes", it names them, and it is a better sentence than
+// anything this could say from here.
+func pinLatestBuilds(nodes []scenario.Node) int {
+	return pinFrom(nodes, latestNativeByRole())
+}
+
+// pinFrom is the decision on its own, so it can be tested without a cache.
+func pinFrom(nodes []scenario.Node, latest map[string]string) int {
+	if len(latest) == 0 {
+		return 0
+	}
+	pinned := 0
+	for i := range nodes {
+		if !nodes[i].Kind.RunsFirmware() || nodes[i].Firmware.Version != "" {
+			continue
+		}
+		role := nodes[i].Firmware.Role
+		if role == "" {
+			role = nodes[i].Kind.Application()
+		}
+		v, ok := latest[string(role)]
+		if !ok {
+			continue
+		}
+		nodes[i].Firmware.Role = role
+		nodes[i].Firmware.Version = v
+		pinned++
+	}
+	return pinned
+}
+
+// latestNativeByRole is the newest installed host build per role.
+//
+// ListInstalled sorts by version ascending, so the last one seen for a role is
+// the newest by that ordering. Board images are skipped: an imported node has
+// no hardware named for it, and a board image only means anything alongside
+// the board it was built for.
+func latestNativeByRole() map[string]string {
+	out := map[string]string{}
+	for _, b := range firmware.ListInstalled(firmware.DefaultCacheDir()) {
+		if !b.Native || b.Role == "" || b.Version == "" {
+			continue
+		}
+		out[b.Role] = b.Version
+	}
+	return out
+}
