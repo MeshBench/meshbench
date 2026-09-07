@@ -15,11 +15,14 @@ Load `plane-conventions` if you are also updating tickets.
 
 It is a **native desktop app**, not a CLI or a service, so the socket needs a
 workbench already running (`meshbench workbench`, or `meshbench headless` for a
-session with no window). You drive it over
-`$XDG_RUNTIME_DIR/meshbench.sock`, newline-delimited JSON,
-`{"id":1,"method":"<verb>","params":{}}`. `session.describe` lists every verb
-and `session.list` names the workbenches actually running; read the first before
-inventing a way to do something, because there is almost always a verb for it.
+session with no window). You drive it over a unix socket - `$XDG_RUNTIME_DIR/meshbench.sock` on Linux,
+`~/Library/Caches/meshbench/control.sock` on macOS, and loopback TCP with a
+token on Windows, which has no AF_UNIX a Python client can reach - with
+newline-delimited JSON, `{"id":1,"method":"<verb>","params":{}}`.
+`session.verbs` lists every verb, `session.describe` is the cheap "is anything
+loaded" handshake and answers four facts, and `session.list` names the
+workbenches actually running; read the first before inventing a way to do
+something, because there is almost always a verb for it.
 
 **Some questions do not need a session at all.** `meshbench link`, `profile`,
 `coverage` and `terrain` are one-shot subcommands over their own tile store, and
