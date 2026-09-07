@@ -95,10 +95,12 @@ func (s *Sim) warm(st *state.Store, nodes int) {
 			// ever once a matrix had been restored from disk - beside a
 			// Graphics card that said the links were measured on the GPU.
 			s.gpuMu.Lock()
+			// No Pairs on it: a count here reads as pairs measured, and the
+			// Overview card drew one as "N pairs in 0 ms - what the last warm
+			// actually did", which is the claim this exists to stop.
 			s.lastGPU = GPUWarmResult{
 				Why: "the matrix already answered every pair, so nothing " +
 					"needed measuring",
-				Pairs: total,
 			}
 			s.gpuMu.Unlock()
 			_, _ = st.Do(ctx, "gpu.state", nil)
