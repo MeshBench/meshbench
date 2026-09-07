@@ -5,6 +5,11 @@
     tools/shots/shots.py panels views    only those buckets
     tools/shots/shots.py --list          what would run, and nothing else
 
+On macOS the capture needs pyobjc-framework-Quartz (pip install
+pyobjc-framework-Quartz) to turn our pid into a window id, and Screen
+Recording permission for the terminal running it. Linux needs kdotool and
+spectacle or grim; Windows needs nothing beyond PowerShell.
+
 The steps are in steps.json beside this file, and internal/ui/workbench's
 shotsteps_test.go checks that list against the application's own panel table -
 so a panel added without a step is a red build rather than a picture nobody
@@ -101,9 +106,19 @@ def captureDarwin(out, pid):
         Quartz.kCGNullWindowID)
     win = None
     for w in info or []:
-        if int(w.get("kCGWindowOwnerPID", -1)) in ours_pids:
-            win = int(w["kCGWindowNumber"])
-            break
+        if int(w.get("kCGWindowOwnerPID", -1)) not in ours_pids:
+            continue
+        # Layer 0 and a real size, or it is not a window a step is about: the
+        # list carries tooltips, menu overlays and a popout's shadow, and any
+        # of those in front of ours would come back as a picture of nothing.
+        # The same trap the Windows chooser guards against.
+        if int(w.get("kCGWindowLayer", 0)) != 0:
+            continue
+        b = w.get("kCGWindowBounds") or {}
+        if b.get("Width", 0) <= 64 or b.get("Height", 0) <= 64:
+            continue
+        win = int(w["kCGWindowNumber"])
+        break
     if win is None:
         print("  no window of ours is on screen; not photographing anything",
               file=sys.stderr)
