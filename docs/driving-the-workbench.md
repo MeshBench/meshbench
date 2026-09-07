@@ -15,7 +15,12 @@ than after it.
 ## The socket
 
 `$XDG_RUNTIME_DIR/meshbench.sock` — on elite's desktop session that is
-`/run/user/1000/meshbench.sock`. One JSON request per line,
+`/run/user/1000/meshbench.sock`. Not that path everywhere: macOS has no
+`XDG_RUNTIME_DIR` and answers at `~/Library/Caches/meshbench/control.sock`,
+and Windows has no AF_UNIX a Python client can reach, so it listens on
+loopback TCP with a token and writes a rendezvous file naming the port. The
+clients resolve all three; a script that hard-codes the Linux path works on
+one platform. One JSON request per line,
 `{"id":1,"method":"...","params":{...}}`, one JSON reply. The switch is
 File → Preferences → *Agent control*; off means no socket file exists at all.
 
