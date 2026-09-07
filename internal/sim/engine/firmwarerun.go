@@ -70,18 +70,18 @@ func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 		// answer has to arrive before the tick it applies to - a node told after
 		// the fact would be deciding on a channel that has already changed.
 		if err := t.fw.Bridge.SetChannelBusy(busy[t.i]); err != nil {
-			e.markFirmwareDown(t.name, "its radio would not take the channel state: "+err.Error())
+			e.markFirmwareDown(t.name, t.fw, "its radio would not take the channel state: "+err.Error())
 			continue
 		}
 		if err := t.fw.Bridge.BeginAdvance(t.atMs); err != nil {
-			e.markFirmwareDown(t.name, "the tick could not be sent to it: "+err.Error())
+			e.markFirmwareDown(t.name, t.fw, "the tick could not be sent to it: "+err.Error())
 			continue
 		}
 		sent = append(sent, t)
 	}
 	for _, t := range sent {
 		if err := e.waitTicked(ctx, t); err != nil {
-			e.markFirmwareDown(t.name, err.Error())
+			e.markFirmwareDown(t.name, t.fw, err.Error())
 			continue
 		}
 		// The radio reports how the firmware has configured it in the same
@@ -154,7 +154,8 @@ type FirmwareFailure struct {
 // markFirmwareDown records that a node's firmware has stopped answering, the
 // first time it is seen - later ticks skip it rather than paying for another
 // failed round trip to learn the same thing again.
-func (e *Engine) markFirmwareDown(name, why string) {
+func (e *Engine) markFirmwareDown(name string, fw *firmware.Node, why string) {
+	why += emulatorReason(fw)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.firmwareDown == nil {
