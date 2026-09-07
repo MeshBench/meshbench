@@ -4674,6 +4674,30 @@ Allow or refuse update checks on this machine, and remember it.
 
 Planned, not written: no client defines `wb.update` yet - whether a newer release exists and getting it onto the disk. Call the verb itself in the meantime.
 
+### `update.channel`
+
+Choose which releases this machine is offered - stable, or the development builds cut from main between them - and remember it; asked with nothing it reports the channel in force.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `channel` | string | optional, primary | stable or development; absent or empty reads the current choice, and any other name is refused rather than stored |
+
+**Answers** `channel`, `build`. `channel` is what the next check asks for and `build` is the channel this binary was cut on; they differ only when somebody has switched. Empty in the settings file means follow the build, so a development build follows development without being asked and a stable one stays stable. The stable channel is the release page's own redirect, which never names a pre-release; the development channel lists releases and takes the newest by version, pre-release or not, so a development build is offered the stable release that closes its series as well as the next development build.
+
+**Example** - follow the development builds
+
+```json
+{"id":1,"method":"update.channel","params":{"channel":"development"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.update.channel(channel)`
+
+Planned, not written: no client defines `wb.update` yet - whether a newer release exists and getting it onto the disk. Call the verb itself in the meantime.
+
 ### `update.check`
 
 Ask the release feed whether a newer release exists.

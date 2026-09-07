@@ -412,6 +412,7 @@ Two verbs are **not** in this table:
 | `terrain.shade_failed` | — | — | *none* — the hillshade worker reporting a failure |
 | `terrain.shade_set` | — | — | *none* — the hillshade worker publishing its raster |
 | `update.allow` | *a bare string*, `on` bool | `on`, `asked`, `checking` | `wb.update.allow(on=True)` - *planned*, no client defines `wb.update` yet; call the verb |
+| `update.channel` | *a bare string*, `channel` string | `channel`, `build` | `wb.update.channel(channel)` - *planned*, no client defines `wb.update` yet; call the verb |
 | `update.check` | — | `checking`, `build` | `wb.update.check()` - *planned*, no client defines `wb.update` yet; call the verb |
 | `update.checked` | — | — | *none* — the release check reporting back from its own worker |
 | `update.download` | — | `downloading`, `bytes`, `release`, `into` | `wb.update.download()` - *planned*, no client defines `wb.update` yet; call the verb |

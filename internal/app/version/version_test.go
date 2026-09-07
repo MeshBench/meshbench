@@ -64,8 +64,11 @@ func TestReleaseIsSpelledTheWayEveryArtefactSpellsIt(t *testing.T) {
 // that is nearly right would refuse a pair that is fine, so only a plain X.Y.Z
 // counts: not a pseudo-version, not a release candidate, not "(devel)".
 func TestOnlyAPlainReleaseCounts(t *testing.T) {
+	// A pre-release suffix counts now - see channel_test.go - so "v1.2.3-rc.1"
+	// is no longer in this list. A pseudo-version still is not: its suffix is
+	// a timestamp and a commit, which is a working copy with a longer name.
 	for _, v := range []string{
-		"", "dev", "(devel)", "v1.2", "v1.2.3.4", "v1.2.3-rc.1",
+		"", "dev", "(devel)", "v1.2", "v1.2.3.4",
 		"v0.0.0-20240101120000-abcdef123456", "v1.2.x",
 	} {
 		if got := plainRelease(v); got != "" {

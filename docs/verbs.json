@@ -5257,6 +5257,28 @@
         "runnable": true
       }
     },
+    "update.channel": {
+      "what": "choose which releases this machine is offered - stable, or the development builds cut from main between them - and remember it; asked with nothing it reports the channel in force",
+      "params": [
+        {
+          "name": "channel",
+          "type": "string",
+          "primary": true,
+          "what": "stable or development; absent or empty reads the current choice, and any other name is refused rather than stored"
+        }
+      ],
+      "returns": [
+        "channel",
+        "build"
+      ],
+      "answers": "`channel` is what the next check asks for and `build` is the channel this binary was cut on; they differ only when somebody has switched. Empty in the settings file means follow the build, so a development build follows development without being asked and a stable one stays stable. The stable channel is the release page's own redirect, which never names a pre-release; the development channel lists releases and takes the newest by version, pre-release or not, so a development build is offered the stable release that closes its series as well as the next development build.",
+      "example": {
+        "params": {
+          "channel": "development"
+        },
+        "what": "follow the development builds"
+      }
+    },
     "update.check": {
       "what": "ask the release feed whether a newer release exists",
       "returns": [

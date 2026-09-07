@@ -13,6 +13,7 @@
 package update
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -55,16 +56,21 @@ func (r Release) Find(name string) (Asset, bool) {
 
 // Newer reports whether latest is a higher version than build.
 //
-// Both have to be plain X.Y.Z. A working copy's version is empty and gets
-// false, which is the whole point: it is not behind, it is unreleased, and
-// telling somebody who is building the thing that they are out of date is how
-// an update check earns its reputation.
+// Both have to be X.Y.Z, with or without a pre-release suffix. A working
+// copy's version is empty and gets false, which is the whole point: it is not
+// behind, it is unreleased, and telling somebody who is building the thing
+// that they are out of date is how an update check earns its reputation.
+//
+// The ordering is semver's: the triple first; then a plain release outranks
+// every pre-release of the same triple, since 0.0.11 is what 0.0.11-dev.3 was
+// on the way to; then pre-release identifiers left to right, numbers as
+// numbers, so dev.10 follows dev.9 rather than dev.1.
 func Newer(build, latest string) bool {
-	b, ok := triple(build)
+	b, bpre, ok := parse(build)
 	if !ok {
 		return false
 	}
-	l, ok := triple(latest)
+	l, lpre, ok := parse(latest)
 	if !ok {
 		return false
 	}
@@ -73,23 +79,57 @@ func Newer(build, latest string) bool {
 			return l[i] > b[i]
 		}
 	}
-	return false
+	switch {
+	case bpre == "" && lpre == "":
+		return false
+	case bpre == "":
+		return false // a release is never behind its own pre-releases
+	case lpre == "":
+		return true // and a pre-release is always behind the release it precedes
+	}
+	return prerelease(lpre) > prerelease(bpre)
 }
 
-// triple parses X.Y.Z, with or without a leading v, and refuses everything
-// else - a pseudo-version, a release candidate, the empty string.
-func triple(v string) ([3]int, bool) {
+// prerelease is a pre-release suffix in a form plain string comparison orders
+// the way semver does: each numeric identifier zero-padded so dev.10 does not
+// sort before dev.9.
+func prerelease(pre string) string {
+	ids := strings.Split(pre, ".")
+	for i, id := range ids {
+		if n, err := strconv.Atoi(id); err == nil {
+			ids[i] = fmt.Sprintf("%012d", n)
+		}
+	}
+	return strings.Join(ids, ".")
+}
+
+// parse splits X.Y.Z[-pre], with or without a leading v, and refuses
+// everything else - a pseudo-version, the empty string.
+func parse(v string) ([3]int, string, bool) {
 	var out [3]int
-	parts := strings.Split(strings.TrimPrefix(v, "v"), ".")
+	base, pre, _ := strings.Cut(strings.TrimPrefix(v, "v"), "-")
+	parts := strings.Split(base, ".")
 	if len(parts) != 3 {
-		return out, false
+		return out, "", false
 	}
 	for i, p := range parts {
 		n, err := strconv.Atoi(p)
 		if err != nil || n < 0 {
-			return out, false
+			return out, "", false
 		}
 		out[i] = n
 	}
-	return out, true
+	// A pseudo-version's suffix is a timestamp and a commit: a working copy
+	// with a longer name, and no release at all.
+	if ids := strings.Split(pre, "-"); len(ids) == 2 && len(ids[0]) == 14 && len(ids[1]) == 12 {
+		return out, "", false
+	}
+	return out, pre, true
+}
+
+// triple is parse without the suffix, for the callers that only want the
+// number.
+func triple(v string) ([3]int, bool) {
+	t, _, ok := parse(v)
+	return t, ok
 }

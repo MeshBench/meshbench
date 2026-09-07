@@ -125,7 +125,7 @@ func fetch(ctx context.Context, feed string, u state.Update, dir string,
 	progress func(done, total int64)) (string, error) {
 
 	c := update.Checker{Feed: feed}
-	newest, err := c.Latest(ctx)
+	newest, err := c.LatestOn(ctx, u.Channel)
 	if err != nil {
 		return "", err
 	}

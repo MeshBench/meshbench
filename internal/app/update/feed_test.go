@@ -160,7 +160,13 @@ func TestNewerOnlyComparesTwoRealReleases(t *testing.T) {
 		{"", "0.2.0", false, "a working copy is unreleased, not behind"},
 		{"0.1.0", "", false, "a feed that named no version says nothing"},
 		{"0.1.0", "v0.2.0", true, "the leading v is the tag's spelling, not a different number"},
-		{"0.1.0", "0.2.0-rc1", false, "a release candidate is not a release"},
+		// A pre-release is a release on the development channel, and it is
+		// newer than the stable it follows. What keeps a stable build from
+		// being offered one is the channel's feed - the redirect never names
+		// a pre-release - not this comparison, which has to order them for
+		// the development channel to work at all.
+		{"0.1.0", "0.2.0-rc1", true, "a pre-release of the next version is newer"},
+		{"0.2.0", "0.2.0-rc1", false, "a release is never behind its own pre-releases"},
 	}
 	for _, c := range cases {
 		if got := update.Newer(c.build, c.latest); got != c.want {

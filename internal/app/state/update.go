@@ -12,6 +12,8 @@ package state
 // is filled at startup, because a check nobody asked for is the thing this was
 // designed not to be.
 type Update struct {
+	// Channel is which releases were asked about: stable, or development.
+	Channel string
 	// Latest is the newest published release, plain X.Y.Z, and Tag is what the
 	// release page calls it.
 	Latest string

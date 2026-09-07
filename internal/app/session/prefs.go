@@ -80,6 +80,11 @@ type Prefs struct {
 	// refusal has to be remembered, or it is a question asked again on every
 	// launch, which is the single most common way this feature is hated.
 	UpdateChecks *bool `json:"update_checks,omitempty"`
+	// Channel is which releases this machine is offered: "stable", or
+	// "development" for the pre-releases cut from main between them. Empty
+	// means the channel this build itself is on, so a development build
+	// follows development without being asked and a stable one stays stable.
+	Channel string `json:"channel,omitempty"`
 	// UpdateChecked is when it was last asked, RFC3339. Remembered across
 	// launches so a daily check is daily rather than per launch.
 	UpdateChecked string `json:"update_checked,omitempty"`

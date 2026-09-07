@@ -1,0 +1,78 @@
+name: dev cut
+
+# Cut a development build: the next vX.Y.Z-dev.N tag on the current main,
+# which package.yml then builds and publishes as a pre-release.
+#
+# A button rather than a timer. Nobody wants a build nobody asked for; a cut
+# after a batch has merged says why it exists, and the tag says which stable
+# it is on the way to. The stable tag itself stays a deliberate act by hand -
+# a commit somebody has walked the release pass on - and should land on the
+# same commit as the last development build that passed it.
+#
+# N counts from the last tag of either kind: after v0.0.11-dev.3 the next cut
+# is -dev.4, and after v0.0.11 ships the next is v0.0.12-dev.1, since a
+# pre-release of a version that already exists would sort below it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: >-
+          The stable version this is on the way to, as X.Y.Z. Empty takes the
+          last tag and bumps the patch if that tag was a stable release.
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Work out the next tag
+        id: next
+        env:
+          BASE: ${{ inputs.base }}
+        run: |
+          set -euo pipefail
+          last=$(git tag --list 'v*' | sort -V | tail -1)
+          echo "last tag: ${last:-none}"
+          base="$BASE"
+          if [ -z "$base" ]; then
+            plain=${last#v}; plain=${plain%%-*}
+            if [ -z "$last" ]; then
+              base=0.0.1
+            elif [ "$last" = "v$plain" ]; then
+              # The last tag was a stable release: the next dev series is for
+              # the patch after it.
+              IFS=. read -r ma mi pa <<<"$plain"
+              base="$ma.$mi.$((pa+1))"
+            else
+              base="$plain"
+            fi
+          fi
+          n=$(git tag --list "v$base-dev.*" | sed "s/^v$base-dev\.//" | sort -n | tail -1)
+          next="v$base-dev.$(( ${n:-0} + 1 ))"
+          if git rev-parse -q --verify "refs/tags/v$base" >/dev/null; then
+            echo "v$base already exists, so a pre-release of it would sort below it" >&2
+            exit 1
+          fi
+          echo "tag=$next" >> "$GITHUB_OUTPUT"
+          echo "cutting $next on $(git rev-parse --short HEAD)"
+
+      - name: Tag it
+        env:
+          TAG: ${{ steps.next.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "meshbench-dev-cut"
+          git config user.email "noreply@meshbench.github.io"
+          git tag -a "$TAG" -m "Development build $TAG, cut from main at $(git rev-parse --short HEAD)"
+          git push origin "$TAG"
+          echo "pushed $TAG - package.yml builds it and publishes a pre-release"

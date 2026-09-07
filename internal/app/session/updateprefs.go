@@ -11,9 +11,11 @@
 package session
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
+	"github.com/MeshBench/meshbench/internal/app/version"
 )
 
 // UpdateConsent is the three-state answer: whether the release feed may be
@@ -54,3 +56,27 @@ func (s *Sim) SetUpdateChecked(w *state.World, t time.Time) {
 
 // UpdateFeed is where the release check asks, empty for the published feed.
 func (s *Sim) UpdateFeed() string { return s.updateFeed }
+
+// UpdateChannel is which releases this machine is offered.
+//
+// The stored choice where there is one, otherwise the channel this build is
+// on: a development build follows development without being asked, and a
+// stable build stays stable. That default is what makes a fresh install of
+// either do the right thing before anybody finds the setting.
+func (s *Sim) UpdateChannel() string {
+	if s.prefs.Channel == "stable" || s.prefs.Channel == "development" {
+		return s.prefs.Channel
+	}
+	return version.Channel()
+}
+
+// SetUpdateChannel remembers the choice. Only the two names are accepted;
+// anything else is refused rather than stored, since a stored value the
+// checker does not recognise would fall back to a default in silence.
+func (s *Sim) SetUpdateChannel(w *state.World, channel string) error {
+	if channel != "stable" && channel != "development" {
+		return fmt.Errorf("no channel called %q: there is stable and development", channel)
+	}
+	s.prefs.Channel = channel
+	return s.savePrefs(w)
+}
