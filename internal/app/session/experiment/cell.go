@@ -61,6 +61,17 @@ func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpA
 		FreqMHz: 869.618, SF: 10, BandwidthHz: 250e3, CodingRate: 1,
 		NoiseFigDB: 6, StepMs: 10, Seed: seed,
 		ExcessPathLossDB: s.ExcessLossDB(),
+		// The physics the session is switched to, not the zero value.
+		//
+		// A cell built its engine without this, so every sweep ran calculated
+		// however the workbench was set - and said nothing, so somebody who
+		// switched to waveform and started a sweep got the other model's
+		// numbers back under the mode they had chosen. It also decides whether
+		// the seeds can separate anything at all: calculated draws nothing per
+		// reception, so every repeat of an arm is byte-identical and rx_spread
+		// is structurally zero, while the waveform path draws its receiver
+		// noise per packet-receiver pair from this very seed.
+		RFMode: session.RFModeFor(s.RFModeName()),
 	})
 	// Published while this cell runs, so the workbench draws the run somebody
 	// started: the clock advances, the map shows traffic, the tables fill. It

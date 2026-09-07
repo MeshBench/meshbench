@@ -226,3 +226,20 @@ func registerRFEnvironment(st *state.Store, s *Sim) {
 		return map[string]any{"environment": dir}, nil
 	})
 }
+
+// RFModeName is which physics this session decides reception with, as the
+// name rf.mode uses.
+//
+// Exported for the sweep, which builds an engine of its own per cell and had
+// no way to ask. It ran every cell on the zero value - calculated - whatever
+// the session was switched to, and said nothing about it.
+func (s *Sim) RFModeName() string {
+	if s.rfMode == "" {
+		return "calculated"
+	}
+	return s.rfMode
+}
+
+// RFModeFor turns that name into the engine's own setting, so a caller
+// building an engine outside engine.go resolves it the same way.
+func RFModeFor(name string) engine.RFMode { return rfModeOf(name) }
