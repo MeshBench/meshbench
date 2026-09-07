@@ -138,6 +138,9 @@ func (m *MapView) coverageLegend(t *theme.Theme, gtx layout.Context, sz image.Po
 	at := image.Pt(gtx.Dp(t.Sp.M), sz.Y-box.Y-gtx.Dp(t.Sp.XL)*2)
 	off := op.Offset(at).Push(gtx.Ops)
 	defer off.Pop()
+	// Recorded for the labeller, as the layer panel is: this is drawn over
+	// the labels and is not fully opaque either.
+	m.chrome = append(m.chrome, image.Rectangle{Min: at, Max: at.Add(box)})
 	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.9), clip.Rect{Max: box}.Op())
 	Border(gtx, box, 2, 1, t.P.Rule)
 	in := op.Offset(image.Pt(pad, pad)).Push(gtx.Ops)

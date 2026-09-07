@@ -26,10 +26,12 @@ import (
 // labeller places labels for one frame.
 type labeller struct {
 	taken []image.Rectangle
-	// blocked is the map's own chrome - the layer switches, the scale bar,
-	// the coverage key - which a label may not be placed under. The panels
-	// are drawn over the labels and are not fully opaque, so a name that
-	// landed beneath one showed through it as ghost text across the switches.
+	// blocked is the map's own panels - the layer switches and the coverage
+	// key - which a label may not be placed under. Both are drawn over the
+	// labels and neither is fully opaque, so a name that landed beneath one
+	// showed through it as ghost text across the switches. The scale bar is
+	// not among them: it is a bar and a line of text drawn straight onto the
+	// map, not a surface that hides what is under it.
 	blocked []image.Rectangle
 	// Max is how many labels will be placed before the rest are dropped, in
 	// priority order. Not an arbitrary tidiness rule: each label is a shaping
