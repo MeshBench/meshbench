@@ -324,7 +324,7 @@ func (p *WindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(lines) == 0 {
 				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
-					"nothing printed yet - start the node, or type a command"))
+					consoleEmptyState(s, p.Node)))
 			}
 			p.list.Axis = layout.Vertical
 			// Anchored at the end: a console is read from the bottom.
@@ -382,4 +382,19 @@ func atof(s string) float64 {
 		return 0
 	}
 	return v
+}
+
+// consoleEmptyState is what an empty console pane says.
+//
+// One node's console is attached at a time, and this pane draws only the
+// attached one - so a running board that had printed its whole boot chain read
+// "nothing printed yet - start the node, or type a command", two lines under a
+// header saying "running". Saying which node has the console beats telling a
+// reader to do the thing they have already done.
+func consoleEmptyState(s *state.Snapshot, node string) string {
+	if s != nil && s.ConsoleNode != "" && s.ConsoleNode != node {
+		return s.ConsoleNode + " has the console at the moment - " +
+			"type a command here to take it"
+	}
+	return "nothing printed yet - start the node, or type a command"
 }

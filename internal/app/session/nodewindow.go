@@ -31,7 +31,25 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, control.WithCode(control.BadParams, err)
 		}
-		return map[string]any{"node": name, "tab": shown}, nil
+		// The window's Console tab draws w.Console, and only for the node
+		// w.ConsoleNode names - which was set by console.type, console.read
+		// and the meshcli session and by nothing else. So opening a window on
+		// a running board that had printed its whole boot chain showed
+		// "nothing printed yet - start the node, or type a command", two lines
+		// under a header saying "running", and told the reader to do the one
+		// thing they had already done. The output was never lost: console.read
+		// on the same node returned it.
+		//
+		// Attached here rather than in the panel, because a panel does not
+		// mutate state - it draws snapshots and the store owns the world.
+		// Failure is not an error: a node that runs no firmware has no console
+		// and its window is still worth opening for the other tabs.
+		attached := false
+		if buf, err := s.consoleFor(name); err == nil {
+			w.Console, w.ConsoleNode = buf.Snapshot(), name
+			attached = true
+		}
+		return map[string]any{"node": name, "tab": shown, "console": attached}, nil
 	})
 
 	// node.boardview: the same node, asked a different question - is this board
