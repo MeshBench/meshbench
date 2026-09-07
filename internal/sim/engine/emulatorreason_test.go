@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // logging is a backend that keeps an emulator log, as an emulated node does.
@@ -105,5 +106,26 @@ func TestAVeryLongLastLineIsCapped(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "...") {
 		t.Errorf("a truncated clause does not say it was truncated: %q", got[len(got)-10:])
+	}
+}
+
+// A node the run has given up on must stop counting as running.
+//
+// firmware.state's "running" is what every script waits on before it measures
+// anything, and markFirmwareDown deliberately leaves the node's Firmware set
+// so its bridge can still be closed. Counting the field rather than the
+// verdict reported a full mesh for the whole life of a run in which a node was
+// dead from the first tick.
+func TestADroppedNodeStopsCountingAsRunning(t *testing.T) {
+	e := &Engine{}
+	e.Add(scenario.Node{Name: "alive"}, &firmware.Node{})
+	e.Add(scenario.Node{Name: "dead"}, &firmware.Node{})
+	if got := e.FirmwareCount(); got != 2 {
+		t.Fatalf("two nodes with firmware counted as %d", got)
+	}
+
+	e.markFirmwareDown("dead", nil, "the tick could not be sent to it")
+	if got := e.FirmwareCount(); got != 1 {
+		t.Errorf("a dropped node still counts as running: %d of 2", got)
 	}
 }
