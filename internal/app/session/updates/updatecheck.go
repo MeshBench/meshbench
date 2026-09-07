@@ -163,12 +163,15 @@ func detail(ctx context.Context, c update.Checker, u state.Update) state.Update 
 	if !rel.Published.IsZero() {
 		u.Published = rel.Published.UTC().Format(time.RFC3339)
 	}
-	if rel.Prerelease {
-		// Never offered. The redirect this followed is GitHub's own "latest",
-		// which never names one, so this is only reachable from a feed somebody
-		// pointed here by hand - and a pre-release installed by a machine that
-		// was asking about releases is not what anybody meant.
-		u.Why = rel.Tag + " is a pre-release, and pre-releases are not offered here"
+	if rel.Prerelease && u.Channel != "development" {
+		// Never offered on the stable channel. The redirect that channel
+		// follows is GitHub's own "latest", which never names one, so this is
+		// only reachable from a feed somebody pointed here by hand - and a
+		// pre-release installed by a machine that was asking about releases is
+		// not what anybody meant. The development channel asked for exactly
+		// this, and refusing it here would have found the build and then
+		// declined it.
+		u.Why = rel.Tag + " is a pre-release, and pre-releases are not offered on the stable channel"
 		u.Latest = ""
 		return u
 	}

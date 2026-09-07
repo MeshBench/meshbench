@@ -57,12 +57,22 @@ jobs:
               base="$plain"
             fi
           fi
+          # sort -V puts v0.0.11 before v0.0.11-dev.3, so after a stable ships
+          # the newest tag by that order is still its last development build
+          # and base comes out as the version just released. A pre-release of
+          # a version that exists would sort below it, so the series moves on
+          # by itself; only a base somebody typed is refused.
+          if git rev-parse -q --verify "refs/tags/v$base" >/dev/null; then
+            if [ -n "$BASE" ]; then
+              echo "v$base already exists, so a pre-release of it would sort below it" >&2
+              exit 1
+            fi
+            IFS=. read -r ma mi pa <<<"$base"
+            base="$ma.$mi.$((pa+1))"
+            echo "v${plain:-?} has shipped, so the next series is $base"
+          fi
           n=$(git tag --list "v$base-dev.*" | sed "s/^v$base-dev\.//" | sort -n | tail -1)
           next="v$base-dev.$(( ${n:-0} + 1 ))"
-          if git rev-parse -q --verify "refs/tags/v$base" >/dev/null; then
-            echo "v$base already exists, so a pre-release of it would sort below it" >&2
-            exit 1
-          fi
           echo "tag=$next" >> "$GITHUB_OUTPUT"
           echo "cutting $next on $(git rev-parse --short HEAD)"
 
