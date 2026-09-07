@@ -112,3 +112,22 @@ func (e *Engine) companionNode(name string) (*Node, error) {
 	}
 	return n, nil
 }
+
+// LinkForTest is a served link with nobody, or somebody, on it.
+//
+// The closer is unexported and the real ones are a listener and a pty, which
+// is more apparatus than a test about the rule for taking a port needs. The
+// rule turns on Attached alone, so this is exactly the part a test wants to
+// set. Exported because the rule lives in the session and this package does
+// not see its tests.
+func LinkForTest(node string, attached bool) *CompanionLink {
+	return &CompanionLink{Node: node, Kind: "tcp", Addr: "127.0.0.1:1",
+		closer: fakeHolder(attached)}
+}
+
+// fakeHolder stands in for a listener, answering only whether a client holds
+// it.
+type fakeHolder bool
+
+func (f fakeHolder) Attached() bool { return bool(f) }
+func (fakeHolder) Close() error     { return nil }
