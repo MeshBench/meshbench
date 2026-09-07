@@ -226,16 +226,14 @@ func (u *workbenchUI) OpenNodeWindow(node, tab string) (string, error) {
 		return "", fmt.Errorf("no tab called %q - there is %s",
 			tab, strings.Join(nodeview.TabNames(), ", "))
 	}
-	u.nodes.OpenFor(node, want, u.newTheme, u.store, nodeview.WindowHooks{
+	shown := u.nodes.OpenFor(node, want, u.newTheme, u.store, nodeview.WindowHooks{
 		OnCommand: u.OnCommand, OnAction: u.OnAction, OnCLI: u.OnCLI,
 		OnServe: u.OnServe, OnOpenPacket: u.OnOpenPacket, OnDo: u.OnDo,
 	})
-	// What was asked for, which is not always what will be drawn: a node
-	// whose board declares nothing grows no Hardware tab and the window falls
-	// back to its console. Saying which of those happened is the window's own
-	// business once it is up; what this can honestly report is the tab it was
-	// opened on.
-	return want.String(), nil
+	// What the window settles on, not what was asked for. A node whose board
+	// declares nothing grows no Hardware tab and lands on its console, and
+	// answering "Hardware" to that told a caller it had what it asked for.
+	return shown.String(), nil
 }
 
 func (u *workbenchUI) OpenOutputWindow(node, source string) error {

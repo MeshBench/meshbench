@@ -39,22 +39,59 @@ type WindowHooks struct {
 	OnDo         func(verb string, params any)
 }
 
+// OpenFor opens or recalls a node's window and answers the tab it settles on,
+// which is not always the tab asked for: a node whose board declares nothing
+// grows no Hardware tab, an observer has no console, and a request for one the
+// node has not got lands on the first tab it does have.
+//
+// Settled here rather than left to the first frame, so the answer exists
+// before the window has drawn. It costs building the panel a moment early;
+// the alternative is reporting the request back as though it were the outcome,
+// which is what this used to do.
 func (w *WindowSet) OpenFor(node string, tab Tab,
-	newTheme func() *theme.Theme, st *state.Store, h WindowHooks) {
+	newTheme func() *theme.Theme, st *state.Store, h WindowHooks) Tab {
+	p := &WindowPanel{Node: node, OnCommand: h.OnCommand, OnAction: h.OnAction,
+		OnCLI: h.OnCLI, OnServe: h.OnServe, OnOpenPacket: h.OnOpenPacket,
+		OnDo: h.OnDo, Kind: kindOfNode(st, node)}
+	// The same question the frame asks, from the same snapshot, through the
+	// same functions - so the tab reported here is the tab that draws rather
+	// than a second opinion that can drift from it.
+	p.hasHardware = p.boardPanel(st.Snapshot()).HasAnything()
+	p.Tab = settleTab(tab, p.visibleTabs())
 	// Already out there: recall it rather than doing nothing. A second press
 	// used to return in silence, which is indistinguishable from a dead menu
 	// entry - and for a layered window dragged out of reach, the recall is
 	// the only way back.
+	//
+	// A recalled window keeps the tab it is on, which may be one somebody
+	// clicked to since. What comes back is what this request settled on, and
+	// the verb's own description says which of the two it is.
 	if !w.Claim(node) {
-		return
+		return p.Tab
 	}
-	p := &WindowPanel{Node: node, OnCommand: h.OnCommand, OnAction: h.OnAction,
-		OnCLI: h.OnCLI, OnServe: h.OnServe, OnOpenPacket: h.OnOpenPacket,
-		OnDo: h.OnDo, Kind: kindOfNode(st, node)}
-	p.Tab = tab
 	go shell.RunPopout(w.WindowRegistry, shell.Popout{
 		Key: node, Title: "MeshBench - " + node, Bar: node, W: 820, H: 620,
 	}, p, newTheme, st)
+	return p.Tab
+}
+
+// settleTab is the tab a window showing these tabs lands on when asked for
+// want: want itself where it is offered, and the first one otherwise.
+//
+// One rule rather than a list of special cases, and it happens to be every
+// case the frame handles: a companion's set begins with Companion, an
+// observer's with SDR, and everything else with Console, which is exactly
+// where each of them was sending an impossible request by hand.
+func settleTab(want Tab, tabs []Tab) Tab {
+	for _, t := range tabs {
+		if t == want {
+			return want
+		}
+	}
+	if len(tabs) == 0 {
+		return want
+	}
+	return tabs[0]
 }
 
 var _ = key.NameEscape
