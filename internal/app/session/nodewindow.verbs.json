@@ -12,7 +12,7 @@
       {
         "name": "tab",
         "type": "string",
-        "what": "which tab to open on; the window's default when absent"
+        "what": "which tab to open on, and which tab to switch to when the window is already out there; the window's default when absent"
       }
     ],
     "returns": [
