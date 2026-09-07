@@ -110,7 +110,11 @@ type Antenna struct {
 // every tick, and merging them would republish the whole network every time a
 // counter moved.
 type NodeStat struct {
-	Name string
+	// CostMeasured says whether RSSBytes, CPUPct and CPUms were read at all.
+	// False is not "this node is free": it is a platform with no sampler, and
+	// a zero drawn for both is a measurement nobody took.
+	CostMeasured bool
+	Name         string
 	// Backend is "native", "emulated" or "" for a node running nothing.
 	Backend string
 	// Firmware is the build it is running.

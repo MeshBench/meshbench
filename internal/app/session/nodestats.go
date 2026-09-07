@@ -46,21 +46,27 @@ func newCPUSampler() *cpuSampler { return &cpuSampler{last: map[int]cpuSample{}}
 // the same constant rather than changing which node is the expensive one.
 const clockTicks = 100
 
-func (c *cpuSampler) sample(pid int) (rssBytes int64, cpuPct float64, cpuMs int64) {
+// sample reads one process's cost. ok is false where this platform has no
+// sampler, which is not the same as a process that costs nothing: a zero
+// printed for both is a measurement nobody took.
+func (c *cpuSampler) sample(pid int) (rssBytes int64, cpuPct float64, cpuMs int64, ok bool) {
+	if !procSamplerWorks {
+		return 0, 0, 0, false
+	}
 	b, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
 	if err != nil {
-		return 0, 0, 0
+		return 0, 0, 0, false
 	}
 	// The process name can contain spaces and brackets, so fields are counted
 	// from the closing bracket rather than from the start.
 	i := strings.LastIndexByte(string(b), ')')
 	if i < 0 {
-		return 0, 0, 0
+		return 0, 0, 0, false
 	}
 	f := strings.Fields(string(b)[i+1:])
 	// After the name: state is f[0], so utime is field 14 overall = f[11].
 	if len(f) < 22 {
-		return 0, 0, 0
+		return 0, 0, 0, false
 	}
 	utime, _ := strconv.ParseUint(f[11], 10, 64)
 	stime, _ := strconv.ParseUint(f[12], 10, 64)
@@ -75,13 +81,13 @@ func (c *cpuSampler) sample(pid int) (rssBytes int64, cpuPct float64, cpuMs int6
 	c.mu.Unlock()
 	cpuMs = int64(ticks) * 1000 / clockTicks
 	if !seen {
-		return rssBytes, 0, cpuMs
+		return rssBytes, 0, cpuMs, true
 	}
 	dt := now.Sub(prev.at).Seconds()
 	if dt <= 0 || ticks < prev.ticks {
-		return rssBytes, 0, cpuMs
+		return rssBytes, 0, cpuMs, true
 	}
-	return rssBytes, float64(ticks-prev.ticks) / clockTicks / dt * 100, cpuMs
+	return rssBytes, float64(ticks-prev.ticks) / clockTicks / dt * 100, cpuMs, true
 }
 
 // forget drops a process that has gone, so a long session does not accumulate
@@ -195,7 +201,9 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 		}
 		if st.PID > 0 {
 			live[st.PID] = true
-			st.RSSBytes, st.CPUPct, st.CPUms = s.cpu.sample(st.PID)
+			var ok bool
+			st.RSSBytes, st.CPUPct, st.CPUms, ok = s.cpu.sample(st.PID)
+			st.CostMeasured = ok
 		}
 		out = append(out, st)
 	}
