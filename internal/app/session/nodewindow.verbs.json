@@ -20,7 +20,7 @@
       "tab",
       "console"
     ],
-    "answers": "`tab` is the tab this request settled on, which is not always the one asked for: a node whose board declares nothing grows no Hardware tab, an observer has no console, and a request for a tab the node has not got lands on the first one it does have. A window already open is recalled rather than reopened, and keeps whatever tab it is showing; `tab` is still what the request settled on. Refused outright in a headless session, there being no window to open one beside.",
+    "answers": "`tab` is the tab this request settled on, which is not always the one asked for: a node whose board declares nothing grows no Hardware tab, an observer has no console, and a request for a tab the node has not got lands on the first one it does have. A window already open is recalled rather than reopened, and switches to the tab asked for; `tab` is what the request settled on, which the window then shows. Refused outright in a headless session, there being no window to open one beside.",
     "example": {
       "params": "West Lomond",
       "what": "put one node on a second monitor"
