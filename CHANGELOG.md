@@ -21,6 +21,60 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-09-07
+
+The last of the Windows pass, and the board status the published pages were
+still getting wrong.
+
+### Fixed
+
+- **Wireshark opens where it is asked to, on every platform.** The launch was
+  written for Linux: it named `lo`, which is Linux's word for the loopback
+  interface. macOS calls it `lo0`, and Windows has none at all until Npcap
+  supplies `\Device\NPF_Loopback`. Two of the three platforms this ships on
+  were pointed at an interface that does not exist, and macOS had been broken
+  quietly the whole time. The command handed back when the launch fails is now
+  the one that would have worked.
+
+- **A basemap cache that already holds watermarked tiles is left behind.**
+  Fetching keyed and keyless tiles into separate directories fixed this going
+  forward and did nothing for a machine that already had the problem: the keyed
+  build still read the old shared directory, where tiles from before the split
+  sit with nothing to tell the two kinds apart. Both sides move off it now. The
+  old directory is left rather than deleted, because it is a cache the Resources
+  page counts and offers to remove, and deleting somebody's files to reclaim a
+  megabyte is the worse trade.
+
+- **A node window answers with the tab it settled on.** `node.window` reported
+  the tab that was *asked for*. A node whose board declares nothing was asked
+  for Hardware and answered `Hardware` while drawing its console, and the
+  reference promised that field was the tab the window actually opened on. The
+  tab is now settled at open time from the same functions the frame draws
+  through, so the answer cannot differ from what appears.
+
+- **The board table says what the boards do.** The front page showed five
+  boards as booting, transmitting, hearing and not forwarding, and was missing
+  two boards entirely; the shortcomings page still carried a 20 August
+  measurement saying one board of twelve passed. Ten of the twelve pass every
+  column, and every one of them forwards somebody else's packet. Only
+  `Station_G2` and `Heltec_v2` are blank, and those were never attempted.
+
+### Added
+
+- **The documentation site has a board table.** It had none, so the only
+  statement about board status anywhere on it was a paragraph in a page about
+  shortcomings. It is on
+  [Emulating a board](https://meshbench.github.io/docs/emulation.html#which-boards-have-been-run),
+  with what each column asks for and why rows are measured one board at a time.
+
+### Infrastructure
+
+- The two publishing jobs no longer upload a Go cache the lab runners already
+  hold. The upload does not finish on that uplink, and it cancelled the 0.0.9
+  documentation publish after the job had done all of its work, in a post step
+  where nothing looks.
+
+
 ## [0.0.9] - 2026-09-06
 
 Everything a full walk of the pre-release pass turned up on the released 0.0.8
@@ -596,6 +650,7 @@ First release: one binary per platform.
 - Two data races found by `-race` and fixed.
 
 [Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.8...HEAD
+[0.0.10]: https://github.com/MeshBench/meshbench/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/MeshBench/meshbench/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/MeshBench/meshbench/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/MeshBench/meshbench/compare/v0.0.6...v0.0.7
