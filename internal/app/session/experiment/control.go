@@ -78,6 +78,16 @@ func registerExperimentControl(st *state.Store, s *session.Sim, e *experiment) {
 		if why != "" {
 			w.Say("sweep started, but the arms will not be comparable: " + why)
 		}
+		// The same argument as the sentence above it, one step earlier: this
+		// is the moment somebody commits machine time, and a spread the seeds
+		// cannot produce is worth knowing before the hour is spent rather than
+		// over the table afterwards. Only where there is more than one seed,
+		// since one seed is already reported as one draw.
+		if len(e.Seeds) > 1 {
+			w.Say("sweep started: the seeds will not separate the arms, because " +
+				"a cell runs the calculated model and nothing on that path is " +
+				"drawn per packet. Senders are what gives a spread here")
+		}
 		w.Jobs = append(w.Jobs, state.Job{
 			ID: "experiment", What: "running arms", Total: e.runsTotal()})
 		go runExperiment(ctx, s, st, e, nodes)

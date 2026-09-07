@@ -37,6 +37,21 @@ func (e *experiment) describe() map[string]any {
 
 // notAResultYet is the honesty check: what would make these numbers not mean
 // what they appear to.
+// seedsCannotSeparate is why adding seeds is not the remedy it looks like.
+//
+// A cell runs the calculated model - engine.Config's zero RFMode - and nothing
+// on that path is drawn per reception: the noise floor is the thermal figure
+// for a bandwidth and a noise figure, and MeshCore's own relay delay is a
+// function of the score and the airtime with no RNG in it. So the seed reaches
+// every node correctly and has nothing to perturb, and a message telling
+// somebody to add seeds sends them to spend machine time on a number that
+// cannot move.
+//
+// Adding senders can help, because more originators means more contention.
+const seedsCannotSeparate = "Adding seeds will not change that: a cell runs " +
+	"the calculated model, where reception is decided by geometry alone and " +
+	"nothing is drawn per packet. Add senders, or quote the deltas as unbounded."
+
 func (e *experiment) notAResultYet() string {
 	switch {
 	case len(e.results) == 0:
@@ -82,8 +97,7 @@ func (e *experiment) notAResultYet() string {
 			return fmt.Sprintf(
 				"every seed of %v returned the same numbers, so the seed gives no "+
 					"noise floor here and a difference between arms has nothing to "+
-					"be called larger than. Add senders or seeds, or quote the "+
-					"deltas as unbounded.", sum["arm"])
+					"be called larger than. %s", sum["arm"], seedsCannotSeparate)
 		}
 	}
 
