@@ -55,6 +55,20 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **A build pinned to nodes of the wrong role is refused, not run as half a
+  mesh.** `firmware.set` with a version and no role filter pinned a repeater
+  build onto companions too, answered as though all took it, and the run
+  started only the repeaters with nothing said. The build's role is now
+  checked against each node's: `firmware.set` leaves a mismatched node alone
+  and reports how many, `firmware.needed` counts it as still needing a build,
+  and `firmware.start` refuses with the reason. A build whose role cannot be
+  known, a local label, is pinned as before.
+- **A companion shows the contacts it has learned.** A companion loaded its
+  contacts at boot and reported none to every client, because the native
+  build compiled two of MeshCore's files with different values of a
+  contact-table size and they disagreed on where the count lived. Fixed in
+  the firmware build; the companion binaries carry it from their next
+  release.
 - **Every native node on Windows shared one identity.** The bridge parsed
   `--seed` with `strtoul`, which saturates where a long is 32 bits, so every
   node whose seed was above 2^32 was seeded `0xFFFFFFFF`: 57 of 58 nodes,
