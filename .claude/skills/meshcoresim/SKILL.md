@@ -79,7 +79,8 @@ looks like bad RF rather than a missing step.
    everything, then again per companion with `role: "companion_radio"`. Or set
    `repeater_version` / `companion_version` on `experiment.base`.
 4. **Regions: `infer.run` then `infer.apply`.** This is the step that gets
-   forgotten, and it is the one that decides whether anything relays at all.
+   forgotten, and it is the one that decides whether scoped traffic relays:
+   adverts and other unscoped floods relay either way, exactly as widely.
 5. `firmware.start`, then check `firmware.state` says `running == total`.
 6. Only then define and start the sweep.
 

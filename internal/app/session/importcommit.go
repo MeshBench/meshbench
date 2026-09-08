@@ -179,8 +179,9 @@ func registerImport(st *state.Store, s *Sim) {
 			// candidates are the regions CoreScope has seen, and a transport
 			// code checked against a candidate's key turns "relays something
 			// scoped" into "relays #ioi". Without this a whole import comes back
-			// with every node region-less, which transmits everything and
-			// relays nothing - the silence the shipped fixtures were missing.
+			// with every node region-less, which still relays every unscoped
+			// flood and drops every scoped one without a word - the silence
+			// the shipped fixtures were missing.
 			// Fetched here, off the store thread, because it is a network call;
 			// best-effort, since an unnamed region is still honestly reported as
 			// scoped rather than guessed.

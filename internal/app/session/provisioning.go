@@ -74,8 +74,9 @@ func provisioningWith(prov Provisioning, n scenario.Node) []state.ProvisionLine 
 		case len(c) > 14 && c[:14] == "region default":
 			why = "the scope this node originates under when nothing says otherwise"
 		case c == "region allowf *":
-			why = "the wildcard: relays a flood whatever its scope, and the one " +
-				"line that makes a node forward something it was never told about"
+			why = "the wildcard's flood permission, which a fresh node already " +
+				"has: this changes nothing unless it was told region denyf *, " +
+				"and never makes a scoped flood forward"
 		case len(c) > 13 && c[:13] == "region allowf":
 			why = "permits flooding for that region - a region defined but not " +
 				"allowed relays nothing and reports no error"
@@ -86,8 +87,8 @@ func provisioningWith(prov Provisioning, n scenario.Node) []state.ProvisionLine 
 	if len(out) == 1 {
 		out = append(out, state.ProvisionLine{
 			Command: "# nothing to send",
-			Why: "this node carries no regions, so it forwards only what its " +
-				"defaults allow - which on a fresh import is nothing",
+			Why: "this node carries no regions, so it relays every unscoped " +
+				"flood, adverts included, and drops every scoped one without a word",
 			Comment: true,
 		})
 	}

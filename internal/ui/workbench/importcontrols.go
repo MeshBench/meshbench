@@ -49,7 +49,7 @@ func (c *importControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snaps
 		c.bar.Note = "numbered because the order matters and every step has been " +
 			"skipped: an import with no study area brings in a country when a " +
 			"county was wanted, and a mesh with regions inferred but not applied " +
-			"transmits everything, relays nothing, and reports no error"
+			"relays every advert and drops every scoped message, reporting no error"
 		c.built = true
 	}
 	if c.area.Click.Clicked(gtx) && c.OnArea != nil {

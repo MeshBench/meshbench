@@ -83,11 +83,16 @@ func runTest(ctx context.Context, args []string) error {
 	fmt.Printf("%s: %d nodes, %d running firmware, SF%d at %.0f kHz, seed %d\n",
 		fx.Name, len(fx.Nodes), e.FirmwareCount(), sf, bw/1000, runSeed)
 	if on > 0 {
-		// Loudly, every time. A permissive fixture answers a reach question more
-		// generously than the real network, and a report that does not say so is
-		// the flattering-but-wrong answer this simulator exists to avoid.
-		fmt.Printf("PERMISSIVE: %d of %d transmitting nodes forward flood traffic for any "+
-			"region. This is more permissive than the real network.\n", on, tx)
+		// Loudly, every time, and honestly: region allowf * clears a flood deny
+		// that a factory-fresh node never has, and MeshCore matches the
+		// wildcard against unscoped floods only, so on a node that was never
+		// told region denyf * this changes nothing at all. A report that said
+		// "more permissive than the real network" was the flattering-but-wrong
+		// answer this simulator exists to avoid.
+		fmt.Printf("PERMISSIVE: %d of %d transmitting nodes have region allowf * typed at "+
+			"boot. A fresh node already relays every unscoped flood, and the wildcard "+
+			"never matches a scoped one, so this changes nothing unless a node was told "+
+			"region denyf *.\n", on, tx)
 	}
 
 	if *endpoint != "" {

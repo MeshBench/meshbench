@@ -313,7 +313,7 @@ test("place sends only what was named, so a zero is not mistaken for a default",
 
 // The import chain's last two steps are the ones that get missed, and missing
 // them does not fail: the mesh comes up with regions inferred but never applied,
-// which transmits everything, relays nothing, and reports no error at all.
+// which relays every advert, drops every scoped message, and reports no error.
 test("live.pull runs all four steps in the order that works", async () => {
   const asked = [];
   await withFake(answers({

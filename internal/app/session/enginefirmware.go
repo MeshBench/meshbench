@@ -136,10 +136,10 @@ func (s *Sim) Close() {
 
 // provisionAll tells every node what it is, as soon as its firmware is up.
 //
-// This is the step that decides whether anything relays. A node that has not
-// been told its regions holds none, so it forwards nothing and reports no
-// error - which is what a mesh of three hundred nodes sitting in total silence
-// for four minutes looked like. The old workbench does this in attachFirmware;
+// This is the step that decides whether scoped traffic relays. A node that has
+// not been told its regions holds none, so it drops every scoped packet and
+// reports no error - which is what a mesh of three hundred nodes sitting in
+// total silence for four minutes looked like. The old workbench does this in attachFirmware;
 // this build did it only inside an experiment, so the one path an operator
 // actually uses - press play - brought up MeshCore everywhere and told it
 // nothing.
