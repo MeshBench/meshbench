@@ -13,7 +13,7 @@ from __future__ import annotations
 
 
 def release() -> str:
-    """The release this client belongs to, as PyPI spells it.
+    """The release this client belongs to, as the workbench spells it.
 
     Read from ``__version__`` rather than kept here, because the release
     workflow stamps that one line and a second copy would be a second thing to
@@ -23,10 +23,26 @@ def release() -> str:
     A checkout carries whatever ``__version__`` last said, which is the previous
     release. That is not worth guarding against: a workbench built from the same
     checkout carries no release at all, so the pair is never compared.
+
+    PyPI spells a development build ``0.0.11.dev1`` where the tag, and the
+    workbench stamped from it, say ``0.0.11-dev.1``. The wire carries the tag's
+    spelling, so the workbench compares one spelling against itself rather than
+    refusing the client that was published for it.
     """
     from meshbench import __version__
 
-    return __version__
+    return tag_spelling(__version__)
+
+
+def tag_spelling(version: str) -> str:
+    """PEP 440's ``X.Y.Z.devN`` as the tag spells it, ``X.Y.Z-dev.N``.
+
+    Anything else, a plain release included, is returned as it came.
+    """
+    base, dot, dev = version.rpartition(".dev")
+    if dot and base and dev.isdigit():
+        return f"{base}-dev.{dev}"
+    return version
 
 
 def paired_release(ours: str, theirs: str) -> bool:

@@ -222,3 +222,41 @@ func TestThePairingRuleIsExactMatchOrAnUnstampedEnd(t *testing.T) {
 		}
 	}
 }
+
+// The first development cut's refusal said "install the 0.0.11-dev.1 client",
+// and PyPI's search found no such thing, because a pre-release is handed out
+// only when asked for by exact version. The refusal from a development
+// workbench says so.
+func TestADevelopmentWorkbenchSaysWhereItsClientIs(t *testing.T) {
+	path := filepath.Join(shortSocketDir(t), "devrelease.sock")
+	servedAsRelease(t, path, "0.0.11-dev.1")
+
+	resp := declares(t, path,
+		Request{ID: 5, Method: "who", Protocol: Protocol, Release: "0.0.10"})
+	if resp.Code != string(VersionMismatch) {
+		t.Fatalf("code %q, want %q (%s)", resp.Code, VersionMismatch, resp.Error)
+	}
+	for _, want := range []string{"0.0.11-dev.1", "pre-release", "exact version"} {
+		if !contains(resp.Error, want) {
+			t.Errorf("the refusal does not say %q: %s", want, resp.Error)
+		}
+	}
+	// And a stable workbench says nothing about pre-releases.
+	stable := releaseRefusal("1.5.0", "2.0.0")
+	if contains(stable.Error, "pre-release") {
+		t.Errorf("a stable refusal talks about pre-releases: %s", stable.Error)
+	}
+}
+
+// The Python client's own number is PyPI's spelling of the tag, and the two
+// differ for a development build: 0.0.11.dev1 against 0.0.11-dev.1. The
+// client converts before speaking, so this end compares like with like; the
+// server does not accept the PEP 440 spelling itself, which this pins.
+func TestTheWireCarriesTheTagsSpelling(t *testing.T) {
+	if pairs("0.0.11.dev1", "0.0.11-dev.1") {
+		t.Fatal("the server pairs PEP 440 against the tag; the client is meant to convert")
+	}
+	if !pairs("0.0.11-dev.1", "0.0.11-dev.1") {
+		t.Fatal("a development client from the same cut is refused")
+	}
+}

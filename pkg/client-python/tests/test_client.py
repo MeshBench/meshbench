@@ -274,6 +274,21 @@ def test_the_pairing_rule_is_exact_match_or_an_unstamped_end():
     assert "skipped" in meshbench.pairing_note("1.0.0", "")
 
 
+def test_a_development_client_speaks_the_tags_spelling():
+    """PyPI spells the development client 0.0.11.dev1 and the workbench stamped
+    from the tag says 0.0.11-dev.1. The first development cut had no client at
+    all; the second must not be refused for spelling its own number the way
+    its index does."""
+    assert meshbench.pairing.tag_spelling("0.0.11.dev1") == "0.0.11-dev.1"
+    assert meshbench.pairing.tag_spelling("0.0.11") == "0.0.11"
+    assert meshbench.pairing.tag_spelling("") == ""
+    # Only a numeric .devN is a development build; anything odder is left alone.
+    assert meshbench.pairing.tag_spelling("0.0.11.devx") == "0.0.11.devx"
+    assert meshbench.paired_release(
+        meshbench.pairing.tag_spelling("0.0.11.dev1"), "0.0.11-dev.1"
+    )
+
+
 def test_a_release_refusal_keeps_the_workbenchs_own_words():
     said = (
         "this client is from MeshBench 1.5.0 and this workbench is MeshBench "

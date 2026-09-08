@@ -104,3 +104,9 @@ jobs:
           set -euo pipefail
           gh workflow run package.yml --ref "$TAG" -f release=true
           echo "package.yml dispatched on $TAG - it publishes a pre-release when it finishes"
+          # And the clients, for the same reason: their workflow publishes on
+          # a tag ref, and a tag pushed from here never fires it. Without this
+          # the workbench refused every Python and Node script with "install
+          # the $TAG client", and there was no such client.
+          gh workflow run publish-clients.yml --ref "$TAG"
+          echo "publish-clients.yml dispatched on $TAG - PyPI and npm get pre-releases"
