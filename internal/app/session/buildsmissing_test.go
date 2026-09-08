@@ -168,6 +168,7 @@ func TestAPinToAnotherRolesBuildIsReportedAsSuch(t *testing.T) {
 	// And through the gate, against a real cache directory.
 	cache := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("LOCALAPPDATA", cache)
 	dir := filepath.Join(cache, "meshbench", "firmware", "native", "repeater-v1.17.1")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
