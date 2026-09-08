@@ -38,7 +38,11 @@ fi
 # them, so a development version has no version to compare and is given the
 # lowest one. Every real release is a plain X.Y.Z and passes through.
 msiversion=$version
-grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' <<<"$version" || msiversion=0.0.0
+# A development build's suffix is not an MSI version, but its base is: the
+# pre-release of 0.0.11 installs as 0.0.11, so the MSI ordering it takes part
+# in is the one the tag means. A version that is not X.Y.Z at all is 0.0.0.
+msiversion=${version%%-*}
+grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' <<<"$msiversion" || msiversion=0.0.0
 
 # The ProductCode identifies this exact version and the UpgradeCode identifies
 # MeshBench. Derived from the version rather than drawn fresh each build, so

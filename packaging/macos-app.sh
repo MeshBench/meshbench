@@ -24,15 +24,16 @@ APP="$OUT/MeshBench.app"
 command -v go >/dev/null || { echo "go is not on PATH" >&2; exit 1; }
 [ -f go.mod ] || { echo "run this from the repository root" >&2; exit 1; }
 
-# A release is a plain X.Y.Z everywhere it is spelled, and the control socket's
+# A release is X.Y.Z, or X.Y.Z-dev.N on the development channel, everywhere it
+# is spelled - version.plainRelease keeps the suffix - and the control socket's
 # pairing rule reads exactly that: a workbench stamped vv0.1.0 is not a release
 # at all as far as it can tell, and pairs happily with every client of every
 # version. The client publisher already refuses anything else, so half a
 # release would go out. A dev build says so in its own name and is exempt.
 case "$VER" in
   *-dev-*) ;;
-  *) echo "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' ||
-       { echo "version '$VER' is not a plain X.Y.Z" >&2; exit 1; } ;;
+  *) echo "$VER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$' ||
+       { echo "version '$VER' is not X.Y.Z or X.Y.Z-dev.N" >&2; exit 1; } ;;
 esac
 
 rm -rf "$OUT"
