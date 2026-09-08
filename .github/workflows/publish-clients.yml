@@ -122,17 +122,37 @@ jobs:
               PUBLISH=no
               ;;
           esac
-          # Deliberately strict. PEP 440 and semver spell pre-releases
-          # differently (1.0.0rc1 against 1.0.0-rc.1), so a tag that is not a
-          # plain release would publish two versions that disagree about their
-          # own name. Fail here, where it is a red tag, rather than there.
-          echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || {
+          # X.Y.Z, or X.Y.Z-dev.N for the development channel, and nothing
+          # else. PEP 440 and semver spell a pre-release differently, so a
+          # development build publishes under two spellings of one version:
+          # X.Y.Z.devN on PyPI, where pip installs it only when asked with
+          # --pre or the exact pin, and X.Y.Z-dev.N on npm under the dev
+          # dist-tag, where `npm install @meshbench/client` keeps resolving to
+          # the stable one. The Python client says the tag's spelling on the
+          # wire, so the workbench compares one spelling against itself.
+          #
+          # The first development cut published no client at all, and the
+          # workbench's refusal named a 0.0.11-dev.1 client nobody could
+          # install. Stable users saw nothing; the development channel lost
+          # two of its three clients.
+          echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[0-9]+)?$' || {
             echo "::error::tag ${GITHUB_REF_NAME} gives version '$VERSION';"\
-                 "this workflow publishes plain X.Y.Z only, because PEP 440 and"\
-                 "semver disagree about how to spell anything else"
+                 "this workflow publishes X.Y.Z or X.Y.Z-dev.N only, because"\
+                 "PEP 440 and semver disagree about how to spell anything else"
             exit 1
           }
+          PYVERSION="$VERSION"
+          CHANNEL=stable
+          case "$VERSION" in
+            *-dev.*)
+              PYVERSION="${VERSION%%-dev.*}.dev${VERSION##*-dev.}"
+              CHANNEL=development
+              ;;
+          esac
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "pyversion=$PYVERSION" >> "$GITHUB_OUTPUT"
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "publishing $VERSION on the $CHANNEL channel (PyPI spells it $PYVERSION)"
           echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
           echo "publishing $VERSION: $PUBLISH"
 
@@ -144,8 +164,9 @@ jobs:
         run: |
           set -e
           V="${{ steps.version.outputs.version }}"
-          sed -i "s/^__version__ = \".*\"$/__version__ = \"$V\"/" pkg/client-python/meshbench/__init__.py
-          grep -qx "__version__ = \"$V\"" pkg/client-python/meshbench/__init__.py || {
+          PYV="${{ steps.version.outputs.pyversion }}"
+          sed -i "s/^__version__ = \".*\"$/__version__ = \"$PYV\"/" pkg/client-python/meshbench/__init__.py
+          grep -qx "__version__ = \"$PYV\"" pkg/client-python/meshbench/__init__.py || {
             echo "::error::__version__ did not take the stamp - has its line in __init__.py changed shape?"
             exit 1
           }
@@ -172,7 +193,7 @@ jobs:
       - name: The wheel actually contains the package
         run: |
           set -e
-          V="${{ steps.version.outputs.version }}"
+          V="${{ steps.version.outputs.pyversion }}"
           whl="dist/python/meshbench-$V-py3-none-any.whl"
           sdist="dist/python/meshbench-$V.tar.gz"
           test -f "$whl"   || { echo "::error::no $whl - the build named it something else"; exit 1; }
@@ -237,7 +258,7 @@ jobs:
       - name: The built artefacts work
         run: |
           set -e
-          V="${{ steps.version.outputs.version }}"
+          V="${{ steps.version.outputs.pyversion }}"
           python -m venv /tmp/venv
           /tmp/venv/bin/pip install --quiet "dist/python/meshbench-$V-py3-none-any.whl"
           /tmp/venv/bin/python -c "import meshbench; print('installed wheel reports', meshbench.__version__)"
@@ -343,4 +364,9 @@ jobs:
           # be installable by anyone following the README. Provenance is
           # attached automatically by trusted publishing, so there is no
           # --provenance flag to pass.
-          npm publish "dist/npm/meshbench-client-$VERSION.tgz" --access public
+          # A development build goes up under the dev dist-tag, so that
+          # `npm install @meshbench/client` keeps resolving to the stable
+          # release and `@dev` names this one.
+          tag=latest
+          case "$VERSION" in *-dev.*) tag=dev ;; esac
+          npm publish "dist/npm/meshbench-client-$VERSION.tgz" --access public --tag "$tag"

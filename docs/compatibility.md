@@ -96,6 +96,23 @@ unstamped there is no second version to disagree with. The skipped check is
 logged rather than silent: `MESHBENCH_LOG=control` says which end was not a
 release.
 
+**A development build has development clients.** A build from the development
+channel is `0.0.11-dev.1`, and its clients are published beside it as
+pre-releases, which the package indexes hand out only when asked for: PyPI
+spells it `0.0.11.dev1` and pip needs the exact pin or `--pre`; npm keeps the
+tag's spelling under the `dev` dist-tag, so a plain `npm install` keeps
+resolving to the stable release; Go takes the tag as it is.
+
+```
+pip install meshbench==0.0.11.dev1
+npm install @meshbench/client@0.0.11-dev.1
+go get github.com/MeshBench/meshbench/pkg/client-go/meshbench@v0.0.11-dev.1
+```
+
+The Python client says the tag's spelling on the wire, so the workbench
+compares `0.0.11-dev.1` with `0.0.11-dev.1` and not with PyPI's rendering of
+it.
+
 The practical consequence for a script: **pin the client to the workbench.**
 `pip install meshbench==0.1.0` beside MeshBench 0.1.0, and the same for
 `@meshbench/client`. Upgrading one without the other is caught at connect rather

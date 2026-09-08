@@ -17,6 +17,7 @@ package control
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/version"
 	"github.com/MeshBench/meshbench/internal/diag"
@@ -58,12 +59,22 @@ func pairs(spoken, ours string) bool {
 // Both numbers and both roles, because "version mismatch" leaves a reader to
 // work out which of the two things they have installed is the one to change,
 // and they have to know that before they can do anything at all.
+//
+// A development workbench says where its client is, because the first one
+// did not: "install the 0.0.11-dev.1 client" named a package no index would
+// hand out unasked, and the reader took it for a package that did not exist.
 func releaseRefusal(spoken, ours string) Response {
+	remedy := fmt.Sprintf("install the %s client, or run the %s workbench", ours, spoken)
+	if strings.Contains(ours, "-") {
+		remedy = fmt.Sprintf("install the %s client, which is published as a "+
+			"pre-release beside this development build and has to be asked for "+
+			"by exact version (pip) or the dev tag (npm), or run the %s workbench",
+			ours, spoken)
+	}
 	return Response{
 		Error: fmt.Sprintf("this client is from MeshBench %s and this workbench "+
 			"is MeshBench %s. A client and the workbench it drives must be the "+
-			"same release: install the %s client, or run the %s workbench",
-			spoken, ours, ours, spoken),
+			"same release: %s", spoken, ours, remedy),
 		Code: string(VersionMismatch),
 	}
 }
