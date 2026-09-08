@@ -25,6 +25,12 @@ on:
 
 permissions:
   contents: write
+  # To start the build. A tag pushed with the workflow's own token fires no
+  # workflow - GitHub's rule against runs that trigger runs - so package.yml
+  # never saw the first cut, and the button tagged and built nothing. It is
+  # dispatched by hand below, with release=true, which is the flag that job
+  # publishes on when it is not a tag push.
+  actions: write
 
 jobs:
   tag:
@@ -85,4 +91,16 @@ jobs:
           git config user.email "noreply@meshbench.github.io"
           git tag -a "$TAG" -m "Development build $TAG, cut from main at $(git rev-parse --short HEAD)"
           git push origin "$TAG"
-          echo "pushed $TAG - package.yml builds it and publishes a pre-release"
+          echo "pushed $TAG"
+
+      - name: Build and publish it
+        # Not left to the tag push. A push made with GITHUB_TOKEN creates no
+        # workflow run, so the release build has to be asked for, on the tag's
+        # ref and with the flag its release job publishes on.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.next.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run package.yml --ref "$TAG" -f release=true
+          echo "package.yml dispatched on $TAG - it publishes a pre-release when it finishes"
