@@ -149,9 +149,14 @@ jobs:
           # stamped vv0.1.0 is not a release at all as far as it can tell, and
           # pairs happily with every client of every version. publish-clients
           # already refuses anything else, so half a release would publish.
+          # X.Y.Z, or X.Y.Z-dev.N for the development channel, which
+          # version.plainRelease keeps suffix and all so the pairing rule
+          # compares whole tags. The first development cut was refused here
+          # on every platform for not being plain, after the tag itself had
+          # been accepted everywhere else.
           case "$VERSION" in *-dev-*) ;; *)
-            echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' ||
-              { echo "::error::version '$VERSION' is not a plain X.Y.Z"; exit 1; } ;;
+            echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$' ||
+              { echo "::error::version '$VERSION' is not X.Y.Z or X.Y.Z-dev.N"; exit 1; } ;;
           esac
           go build -trimpath \
             -ldflags "-X gioui.org/app.ID=io.github.meshbench.meshbench \
@@ -646,9 +651,14 @@ jobs:
             esac
           fi
           # The same guard the Linux build carries, for the same reason.
+          # X.Y.Z, or X.Y.Z-dev.N for the development channel, which
+          # version.plainRelease keeps suffix and all so the pairing rule
+          # compares whole tags. The first development cut was refused here
+          # on every platform for not being plain, after the tag itself had
+          # been accepted everywhere else.
           case "$VERSION" in *-dev-*) ;; *)
-            echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' ||
-              { echo "::error::version '$VERSION' is not a plain X.Y.Z"; exit 1; } ;;
+            echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$' ||
+              { echo "::error::version '$VERSION' is not X.Y.Z or X.Y.Z-dev.N"; exit 1; } ;;
           esac
           go run ./tools/licgen -text dist/meshbench/LICENCES
           GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
