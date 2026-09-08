@@ -108,12 +108,17 @@ def captureDarwin(out, pid):
     for w in info or []:
         if int(w.get("kCGWindowOwnerPID", -1)) not in ours_pids:
             continue
-        # Layer 0 and a real size, or it is not a window a step is about: the
-        # list carries tooltips, menu overlays and a popout's shadow, and any
-        # of those in front of ours would come back as a picture of nothing.
-        # The same trap the Windows chooser guards against.
-        if int(w.get("kCGWindowLayer", 0)) != 0:
-            continue
+        # A real size, or it is not a window a step is about: the list carries
+        # tooltips, menu overlays and a popout's shadow, and any of those in
+        # front of ours would come back as a picture of nothing. The same trap
+        # the Windows chooser guards against.
+        #
+        # Size, and not the window layer. A guard on layer 0 skipped every
+        # popped-out panel and every node window, which Gio floats on layer 3,
+        # and fell through to the workbench behind them: 46 of 115 steps filed
+        # a picture of the main window under another window's name, with a
+        # clean exit. The rule is "big enough to be a window a step is about",
+        # which is what the guard was ever for.
         b = w.get("kCGWindowBounds") or {}
         if b.get("Width", 0) <= 64 or b.get("Height", 0) <= 64:
             continue
@@ -340,7 +345,58 @@ def tail(path):
     return " / ".join(keep)[-400:]
 
 
-def run(step, binary, fixture, outdir):
+OTHER_WINDOW = ("-pop-out", "-node-window", "-board-view")
+
+
+def aboutAnotherWindow(step):
+    """Whether the step is about a window other than the workbench's own: a
+    popped-out panel, a node window, the board view."""
+    return any(f in OTHER_WINDOW for f in step["flags"])
+
+
+def pngSize(path):
+    """The pixel size of a PNG, from its header, or None."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(24)
+    except OSError:
+        return None
+    if len(head) < 24 or head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR":
+        return None
+    return (int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big"))
+
+
+def wrongWindow(step, out, workbench):
+    """Why a capture is not of the window the step is about, or None.
+
+    Every platform's chooser can fall through to the workbench when the window
+    a step opened is not where it looked - the macOS layer guard did exactly
+    that, for every popout and node window, and reported the sweep complete.
+    The three kinds of window have three sizes, and the step knows which kind
+    it asked for: a picture of another window that is the workbench's own
+    size is a picture of the workbench.
+    """
+    if workbench is None or not aboutAnotherWindow(step):
+        return None
+    got = pngSize(out)
+    if got is None or got != workbench:
+        return None
+    return (f"the picture is {got[0]}x{got[1]}, the workbench's own size, so it is "
+            f"the workbench and not the window the step is about")
+
+
+def workbenchSize(binary, fixture, outdir):
+    """The workbench's own size, measured once so a picture of another window
+    can be told from a picture of the workbench filed under its name."""
+    ref = {"name": "workbench-reference", "what": "the workbench, to size it",
+           "flags": []}
+    with tempfile.TemporaryDirectory() as d:
+        if not run(ref, binary, fixture, d):
+            return None
+        return pngSize(os.path.join(d, ref["name"] + ".png"))
+
+
+def run(step, binary, fixture, outdir, workbench=None):
     out = os.path.join(outdir, step["name"] + ".png")
     # A step may name its own fixture. The board view needs a node running a
     # board image and the default fixture has none, so all three board steps
@@ -395,6 +451,12 @@ def run(step, binary, fixture, outdir):
             print("  left open -", step["then"])
             input("  press enter once done> ")
             ok = capture(out, proc.pid)
+        if ok and (why := wrongWindow(step, out, workbench)):
+            # Removed rather than left: a wrong picture under the right name
+            # is the fault, and it is worse than no picture.
+            print("  photographed the wrong window:", why, file=sys.stderr)
+            os.remove(out)
+            return False
         return ok
     finally:
         proc.terminate()
@@ -445,6 +507,15 @@ def main():
         sys.exit(f"no binary at {a.binary}: go build -o meshbench ./cmd/meshbench")
     os.makedirs(a.out, exist_ok=True)
 
+    workbench = None
+    if any(aboutAnotherWindow(s) for _, s in chosen):
+        print("measuring the workbench, so a picture of it cannot pass for "
+              "another window's")
+        workbench = workbenchSize(a.binary, a.fixture, a.out)
+        if workbench is None:
+            sys.exit("could not photograph the workbench to size it")
+        print(f"  the workbench is {workbench[0]}x{workbench[1]}")
+
     failed = []
     skipped = []
     for i, (b, s) in enumerate(chosen, 1):
@@ -456,7 +527,7 @@ def main():
             print("  skipped - needs", s["needs"])
             skipped.append(s["name"])
             continue
-        if not run(s, a.binary, a.fixture, a.out):
+        if not run(s, a.binary, a.fixture, a.out, workbench):
             failed.append(s["name"])
     took = len(chosen) - len(failed) - len(skipped)
     print(f"\n{took} of {len(chosen)} captured into {a.out}")
