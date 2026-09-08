@@ -2,6 +2,7 @@ package firmwarelib
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
@@ -238,5 +239,69 @@ func TestSettingFirmwareCarriesTheBoardAndOnlyWhenAsked(t *testing.T) {
 	}
 	if got := board("emu"); got != "" {
 		t.Errorf("an explicit empty board left emu on %q", got)
+	}
+}
+
+// A build the node cannot start is not pinned to it, and the answer says so.
+//
+// firmware.set with a version and no role used to pin a repeater build onto
+// the companions too, answer nodes: 24, and leave firmware.needed saying
+// nothing was needed while six nodes could never start. The catalogue names
+// its builds role-first, so the role is known from the name before anything
+// is downloaded.
+func TestPinningABuildOfAnotherRoleLeavesThoseNodesAloneAndSaysSo(t *testing.T) {
+	nodes := []scenario.Node{
+		{Name: "hill", Kind: scenario.SimpleRepeater},
+		{Name: "phone", Kind: scenario.Companion},
+		{Name: "posts", Kind: scenario.RoomServer},
+	}
+	store := state.New(10)
+	sim := &session.Sim{}
+	sim.BuildSeeded(nodes, 869.618, 1)
+	registerFirmwareNodes(store, sim)
+	var said []string
+	store.Handle("test.said", func(w *state.World, p any) (any, error) {
+		*(p.(*[]string)) = append([]string{}, w.Log...)
+		return nil, nil
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go store.Run(ctx)
+
+	out, err := store.Do(ctx, "firmware.set", map[string]any{"version": "repeater-v9.9.9-test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := out.(map[string]any)
+	if got["nodes"] != 1 || got["mismatched"] != 2 {
+		t.Fatalf("want 1 pinned and 2 mismatched, got %v", got)
+	}
+	for _, n := range sim.Nodes() {
+		want := ""
+		if n.Name == "hill" {
+			want = "repeater-v9.9.9-test"
+		}
+		if n.Firmware.Version != want {
+			t.Errorf("%s runs %q, want %q", n.Name, n.Firmware.Version, want)
+		}
+	}
+	if _, err := store.Do(ctx, "test.said", &said); err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(said, "\n")
+	for _, want := range []string{"2 nodes not pinned", "simple_repeater build", "phone (companion_radio)", "posts (simple_room_server)"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("nothing said %q; said:\n%s", want, joined)
+		}
+	}
+
+	// A label nothing can place is pinned as it always was: a developer's
+	// own build is not refused for being unknown.
+	out, err = store.Do(ctx, "firmware.set", map[string]any{"version": "my-branch"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := out.(map[string]any); got["nodes"] != 3 || got["mismatched"] != 0 {
+		t.Errorf("an unplaceable label should pin everything, got %v", got)
 	}
 }

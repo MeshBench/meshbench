@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -41,6 +42,12 @@ func registerFirmwareNodes(st *state.Store, s *session.Sim) {
 		// back to a build for this machine.
 		m, _ := p.(map[string]any)
 		board, setBoard := m["board"].(string)
+		// What the build is for, where that can be known. A pin that a node
+		// cannot start is not made, and is said: a repeater build pinned
+		// across a mesh with no role filter used to take on the companions
+		// too, answer nodes: 24, and start eighteen.
+		forRoles := rolesFor(s, version)
+		var mismatched []string
 		n := s.UpdateNodes(w, func(n *scenario.Node, row *state.Node) bool {
 			if node != "" && n.Name != node {
 				return false
@@ -49,6 +56,10 @@ func registerFirmwareNodes(st *state.Store, s *session.Sim) {
 			// to: a node with no build chosen yet has an empty one, and
 			// those are exactly the nodes being asked about.
 			if role != "" && session.NodeRole(*n) != role {
+				return false
+			}
+			if len(forRoles) > 0 && !forRoles[session.NodeRole(*n)] {
+				mismatched = append(mismatched, n.Name+" ("+session.NodeRole(*n)+")")
 				return false
 			}
 			n.Firmware.Version = version
@@ -81,8 +92,13 @@ func registerFirmwareNodes(st *state.Store, s *session.Sim) {
 			said += " on " + board
 		}
 		w.Say(fmt.Sprintf("%d nodes pinned to %s", n, said))
+		if len(mismatched) > 0 {
+			w.Say(fmt.Sprintf("%d nodes not pinned: %s is a %s build, and they are not: %s",
+				len(mismatched), version, joinRoles(forRoles), strings.Join(mismatched, ", ")))
+		}
 		out := map[string]any{
 			"version": version, "nodes": n, "considered": len(s.Nodes()),
+			"mismatched": len(mismatched),
 		}
 		// Echoed only when it was asked for, so a caller can tell "left the
 		// board alone" from "set it to a host build".

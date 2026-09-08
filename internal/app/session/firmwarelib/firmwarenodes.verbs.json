@@ -1,13 +1,13 @@
 {
   "firmware.set": {
-    "what": "pin a build to nodes, which is what decides what each one starts and is the step a run that will not start is usually missing",
+    "what": "pin a build to nodes, which is what decides what each one starts and is the step a run that will not start is usually missing; a node the build is not for is left alone and said",
     "params": [
       {
         "name": "version",
         "type": "string",
         "required": true,
         "primary": true,
-        "what": "the version or imported label to pin; refused when absent, but not checked against the library, so a name nothing answers to is only found out at the next start"
+        "what": "the version or imported label to pin; refused when absent. Where the build's role can be known - it is on disk, published, or named role-first like repeater-v1.17.1 - nodes of another role are not pinned to it and are counted in `mismatched`; a label nothing answers to is only found out at the next start"
       },
       {
         "name": "node",
@@ -29,9 +29,10 @@
       "version",
       "nodes",
       "considered",
+      "mismatched",
       "board"
     ],
-    "answers": "`nodes` is how many were pinned and `considered` how many exist, which counts the ones that never run firmware. With a `role` and no `node` it pins every node running that role, but marks every node in the fleet list as running the version whatever its role, so a call per role leaves the list reading as the last one: pass `node` to pin exactly one. `board` comes back only when it was passed, so a caller can tell a board left alone from one set to a host build.",
+    "answers": "`nodes` is how many were pinned, `considered` how many exist, which counts the ones that never run firmware, and `mismatched` how many were left alone because the build is for another role: a repeater build across a mesh with no `role` pins the repeaters and leaves the companions, and says which, rather than pinning all of them and starting half. With a `role` and no `node` it pins every node running that role, but marks every node in the fleet list as running the version whatever its role, so a call per role leaves the list reading as the last one: pass `node` to pin exactly one. `board` comes back only when it was passed, so a caller can tell a board left alone from one set to a host build.",
     "example": {
       "params": {
         "node": "West Lomond",

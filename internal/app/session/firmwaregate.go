@@ -21,12 +21,7 @@ import (
 // node afterwards: a half-started mesh measures a network that does not exist,
 // and the operator sees a status line that never changes.
 func (s *Sim) buildsMissing() []string {
-	cache := firmware.DefaultCacheDir()
-	have := map[string]bool{}
-	for _, b := range firmware.ListInstalled(cache) {
-		have[b.Role+"@"+b.Version] = true
-		have[b.Version] = true
-	}
+	installed := firmware.ListInstalled(firmware.DefaultCacheDir())
 	// And whatever an override supplies, because this gate has to ask the
 	// question the engine asks. firmware.Resolve tries FindNative before it
 	// looks in the cache, so MESHBENCH_NATIVE, or a build sitting beside the
@@ -72,19 +67,56 @@ func (s *Sim) buildsMissing() []string {
 			out = append(out, n.Name+" (no version pinned)")
 			continue
 		}
-		if have[role+"@"+n.Firmware.Version] || have[n.Firmware.Version] {
+		ok, others := BuildAnswers(installed, role, n.Firmware.Version)
+		if ok {
 			continue
 		}
-		// A version was chosen and the cache has not got it. An override
-		// supplies it anyway, because Resolve never consults the version on
-		// that path. A board image is not a native build, so an override of
-		// one says nothing about the other.
+		// A version was chosen and the cache has not got it for this role.
+		// An override supplies it anyway, because Resolve never consults the
+		// version on that path. A board image is not a native build, so an
+		// override of one says nothing about the other.
 		if n.Firmware.Board == "" && overridden(role) {
+			continue
+		}
+		// The cache has that version, for another role. This is the pin
+		// that used to pass on its name alone: a repeater build on six
+		// companions started eighteen of twenty-four nodes and nothing said
+		// why, which is the half mesh this gate exists to refuse.
+		if len(others) > 0 {
+			out = append(out, fmt.Sprintf("%s (%s, pinned to %s, a %s build)",
+				n.Name, role, n.Firmware.Version, strings.Join(others, " and ")))
 			continue
 		}
 		out = append(out, fmt.Sprintf("%s (%s %s)", n.Name, role, n.Firmware.Version))
 	}
 	return out
+}
+
+// BuildAnswers says whether an installed build can run this role at this
+// version, and when none can, which roles that version is installed for.
+//
+// The role, and not the version alone. Both this gate and firmware.needed
+// used to accept a pin on its version - have[version] beside
+// have[role@version] - so a repeater build pinned across a mesh satisfied
+// its companions too, and the engine, which resolves by role, then started
+// eighteen of twenty-four nodes without a word. A board image carries its
+// transport in its role (companion_radio_usb), so a node's role matches an
+// image whose role extends it.
+func BuildAnswers(installed []firmware.Installed, role, version string) (ok bool, others []string) {
+	seen := map[string]bool{}
+	for _, b := range installed {
+		if b.Version != version {
+			continue
+		}
+		if b.Role == role || strings.HasPrefix(b.Role, role+"_") {
+			return true, nil
+		}
+		if !seen[b.Role] {
+			seen[b.Role] = true
+			others = append(others, b.Role)
+		}
+	}
+	return false, others
 }
 
 // namedFew is the list a refusal quotes: the first few by name, and a count of
