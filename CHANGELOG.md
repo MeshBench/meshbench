@@ -38,8 +38,45 @@ had changed in them - which is the gap this file exists to close.
   development workbench is refused as a mismatch rather than let through as
   though one end were a working copy.
 
+- **`meshbench test` boots every node factory-fresh.** The same fixture,
+  build and seed gave 350 deliveries on a fresh machine and 322 on every run
+  after it, with an identical header, because the second run's nodes loaded
+  what the first had stored. A test run now gets node storage of its own,
+  removed afterwards, so the number depends on the fixture, the build and
+  the seed alone; `-keep-node-storage` reuses the machine's storage as
+  hardware would, and the header says which it did.
+- **A development build has development clients.** The Python and Node
+  clients are published beside a development build as pre-releases:
+  `0.0.11.dev1` on PyPI, which pip installs only with the exact pin or
+  `--pre`, and `0.0.11-dev.1` on npm under the `dev` dist-tag, so a plain
+  install keeps resolving to stable. The Python client says the tag's
+  spelling on the wire, and a development workbench's refusal says its
+  client is a pre-release that has to be asked for.
+
 ### Fixed
 
+- **Every native node on Windows shared one identity.** The bridge parsed
+  `--seed` with `strtoul`, which saturates where a long is 32 bits, so every
+  node whose seed was above 2^32 was seeded `0xFFFFFFFF`: 57 of 58 nodes,
+  private key included, and no companion ever learned a contact. The seed
+  now goes down as its low 32 bits, which is all the firmware ever read, so
+  nothing changes on Linux or macOS and the published binaries are right
+  without a rebuild.
+- **A mesh with no regions applied floods, and the manual said it did not.**
+  Skipping `infer.apply` was documented in a dozen places as a mesh that
+  transmits everything and relays nothing. MeshCore relays every unscoped
+  flood, adverts included, whatever a node holds; what a region-less mesh
+  drops, silently, is scoped traffic, and nothing it originates is scoped in
+  the first place. Every copy now says so. The same reading settles the
+  permissive fixture: `region allowf *` changes nothing on a fresh node and
+  never makes a scoped flood forward, which is why strict and permissive
+  measured the same.
+- **The screenshot sweep photographed the workbench under a popout's name on
+  macOS.** The window chooser skipped every floating window of ours, and
+  46 of 115 steps filed the main window under another window's name with a
+  clean exit. The chooser tests size alone now, and on every platform a
+  picture of another window that comes back at the workbench's own size is
+  removed and reported rather than filed.
 - **The emulator pin moves to `sx1262-15`, and ESP32 boards boot again.** The
   UART's `apb_freq` was a static qdev property, and the classic ESP32's clock
   handler sets it when the second-stage bootloader switches to the PLL - long
