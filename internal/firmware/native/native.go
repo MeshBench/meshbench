@@ -108,6 +108,31 @@ func (n *Native) PID() int {
 	return n.cmd.Process.Pid
 }
 
+// args is the child's command line.
+//
+// The seed goes down as its low 32 bits. That is all the firmware ever read:
+// the bridge parses --seed with strtoul into a uint32_t, and where a long is
+// 64 bits the cast keeps the low word. Where a long is 32 bits - every Windows
+// target - strtoul saturates at ULONG_MAX instead, so every node whose seed
+// was above 2^32 was seeded 0xFFFFFFFF, and 57 of 58 nodes booted with one
+// identity, private key included. Node 0's seed is the run seed, which fits,
+// and was the one node apart. Masking here gives every platform the low
+// word Linux and macOS always had, so no identity changes where the mesh
+// already worked, and the published binaries need no rebuild to be right.
+func (n *Native) args(bridgeAddr string) []string {
+	args := []string{"--bridge", bridgeAddr, "--seed", fmt.Sprint(uint32(n.Seed))}
+	if n.SF != 0 {
+		args = append(args, "--sf", fmt.Sprint(n.SF))
+	}
+	if n.BandwidthKHz != 0 {
+		args = append(args, "--bw-khz", strconv.FormatFloat(n.BandwidthKHz, 'f', -1, 64))
+	}
+	if n.CodingRate != 0 {
+		args = append(args, "--cr", fmt.Sprint(n.CodingRate))
+	}
+	return args
+}
+
 func (n *Native) Start(ctx context.Context, bridgeAddr string) (err error) {
 	path, err := firmware.FindNative(n.Path, n.Role)
 	if err != nil {
@@ -118,17 +143,7 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) (err error) {
 	if n.cmd != nil {
 		return errors.New("firmware: native node already started")
 	}
-	args := []string{"--bridge", bridgeAddr, "--seed", fmt.Sprint(n.Seed)}
-	if n.SF != 0 {
-		args = append(args, "--sf", fmt.Sprint(n.SF))
-	}
-	if n.BandwidthKHz != 0 {
-		args = append(args, "--bw-khz", strconv.FormatFloat(n.BandwidthKHz, 'f', -1, 64))
-	}
-	if n.CodingRate != 0 {
-		args = append(args, "--cr", fmt.Sprint(n.CodingRate))
-	}
-	cmd := exec.CommandContext(ctx, path, args...)
+	cmd := exec.CommandContext(ctx, path, n.args(bridgeAddr)...)
 	// The same attributes the emulated backend gives its children: a
 	// parent-death signal where the platform has one, and no console window
 	// on Windows, where every node is a console program and a national
