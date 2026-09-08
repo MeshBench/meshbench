@@ -135,8 +135,9 @@ func registerFleet(st *state.Store, s *session.Sim) {
 		return map[string]any{"replies": len(out)}, nil
 	})
 
-	// nodes.regions and nodes.allow_flood: the two that decide whether
-	// anything relays at all.
+	// nodes.regions decides which scoped traffic a node relays; an unscoped
+	// flood is relayed whatever it holds. nodes.allow_flood is the wildcard's
+	// flood permission, which a fresh node already has.
 	st.Handle("nodes.regions", func(w *state.World, p any) (any, error) {
 		var regions []string
 		if m, ok := p.(map[string]any); ok {
@@ -180,10 +181,11 @@ func registerFleet(st *state.Store, s *session.Sim) {
 			s.Nodes()[i].AllowAnyFlood = on
 			n++
 		}
-		// The wildcard is the parent of every region, so a flood is forwarded
-		// whatever its scope. It is also the difference between a fixture that
-		// relays and one that transmits everything, relays nothing, and
-		// reports no error at all.
+		// The wildcard is what MeshCore matches an *unscoped* flood against,
+		// and a factory-fresh node's wildcard already allows flooding, so
+		// this changes nothing unless a node was told region denyf *. It
+		// never makes a scoped flood forward: a scoped packet is matched
+		// against the node's named regions alone (RegionMap::findMatch).
 		w.Say(fmt.Sprintf("%d nodes now %s any flood", n,
 			map[bool]string{true: "allow", false: "refuse"}[on]))
 		return map[string]any{"nodes": n, "allow_any_flood": on}, nil

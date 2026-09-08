@@ -1091,8 +1091,12 @@ gone stale is the failure mode it exists to prevent.
 Everything above is a limit of the model. This is a shorter and more dangerous
 list: configurations that change a result while reporting nothing wrong.
 
-**A region inferred and never applied.** Every node transmits, no node relays,
-and nothing reports an error. It reads as a mesh with no propagation.
+**A region inferred and never applied.** Every unscoped flood, adverts
+included, is relayed exactly as widely as before, so the mesh looks alive.
+Every scoped packet matches no region any repeater holds and is dropped
+without a word, and nothing the mesh originates is scoped, because the
+default scope is applied in the same stroke. It reads as messages that do
+not propagate on a mesh whose adverts do.
 
 **A scope written without its `#`.** The key on the wire is `sha256("#sco")`.
 `sha256("sco")` matches no repeater in existence, so every repeater receives the

@@ -575,8 +575,8 @@ missing.
 
 `pull` runs all four steps because the last two are the ones that get skipped,
 and skipping them does not fail: the mesh comes up with regions inferred but
-never applied, which transmits, relays nothing, and reports no error at all.
-It reads as bad RF.
+never applied, which relays every advert exactly as widely, drops every scoped
+message without a word, and reports no error at all. It reads as bad RF.
 
 `boundary.use` takes either a place name — searched for at Nominatim, so it
 needs the network and needs the area to have an administrative name — or a

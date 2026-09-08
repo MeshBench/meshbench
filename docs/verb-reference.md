@@ -849,7 +849,7 @@ Add nodes to whatever is already selected, which is the shift-drag, and the way 
 
 ### `nodes.allow_flood`
 
-Let a node forward a flood whatever region it was scoped to, which is the difference between a scenario that relays and one that transmits everything, relays nothing and reports no error.
+Clear the wildcard's flood deny on a node with region allowf *, which a factory-fresh node never has set: it changes nothing on a node that was never told region denyf *, and it never makes a scoped flood forward, because MeshCore matches the wildcard against unscoped floods only.
 
 **Takes**
 
@@ -3392,7 +3392,7 @@ Planned, not written: no client defines `wb.import_` yet - bringing a real deplo
 
 ### `infer.apply`
 
-Write the inferred regions onto the nodes, which is the step that gets forgotten and the one that decides whether anything relays: without it a mesh has regions inferred and not applied, which transmits everything, relays nothing and reports no error.
+Write the inferred regions onto the nodes, and each node's default scope with them, which is the step that gets forgotten: without it a mesh still relays every unscoped flood, adverts included, exactly as widely, but a scoped packet matches no region any repeater holds and is dropped without a word, and nothing the mesh originates is scoped in the first place.
 
 **Takes** nothing.
 

@@ -3,8 +3,8 @@
 // Four steps in a fixed order, and every one of them has been skipped by
 // somebody at least once. The two that get missed are the last two, and
 // missing them does not fail: the mesh comes up with regions inferred but
-// never applied, which transmits everything, relays nothing, and reports no
-// error at all. It reads as bad RF.
+// never applied, which relays every advert, drops every scoped message
+// without a word, and reports no error at all. It reads as bad RF.
 //
 // So the steps are here individually, because sometimes you want to look at a
 // preview before committing - and Pull runs all four, because the ordinary
@@ -125,8 +125,9 @@ func (l Live) Commit(ctx context.Context, strategy Strategy) (int, error) {
 
 // Infer reads the feed's recent traffic to work out what each node holds.
 //
-// This is the step that decides whether anything relays. A node whose regions
-// are unknown forwards nothing, and nothing says so.
+// This is the step that decides whether scoped traffic relays. A node whose
+// regions are unknown still relays every unscoped flood, drops every scoped
+// packet, and nothing says so.
 //
 // window is the feed's own past and zero means DefaultWindow; wait is how long
 // you will sit here for it. A week of ScotMesh is around 150,000 packets and

@@ -69,7 +69,7 @@
     }
   },
   "infer.apply": {
-    "what": "write the inferred regions onto the nodes, which is the step that gets forgotten and the one that decides whether anything relays: without it a mesh has regions inferred and not applied, which transmits everything, relays nothing and reports no error",
+    "what": "write the inferred regions onto the nodes, and each node's default scope with them, which is the step that gets forgotten: without it a mesh still relays every unscoped flood, adverts included, exactly as widely, but a scoped packet matches no region any repeater holds and is dropped without a word, and nothing the mesh originates is scoped in the first place",
     "returns": [
       "applied"
     ],

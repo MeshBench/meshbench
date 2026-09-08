@@ -100,7 +100,7 @@ traffic showed 10,018 scoped transmissions and zero unscoped: region membership
 | Parameter | Repeaters | Companions | Why it is interesting |
 |---|---|---|---|
 | Region membership | `region put` / `region remove` | — | "what if these repeaters also carried `#fif`?" is a real operational question |
-| Flood permission per region | `region allowf` / `region denyf` | — | a region that exists but does not allow flooding relays nothing — a configuration failure that looks exactly like an RF one |
+| Flood permission per region | `region allowf` / `region denyf` | — | a region that exists but does not allow flooding relays nothing scoped to it, a configuration failure that looks exactly like an RF one |
 | Default scope | `region default <name>` | `CMD_SET_DEFAULT_FLOOD_SCOPE` | which scope a node sends under when nothing says otherwise |
 | Scoped or unscoped | — | per send, or default | the counterfactual: what would this mesh do with no transport regions at all? |
 | Region source | inference / study area / none | — | compare regions inferred from live traffic against a flat configuration |

@@ -132,9 +132,10 @@ func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpA
 
 	// Provision every node before the run.
 	//
-	// This is the step that decides whether anything relays. A node that has
-	// not been told its regions holds none, so it forwards nothing and reports
-	// no error - which is what four cells of zeros looked like. The commands
+	// This is the step that decides whether scoped traffic relays. A node
+	// that has not been told its regions holds none, so it drops every scoped
+	// packet and reports no error - which is what four cells of zeros looked
+	// like. The commands
 	// are the same ones ProvisioningFor shows in the node panel, so what the
 	// operator reads and what the arm sends cannot drift apart.
 	var refused []string

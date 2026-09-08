@@ -54,22 +54,27 @@ the one to use for "would this work on ScotMesh", because it forwards what
 ScotMesh forwards and drops what ScotMesh drops.
 
 **`-permissive`** additionally sets `AllowAnyFlood` on every transmitting node,
-which issues `region allowf *` at boot: the wildcard is the parent of every
-region, so a flood is forwarded whatever its scope. It exists so a first run
-works without anyone having to discover that scopes are written `#sco` on the
-wire and `sco` at the console, and that a mesh with regions inferred but not
-applied transmits everything, relays nothing, and reports no error at all.
+which issues `region allowf *` at boot. It was written in the belief that the
+wildcard is the parent of every region, so a flood would be forwarded whatever
+its scope.
 
-**What is proven, and what is not.** The two files genuinely differ - 56 of 58
-nodes in the Fife pair, against a first attempt where the "permissive" fixture
-was byte-identical to the strict one. The firmware accepts `region allowf *`
-and answers `OK`. But a controlled run has **not** shown the permissive variant
-relaying more: flooding a scope only one node holds gave 51 transmissions and
-521 receptions strict against 51 and 520 permissive, which is the same answer
-twice and far inside the ±20% measurement floor. Either the wildcard needs
-`region put *` first, or that experiment was insensitive to the difference.
-Until that is settled, treat `-permissive` as *declared* permissive rather than
-*demonstrated* permissive, and treat strict as the one to believe either way.
+**It is not, and the two fixtures behave identically.** MeshCore matches the
+wildcard against *unscoped* floods only, and a factory-fresh node's wildcard
+already allows them (`RegionMap.cpp` sets `wildcard.flags = 0`). A scoped flood
+is matched against the node's named regions alone (`RegionMap::findMatch`), and
+the wildcard is not among them. So `region allowf *` clears a deny that a fresh
+node never had, and never makes a scoped packet forward. That is why the
+controlled run - flooding a scope only one node holds - gave 51 transmissions
+and 521 receptions strict against 51 and 520 permissive: the same answer twice,
+because the two configurations are the same configuration. Use strict; the
+permissive file is kept so a fixture that has typed `region denyf *` somewhere
+can undo it, and for nothing else.
+
+What a mesh with no regions applied actually does: it relays every unscoped
+flood, adverts included, exactly as widely as one with them, and drops every
+scoped packet without a word. What `infer.apply` changes is which scoped
+traffic each node forwards, and, through the default scope it sets in the same
+stroke, whether the mesh's own traffic is scoped at all.
 
 ## Running one
 
@@ -132,7 +137,7 @@ failure looking like bad RF rather than a missing step:
     project.save
 
 **`infer.apply` is the one that gets forgotten**, and it is the one that decides
-whether anything relays.
+whether scoped traffic relays: adverts flood either way.
 
 **Pin firmware per node, not per role.** `firmware.set` with a role and no node
 applies to every node that runs firmware *and sets its role*, so three calls in
