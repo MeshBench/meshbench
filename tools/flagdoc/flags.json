@@ -227,6 +227,7 @@
     "fixture": "result",
     "for": "result",
     "junit": "output",
+   "keep-node-storage": "result",
     "offline": "data",
     "quiet": "output",
     "seed": "result",

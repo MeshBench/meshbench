@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/fixture"
+	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/ui/comp"
 )
@@ -35,9 +36,17 @@ func runTest(ctx context.Context, args []string) error {
 	endpoint := fs.String("endpoint", "",
 		"serve a companion node to a real client: \"tcp:<node>\" or \"serial:<node>\"")
 	quiet := fs.Bool("quiet", false, "only print the verdict")
+	keep := fs.Bool("keep-node-storage", false,
+		"reuse what the nodes stored last run, identities and settings, as hardware would, "+
+			"instead of booting every node factory-fresh")
 	if err := parse(fs, args, "run a fixture and check its assertions"); err != nil {
 		return err
 	}
+	storage, cleanup, err := testNodeStorage(*keep)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	if *path == "" {
 		return fmt.Errorf("give a fixture with -fixture; the shipped ones are in fixtures/")
 	}
@@ -82,6 +91,7 @@ func runTest(ctx context.Context, args []string) error {
 	on, tx := fx.Permissive()
 	fmt.Printf("%s: %d nodes, %d running firmware, SF%d at %.0f kHz, seed %d\n",
 		fx.Name, len(fx.Nodes), e.FirmwareCount(), sf, bw/1000, runSeed)
+	fmt.Printf("node storage: %s\n", storage)
 	if on > 0 {
 		// Loudly, every time. A permissive fixture answers a reach question more
 		// generously than the real network, and a report that does not say so is
@@ -291,4 +301,41 @@ func writeJUnit(path, name string, results []engine.Result, took time.Duration) 
 		return err
 	}
 	return os.WriteFile(path, append([]byte(xml.Header), b...), 0o644)
+}
+
+// testNodeStorage decides where the nodes keep what they remember, and says so.
+//
+// The workbench keeps a node's identity and preferences between runs, on
+// purpose: that is how hardware behaves. It makes the assertion runner
+// depend on a second input nobody named. The same fixture, build and seed
+// gave 350 deliveries on a fresh machine and 322 on every run after it,
+// because the second run's nodes loaded what the first had stored, and the
+// header was identical both times. So a test run boots every node
+// factory-fresh, in storage of its own that is removed afterwards, and the
+// number depends only on the fixture, the build and the seed. Reusing the
+// stored state is a choice, made with -keep-node-storage, and the header
+// says which was made either way.
+func testNodeStorage(keep bool) (words string, cleanup func(), err error) {
+	if keep {
+		return fmt.Sprintf("kept at %s: what the nodes stored last run is an input to this one",
+			firmware.NodeFSRoot()), func() {}, nil
+	}
+	dir, err := os.MkdirTemp("", "meshbench-test-nodefs-")
+	if err != nil {
+		return "", nil, fmt.Errorf("making fresh node storage: %w", err)
+	}
+	old, had := os.LookupEnv(firmware.EnvNodeFS)
+	if err := os.Setenv(firmware.EnvNodeFS, dir); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", nil, err
+	}
+	cleanup = func() {
+		if had {
+			_ = os.Setenv(firmware.EnvNodeFS, old)
+		} else {
+			_ = os.Unsetenv(firmware.EnvNodeFS)
+		}
+		_ = os.RemoveAll(dir)
+	}
+	return "fresh, every node factory-new, removed after the run", cleanup, nil
 }

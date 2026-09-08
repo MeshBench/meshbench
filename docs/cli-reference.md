@@ -12,7 +12,7 @@ meshbench <command> [flags]
 ```
 
 There are **16**<!--flagdoc:commands--> commands and
-**169**<!--flagdoc:flags--> flags between them, of which
+**170**<!--flagdoc:flags--> flags between them, of which
 **38**<!--flagdoc:capture--> exist only so a panel, a menu or a view can be
 reached without a click.
 
@@ -66,7 +66,7 @@ Every flag below carries one of these, because a flag that arranges a screenshot
 | `basemap` | download map tiles for an area | 8 |
 | `dev` | build a MeshCore checkout and give it to the workbench | 5 |
 | `serve` | run a mesh and expose a companion to your app | 8 |
-| `test` | run a fixture on real firmware and check its assertions | 9 |
+| `test` | run a fixture on real firmware and check its assertions | 10 |
 | `headless` | run the verbs over the control socket, with no window | 7 |
 | `workbench` | open the desktop workbench: build a scenario on a map and run it | 43 |
 
@@ -371,6 +371,7 @@ The one a pipeline calls. Exit 0 if every assertion passed, 1 if any failed; -ju
 | `-fixture` | **required** | result | fixture JSON to run |
 | `-for` | `120000` | result | how long to simulate, ms |
 | `-junit` | none | output | write a JUnit XML report here |
+| `-keep-node-storage` | `false` | result | reuse what the nodes stored last run, identities and settings, as hardware would, instead of booting every node factory-fresh |
 | `-offline` | `false` | data | never download; answer from the cache and fail loudly otherwise |
 | `-quiet` | `false` | output | only print the verdict |
 | `-seed` | `0` | result | override the fixture's seed |
