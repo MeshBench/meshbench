@@ -968,11 +968,30 @@ jobs:
           # than trusted: v0.0.7 was tagged first and written up afterwards, so
           # the link on its page pointed at a file that did not mention it, and
           # nothing said so.
-          if ! grep -q "^## \[${VERSION}\]" CHANGELOG.md; then
-            echo "::error::CHANGELOG.md has no section for ${VERSION}. The notes" \
-                 "link to the changelog at this tag, so write the entry, then tag."
-            exit 1
-          fi
+          #
+          # A development build has no section of its own: it is main between
+          # two stable releases, and what has changed since the last one is
+          # exactly the Unreleased section, so that is where its notes point.
+          # A stable release closes that section under its own number.
+          CHANGELOG="https://github.com/${GITHUB_REPOSITORY}/blob/$TAG/CHANGELOG.md"
+          case "$VERSION" in
+            *-*)
+              if ! grep -q '^## \[Unreleased\]' CHANGELOG.md; then
+                echo "::error::CHANGELOG.md has no Unreleased section, which is" \
+                     "what a development build's notes link to."
+                exit 1
+              fi
+              CHANGED="**A development build, cut from \`main\` ahead of the next stable release. What has changed since the last one: [the Unreleased section of the changelog]($CHANGELOG#unreleased).** It may change again before that release ships, and the stable channel will not offer it."
+              ;;
+            *)
+              if ! grep -q "^## \[${VERSION}\]" CHANGELOG.md; then
+                echo "::error::CHANGELOG.md has no section for ${VERSION}. The notes" \
+                     "link to the changelog at this tag, so write the entry, then tag."
+                exit 1
+              fi
+              CHANGED="**What changed in this release: [the changelog]($CHANGELOG)**"
+              ;;
+          esac
 
           # GPL-3.0 section 6: whoever gets the binary can have the source.
           git archive --format=tar.gz --prefix="meshbench-${VERSION}/" \
@@ -989,7 +1008,7 @@ jobs:
             echo "  <img alt=\"MeshBench: an RF-accurate MeshCore network simulator\" src=\"$RAW/docs/brand/meshbench-banner-1600x400-light.png\">"
             echo "</picture>"
             echo
-            echo "**What changed in this release: [the changelog](https://github.com/MeshBench/meshbench/blob/$TAG/CHANGELOG.md)**"
+            echo "$CHANGED"
             echo
             echo "## Installing"
             echo
