@@ -66,11 +66,6 @@ func registerFirmwareLibrary(st *state.Store, s *session.Sim) {
 	// at a time is not a question anybody answers.
 	st.Handle("firmware.needed", func(w *state.World, _ any) (any, error) {
 		installed := firmware.ListInstalled(firmware.DefaultCacheDir())
-		have := map[string]bool{}
-		for _, b := range installed {
-			have[b.Role+"@"+b.Version] = true
-			have[b.Version] = true
-		}
 		var order []string
 		counts := map[string]int{}
 		for _, n := range s.Nodes() {
@@ -78,7 +73,10 @@ func registerFirmwareLibrary(st *state.Store, s *session.Sim) {
 				continue
 			}
 			role := session.NodeRole(n)
-			if v := n.Firmware.Version; v != "" && (have[role+"@"+v] || have[v]) {
+			// By role, the way the engine resolves: a companion pinned to a
+			// repeater build has no build it can start, whatever the version
+			// is called.
+			if ok, _ := session.BuildAnswers(installed, role, n.Firmware.Version); ok {
 				continue
 			}
 			if counts[role] == 0 {

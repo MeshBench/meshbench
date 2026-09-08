@@ -29,7 +29,7 @@
     "returns": [
       "roles"
     ],
-    "answers": "`roles` is a list of `{role, nodes, choices}`: how many nodes running that role have no build this machine holds, and the versions installed for it, which may be none. An empty list means every node that runs firmware has one it can start.",
+    "answers": "`roles` is a list of `{role, nodes, choices}`: how many nodes running that role have no build this machine holds for that role, and the versions installed for it, which may be none. A node pinned to another role's build counts, because the engine resolves by role and it has nothing it can start. An empty list means every node that runs firmware has one it can start.",
     "example": {
       "params": {},
       "what": "find out what the run is short of",

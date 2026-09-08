@@ -1847,7 +1847,7 @@ Ask what a mesh that will not start is missing, by role rather than by node, and
 
 **Takes** nothing.
 
-**Answers** `roles`. `roles` is a list of `{role, nodes, choices}`: how many nodes running that role have no build this machine holds, and the versions installed for it, which may be none. An empty list means every node that runs firmware has one it can start.
+**Answers** `roles`. `roles` is a list of `{role, nodes, choices}`: how many nodes running that role have no build this machine holds for that role, and the versions installed for it, which may be none. A node pinned to another role's build counts, because the engine resolves by role and it has nothing it can start. An empty list means every node that runs firmware has one it can start.
 
 **Example** - find out what the run is short of
 
@@ -1889,18 +1889,18 @@ Not made by the test suite: this call needs more than the two-node headless sess
 
 ### `firmware.set`
 
-Pin a build to nodes, which is what decides what each one starts and is the step a run that will not start is usually missing.
+Pin a build to nodes, which is what decides what each one starts and is the step a run that will not start is usually missing; a node the build is not for is left alone and said.
 
 **Takes**
 
 | parameter | type | | what |
 |---|---|---|---|
-| `version` | string | required, primary | the version or imported label to pin; refused when absent, but not checked against the library, so a name nothing answers to is only found out at the next start |
+| `version` | string | required, primary | the version or imported label to pin; refused when absent. Where the build's role can be known - it is on disk, published, or named role-first like repeater-v1.17.1 - nodes of another role are not pinned to it and are counted in `mismatched`; a label nothing answers to is only found out at the next start |
 | `node` | string | optional | pin this one node by name; absent means every node the role filter leaves |
 | `role` | string | optional | only nodes running under this role, pinned or implied by their kind; absent means all of them |
 | `board` | string | optional | the board the image is for, so a fleet of emulated nodes can be pinned in one call; absent leaves each node's board as it is, and an explicit empty string moves them back to a build for this machine. Unlike node.set_firmware, absent does not mean native here: clearing three hundred boards is not what a caller who only named a version asked for |
 
-**Answers** `version`, `nodes`, `considered`, `board`. `nodes` is how many were pinned and `considered` how many exist, which counts the ones that never run firmware. With a `role` and no `node` it pins every node running that role, but marks every node in the fleet list as running the version whatever its role, so a call per role leaves the list reading as the last one: pass `node` to pin exactly one. `board` comes back only when it was passed, so a caller can tell a board left alone from one set to a host build.
+**Answers** `version`, `nodes`, `considered`, `mismatched`, `board`. `nodes` is how many were pinned, `considered` how many exist, which counts the ones that never run firmware, and `mismatched` how many were left alone because the build is for another role: a repeater build across a mesh with no `role` pins the repeaters and leaves the companions, and says which, rather than pinning all of them and starting half. With a `role` and no `node` it pins every node running that role, but marks every node in the fleet list as running the version whatever its role, so a call per role leaves the list reading as the last one: pass `node` to pin exactly one. `board` comes back only when it was passed, so a caller can tell a board left alone from one set to a host build.
 
 **Example** - pin one node to the build it will start
 

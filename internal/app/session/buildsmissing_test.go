@@ -135,3 +135,60 @@ func TestTheDenominatorSkipsNodesThatNeverBootFirmware(t *testing.T) {
 		t.Errorf("an observer runs no firmware and should not be counted:\n%s", got)
 	}
 }
+
+// A pin is answered by role, not by its name. A repeater build pinned across
+// a mesh with no role filter used to satisfy the companions too - the cache
+// held the version, and the version was all that was asked - so the engine,
+// which resolves by role, started eighteen of twenty-four nodes and the gate
+// that exists to refuse a half mesh said nothing.
+func TestAPinToAnotherRolesBuildIsReportedAsSuch(t *testing.T) {
+	installed := []firmware.Installed{
+		{Native: true, Role: "simple_repeater", Version: "repeater-v1.17.1"},
+		{Native: false, Role: "companion_radio_usb", Version: "companion-v1.17.1", Board: "heltec_v3"},
+	}
+	if ok, _ := BuildAnswers(installed, "simple_repeater", "repeater-v1.17.1"); !ok {
+		t.Error("a repeater's own build does not answer for it")
+	}
+	ok, others := BuildAnswers(installed, "companion_radio", "repeater-v1.17.1")
+	if ok {
+		t.Fatal("a repeater build answers for a companion, which is the fault")
+	}
+	if len(others) != 1 || others[0] != "simple_repeater" {
+		t.Errorf("the refusal should name the role the build is for, got %v", others)
+	}
+	// A board image carries its transport in its role, and is the
+	// companion's build all the same.
+	if ok, _ := BuildAnswers(installed, "companion_radio", "companion-v1.17.1"); !ok {
+		t.Error("a companion_radio_usb image does not answer for companion_radio")
+	}
+	if ok, others := BuildAnswers(installed, "companion_radio", "nowhere-v0"); ok || len(others) != 0 {
+		t.Errorf("a version the cache has not got is neither answered nor blamed on a role, got %v %v", ok, others)
+	}
+
+	// And through the gate, against a real cache directory.
+	cache := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cache)
+	dir := filepath.Join(cache, "meshbench", "firmware", "native", "repeater-v1.17.1")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(dir, firmware.NativeBinaryName("simple_repeater"))
+	if err := os.WriteFile(bin, []byte("#!/bin/true\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(firmware.EnvNativeBinary, "")
+	hill := repeaterNode("Hill")
+	hill.Firmware = scenario.FirmwareRef{Version: "repeater-v1.17.1"}
+	phone := scenario.Node{Name: "Phone", Kind: scenario.Companion,
+		Firmware: scenario.FirmwareRef{Version: "repeater-v1.17.1"}}
+	s := &Sim{nodes: []scenario.Node{hill, phone}}
+	got := s.buildsMissing()
+	if len(got) != 1 {
+		t.Fatalf("the companion alone is missing a build, got %v", got)
+	}
+	for _, want := range []string{"Phone", "companion_radio", "repeater-v1.17.1", "simple_repeater build"} {
+		if !strings.Contains(got[0], want) {
+			t.Errorf("the refusal does not say %q: %s", want, got[0])
+		}
+	}
+}
