@@ -21,6 +21,39 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-09
+
+The first public stable release. It carries everything the 0.0.x line built -
+the RF-accurate channel, real MeshCore firmware native and emulated, the study
+and experiment verbs, the two release channels - and closes the batch of fixes
+the pre-release passes found.
+
+### Added
+
+- **`node.regions` reads a running node's real region map.** A region set
+  straight over a node's own console lands in the firmware and never in the
+  model, so `nodes.list` reported none for a node that held one. `node.regions`
+  asks the running firmware (`region list allowed`, `region default`), parses
+  the reply, and writes the model; `nodes.list` also carries `default_scope`
+  now.
+
+### Fixed
+
+- **The calculated noise floor fluctuates, so seeds move a run.** Calculated
+  reception was a pure function of geometry, so every seed produced the
+  identical run and a sweep's `rx_spread` - the figure every experiment delta
+  is read against - was structurally zero. The floor now carries a per-reception
+  Gaussian fluctuation (σ = 2 dB, tunable), so a link within a couple of dB of
+  threshold decodes on one seed and misses on the next. The run stays
+  reproducible, and the waveform path is untouched.
+- **Regions applied to a running mesh stay in the view.** They reached the
+  scenario and the firmware - the mesh relayed scoped traffic - but vanished
+  from `nodes.list` within a tick, so the one place the manual says to read
+  regions answered "none" on a mesh where every node held one. The snapshot's
+  region columns are now re-projected from the scenario every readout, the way
+  the scores and trails already are, so a row cannot drift from the scenario
+  for longer than a readout.
+
 ## [0.0.11] - 2026-09-09
 
 ### Added
