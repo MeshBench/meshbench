@@ -132,10 +132,18 @@ func isRegionCSV(line string) bool {
 			return false
 		}
 		for _, r := range tok {
-			if !(r == '_' || r == '-' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')) {
+			if !isRegionNameChar(r) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+// isRegionNameChar reports whether a rune can appear in a region name: letters,
+// digits, underscore or hyphen. A region name is short and plain, and anything
+// else marks a line as prose rather than a region list.
+func isRegionNameChar(r rune) bool {
+	return r == '_' || r == '-' ||
+		(r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
 }
