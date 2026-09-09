@@ -116,6 +116,11 @@ type wfResult struct {
 	payload []byte // what MeshCore actually gets - the decode, not the send
 	stats   lora.DecodeStats
 	snrdB   float64
+	// interfererDBm is the strongest concurrent same-channel signal that
+	// landed in this window, or -Inf if the channel was clear. It is what lets
+	// a miss above the noise floor be named a collision rather than left
+	// unclassified: the window sums it, and this remembers how loud it was.
+	interfererDBm float64
 }
 
 // deliverWaveform is deliver's waveform-mode twin: same gates, same ledger,
@@ -297,6 +302,7 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 		nodes[c.i].specRef().Name, txPHY, t.startMs); has {
 		txs = append(txs, echo)
 	}
+	interfererDBm := math.Inf(-1)
 	for _, other := range concurrent {
 		if other.packetID == t.packetID || other.from == c.i {
 			continue
@@ -307,7 +313,13 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 		if !e.phyOf(nodes[other.from].specRef()).sameChannel(txPHY) {
 			continue
 		}
-		txs = append(txs, e.rxTransmissions(other, c.i, float64(t.startMs), nodes, cache)...)
+		ints := e.rxTransmissions(other, c.i, float64(t.startMs), nodes, cache)
+		for _, in := range ints {
+			if in.GainDB > interfererDBm {
+				interfererDBm = in.GainDB
+			}
+		}
+		txs = append(txs, ints...)
 	}
 
 	noiseLinear := math.Pow(10, e.applyImplementationLoss(c.noiseDBm)/10)
@@ -323,7 +335,10 @@ func (e *Engine) judgeWaveform(t transmission, c wfCandidate, concurrent []trans
 	// Measured from the IQ, then clamped to what the modem could report. The
 	// front end saturates before the estimator does, so a window this strong
 	// reads as the ceiling on the chip too.
-	res := wfResult{snrdB: dsp.ReportSNRdB(channel.SNRdB(observed, noiseLinear))}
+	res := wfResult{
+		snrdB:         dsp.ReportSNRdB(channel.SNRdB(observed, noiseLinear)),
+		interfererDBm: interfererDBm,
+	}
 	// The receiver front end is real: no lock, no packet. Detection, sync
 	// word timing and the SFD's STO/CFO split all run against the observed
 	// IQ - a preamble buried in interference fails here exactly as it does
@@ -356,7 +371,7 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 	rec := capture.Reception{
 		PacketID: t.packetID, FromNode: src.specRef().Name, ToNode: dst.specRef().Name,
 		RSSIdBm: dsp.ReportRSSIdBm(c.rxDBm), SNRdB: r.snrdB, Offered: true,
-		Demod: r.stats.HeaderOK, CRCOK: r.decoded && r.stats.CRCOK,
+		Demod: r.stats.HeaderOK, CRCOK: r.stats.CRCOK,
 	}
 	if c.heldBy != "" {
 		// Never demodulated, so there is no measured SNR to report: the
@@ -372,7 +387,12 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 		e.captureWrite(t, src, dst, txPHY, rec)
 		return
 	}
-	if !r.decoded {
+	// A passing CRC is a reception. The demodulator's own "decoded" is
+	// stricter - it also wants every codeword to have corrected cleanly - so a
+	// frame whose CRC matched but whose FEC flagged a codeword was recorded as
+	// a miss whose detail then read "CRC true", which is a reception called a
+	// loss. MeshCore accepts on the CRC, and so does this.
+	if !r.stats.CRCOK {
 		rec.Outcome = capture.NotDemodulated
 		// Both SNRs, named, because they are two different numbers and only
 		// the estimate decides the class. The measured figure saturates at the
@@ -395,9 +415,17 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 					"at %.1f dB measured, %.1f dB estimated",
 				r.stats.Failed, r.stats.Corrected, r.stats.CRCOK, r.snrdB, est)
 		}
+		// The class, and the phrase naming a concurrent signal when the window
+		// held one loud enough to have taken the receiver. Appended to the
+		// demodulator's own account rather than replacing it: the chain says
+		// what it saw, and this says what beat it where that is isolable.
+		class, cause := waveformMissClass(c, r, txPHY.sf)
+		if cause != "" {
+			why += "; " + cause
+		}
 		e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-			SNRdB: r.snrdB, Frame: t.frame, Class: waveformMissClass(c, txPHY.sf),
+			SNRdB: r.snrdB, Frame: t.frame, Class: class,
 			Detail: why})
 		e.Ledger.Record(rec)
 		e.captureWrite(t, src, dst, txPHY, rec)

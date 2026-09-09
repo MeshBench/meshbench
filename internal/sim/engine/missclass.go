@@ -37,20 +37,31 @@ func weakMissCause(snr, effective, required, interferenceDBm float64, sf int) (s
 		effective, required, sf), ClassFloor
 }
 
-// waveformMissClass is the cause for a miss the demodulator itself decided.
+// waveformMissClass is the cause for a miss the demodulator itself decided,
+// and the phrase that names it.
 //
-// Waveform mode reports what the receive chain did, not what beat it: a window
-// that failed may have been buried in noise, in a collider, in fading, or in
-// all three, and the chain does not separate them. One thing is established
-// without guessing - whether the wanted signal was under the demodulator's
-// threshold on its own, which no quieter channel would have saved. Above that
-// threshold the cause was not isolated, and saying so is better than naming
-// the likeliest one and being believed.
-func waveformMissClass(c wfCandidate, sf int) Class {
+// One thing is established without guessing: whether the wanted signal was
+// under the demodulator's threshold on its own, which no quieter channel would
+// have saved - a floor miss. Above that threshold there is a second thing the
+// summed window does isolate: a concurrent same-channel signal within the
+// capture margin. The wanted was loud enough on its own and a comparable or
+// louder one was in the air with it, so it was lost to that - interference,
+// which the calculated path names the same way. Above the floor with nothing
+// else on the channel the chain failed for a reason it does not separate, and
+// unclassified says so rather than naming the likeliest.
+func waveformMissClass(c wfCandidate, r wfResult, sf int) (Class, string) {
 	if estimatedSNRdB(c) < requiredSNRdB(sf) {
-		return ClassFloor
+		return ClassFloor, ""
 	}
-	return ClassUnclassified
+	// A concurrent signal within the capture margin of the wanted - the same
+	// threshold the calculated path and the demodulator lock use. Loud enough
+	// on its own, lost to something at least as loud.
+	if !math.IsInf(r.interfererDBm, -1) && r.interfererDBm >= c.rxDBm-captureThresholdDB {
+		return ClassInterference, fmt.Sprintf(
+			"lost to a concurrent signal at %.0f dBm against %.0f dBm wanted",
+			dsp.ReportRSSIdBm(r.interfererDBm), dsp.ReportRSSIdBm(c.rxDBm))
+	}
+	return ClassUnclassified, ""
 }
 
 // estimatedSNRdB is the figure the class is decided on: what the gates worked
