@@ -191,6 +191,17 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 		}
 
 		rxDBm := e.rxPowerDBm(nodes, t.from, i, loss)
+		// The noise floor fluctuates run to run, so a link within a couple of
+		// dB of threshold decodes one seed and misses the next - which is the
+		// whole reason a sweep repeats an arm over several seeds and reads the
+		// spread. Without a draw here the calculated path was a pure function
+		// of geometry: every seed produced the identical run, rx_spread was
+		// structurally zero, and the number every experiment delta is measured
+		// against could never be observed (#671). The waveform path already
+		// draws its receiver noise per packet-receiver pair; this gives the
+		// calculated path the same stochasticity at the decision, no waveform.
+		noiseDBm += thermalNoiseSigmaDB *
+			dsp.Philox{Seed: e.Config.Seed}.NormalAt(t.packetID*0x9E3779B97F4A7C15+uint64(i))
 		snr := rxDBm - noiseDBm
 
 		// Interference from anything else that was on the air during this
