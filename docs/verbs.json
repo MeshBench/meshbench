@@ -3053,6 +3053,30 @@
       ],
       "answers": "Answers with nothing: what it changes is the stats, the node list and the status line."
     },
+    "node.regions": {
+      "what": "read a running node's actual region map back from its firmware into the model, so a region set straight over its console is reflected in nodes.list rather than showing null",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to ask; it must be running firmware, because the map lives in the firmware"
+        }
+      ],
+      "returns": [
+        "node",
+        "regions",
+        "default_scope"
+      ],
+      "answers": "`regions` is the named regions the node holds and `default_scope` the scope it originates under, read by asking its console `region list allowed` and `region default`. It refuses a node that is not running firmware, whose regions are whatever the scenario says until it starts. nodes.regions writes and keeps the model current for what it sets; this reads what a node was told out of band, over console.type or fleet.send, which the model never saw.",
+      "example": {
+        "params": {
+          "node": "Abernethy Repeater"
+        },
+        "what": "read one running node's live region map"
+      }
+    },
     "node.set_board": {
       "what": "say what hardware a node is, which is a change to the physics and not a label: the transmit ceiling, the receive chain's noise figure and the battery the energy model runs on all come off the board",
       "params": [

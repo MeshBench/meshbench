@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 258 verbs: 221 a script may call and
+The store registers 259 verbs: 222 a script may call and
 37 the workbench calls on itself, which the socket refuses. Of those,
-258 say what they are for and 0 do not yet; the ones that
+259 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -642,6 +642,28 @@ Report that a node's build change went through, refreshing the counters and the 
 **Answers** Answers with nothing: what it changes is the stats, the node list and the status line.
 
 **Client** none: the store telling itself a reflash finished
+
+### `node.regions`
+
+Read a running node's actual region map back from its firmware into the model, so a region set straight over its console is reflected in nodes.list rather than showing null.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | required, primary | the node to ask; it must be running firmware, because the map lives in the firmware |
+
+**Answers** `node`, `regions`, `default_scope`. `regions` is the named regions the node holds and `default_scope` the scope it originates under, read by asking its console `region list allowed` and `region default`. It refuses a node that is not running firmware, whose regions are whatever the scenario says until it starts. nodes.regions writes and keeps the model current for what it sets; this reads what a node was told out of band, over console.type or fleet.send, which the model never saw.
+
+**Example** - read one running node's live region map
+
+```json
+{"id":1,"method":"node.regions","params":{"node":"Abernethy Repeater"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `node.read_regions()`
 
 ### `node.set_board`
 

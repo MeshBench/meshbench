@@ -24,7 +24,7 @@ func registerInventory(st *state.Store, s *session.Sim) {
 			out = append(out, map[string]any{
 				"name": n.Name, "kind": n.Kind,
 				"lat": n.Lat, "lon": n.Lon, "height_m": n.HeightM,
-				"tx_dbm": n.TxDBm, "regions": n.Regions,
+				"tx_dbm": n.TxDBm, "regions": n.Regions, "default_scope": n.DefaultScope,
 				// Two boards, because they are two facts. "board" is what the
 				// node is; "firmware_board" is what its image was built for.
 				// They agree most of the time and come apart the moment
