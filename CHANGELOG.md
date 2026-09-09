@@ -21,6 +21,8 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-09-09
+
 ### Added
 
 - **Two release channels.** A plain tag - `v0.0.11` - is the stable channel;
@@ -62,6 +64,31 @@ had changed in them - which is the gap this file exists to close.
   place.
 
 ### Fixed
+
+- **Every native node drew the same receiver noise.** The chip model's noise
+  seed was never set, so every node ran one stream from one counter, and each
+  node's RNG - its CSMA backoff and advert jitter - was seeded off it and
+  correlated across the whole mesh. Each node now draws its own, keyed on its
+  identity seed, so contention is between independent nodes. The native
+  firmware binaries carry it from their release.
+- **A native node's identity is keyed on its name, not its index.** Nodes were
+  seeded by their position, so node 0 of every fixture with the same seed
+  shared a keypair with node 0 of every other, and two fixtures opened in turn
+  into one profile saw each other's nodes as themselves. The seed is now
+  derived from the run seed and the node's name, so a node is the same across
+  runs of one fixture and different from every other's.
+- **Regions applied to a running node reach the node.** `nodes.regions` and
+  `infer.apply` wrote the region set to the scenario and the map and typed
+  nothing into the firmware, so a node whose firmware was already up relayed
+  under whatever it booted with. The change now reaches a running node's
+  console, and both verbs report how many running nodes were re-provisioned.
+- **Waveform mode names a collision, and a passing CRC is a reception.** A
+  frame whose CRC matched but whose FEC flagged a codeword was recorded as a
+  miss whose detail read "CRC true"; it is accepted now, as MeshCore accepts
+  it. And a miss above the noise floor with a stronger overlapping signal was
+  left unclassified - waveform mode never named a collision the calculated
+  model could not - so it now reads interference, from the interferer the
+  summed window already held.
 
 - **A build pinned to nodes of the wrong role is refused, not run as half a
   mesh.** `firmware.set` with a version and no role filter pinned a repeater
