@@ -22,6 +22,7 @@ func Register(st *state.Store, s *Sim) {
 	registerUI(st, s)
 	registerExcessLoss(st, s)
 	registerConsole(st, s)
+	registerRegionsReadback(st, s)
 	registerLogs(st, s)
 	registerRunKind(st, s)
 	registerUnverifiedWiring(st, s)

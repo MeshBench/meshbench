@@ -46,6 +46,7 @@
     "nodes.stats": "wb.nodes.refresh_stats()",
     "node.output": "node.output(source)",
     "node.wipe": "node.wipe()",
+    "node.regions": "node.read_regions()",
     "node.card": "node.card(fitted=|file=|wipe=)",
     "node.output_window": "node.output_window(source)",
     "node.start": "node.start()",

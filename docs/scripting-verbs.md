@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**221**<!--verbdoc:public--> public verbs a script can call and
-**37**<!--verbdoc:internal--> internal callbacks it cannot, **258**<!--verbdoc:total-->
+**222**<!--verbdoc:public--> public verbs a script can call and
+**37**<!--verbdoc:internal--> internal callbacks it cannot, **259**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **221**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
-  the workbench keeps to itself, **258**<!--verbdoc:total--> registered in
+- **222**<!--verbdoc:public--> public verbs, plus **37**<!--verbdoc:internal-->
+  the workbench keeps to itself, **259**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -138,6 +138,7 @@ Two verbs are **not** in this table:
 | `node.radio_adopt` | *a bare string*, `node` string | `node`, `tx_dbm` | `node.adopt_radio()` |
 | `node.reflash_failed` | *a bare string*, `reason` string | — | *none* — the store telling itself a reflash failed |
 | `node.reflashed` | *a bare string*, `message` string | — | *none* — the store telling itself a reflash finished |
+| `node.regions` | *a bare string*, `node` string | `node`, `regions`, `default_scope` | `node.read_regions()` |
 | `node.set_board` | *a bare string*, `node` string, `board` string | `node`, `board` | `node.board = ...` |
 | `node.set_firmware` | `node` string, `version` string, `board` string, `role` string | `node`, `version`, `board`, `role` | `node.firmware = build` |
 | `node.set_firmware_only` | `node` string, `version` string, `board` string, `role` string | `node`, `version`, `board`, `role` | `node.set_firmware(build, apply=False)` |
