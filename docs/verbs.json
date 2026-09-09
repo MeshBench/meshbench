@@ -2342,9 +2342,10 @@
     "infer.apply": {
       "what": "write the inferred regions onto the nodes, and each node's default scope with them, which is the step that gets forgotten: without it a mesh still relays every unscoped flood, adverts included, exactly as widely, but a scoped packet matches no region any repeater holds and is dropped without a word, and nothing the mesh originates is scoped in the first place",
       "returns": [
-        "applied"
+        "applied",
+        "live"
       ],
-      "answers": "`applied` is how many nodes were written to, and 0 is the answer worth reading: the inference ran and nothing was written back. It matches on the public key a node kept from the feed and falls back to the name, so it only reaches nodes that were seen on the real network. It is refused outright when nothing has been inferred yet.",
+      "answers": "`applied` is how many nodes were written to, and 0 is the answer worth reading: the inference ran and nothing was written back. It matches on the public key a node kept from the feed and falls back to the name, so it only reaches nodes that were seen on the real network. It is refused outright when nothing has been inferred yet. `live` is how many of the written nodes were already running firmware and were re-provisioned over their console; usually apply runs before firmware.start and it is zero.",
       "example": {
         "params": {},
         "what": "apply what the traffic proved about which node relays what"
@@ -3654,9 +3655,10 @@
       ],
       "returns": [
         "nodes",
-        "regions"
+        "regions",
+        "live"
       ],
-      "answers": "`nodes` is how many were written to, which is 0 when the name matched nothing. What is given replaces what a node held rather than adding to it.",
+      "answers": "`nodes` is how many were written to, which is 0 when the name matched nothing. What is given replaces what a node held rather than adding to it. `live` is how many of them were already running firmware and so were re-provisioned over their console then and there, rather than only at their next start: a region set on a running node used to reach the scenario and the map and never the node.",
       "example": {
         "params": {
           "node": "West Lomond",
