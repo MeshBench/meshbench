@@ -53,6 +53,14 @@ had changed in them - which is the gap this file exists to close.
   spelling on the wire, and a development workbench's refusal says its
   client is a pre-release that has to be asked for.
 
+- **A sweep records which build each arm ran.** Its results carried the arm,
+  the seed and the measurements and nothing about the firmware, so two arms
+  that came back identical could not be told from two arms that never switched
+  build. Each run and each arm summary now carries `builds`: the firmware every
+  role actually ran, as `{role, version, file, bytes}`. The file and its size
+  tell two builds under one label apart, since `local-main` is rebuilt in
+  place.
+
 ### Fixed
 
 - **A build pinned to nodes of the wrong role is refused, not run as half a
