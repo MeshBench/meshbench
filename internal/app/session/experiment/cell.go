@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
+	"github.com/MeshBench/meshbench/internal/firmware"
 	"github.com/MeshBench/meshbench/internal/mesh/proto"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -81,12 +82,18 @@ func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpA
 	defer s.BenchTake(nil)
 	defer func() { _ = eng.Close() }()
 
+	sweep := session.SweepArm{
+		RepeaterVersion:  arm.RepeaterVersion,
+		CompanionVersion: arm.CompanionVersion,
+	}
+	// What this cell will run, recorded before the attach that could fail: even
+	// a cell that never started says which builds it meant to, and a cell that
+	// ran says it beside its numbers.
+	out.Builds = cellBuilds(nodes, sweep)
+
 	senders := map[string]bool{}
 	for _, n := range nodes {
-		n = session.WithFirmware(n, session.SweepArm{
-			RepeaterVersion:  arm.RepeaterVersion,
-			CompanionVersion: arm.CompanionVersion,
-		})
+		n = session.WithFirmware(n, sweep)
 		eng.Add(n, nil)
 		for _, want := range e.Senders {
 			if n.Name != want {
@@ -128,6 +135,11 @@ func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpA
 		return out
 	}
 	out.Firmware = started
+	// Now the builds have resolved and are on disk, fill in the file each
+	// version became and its size - cheap, because the attach just cached them.
+	for i := range out.Builds {
+		resolveBuild(ctx, &out.Builds[i])
+	}
 	e.stage(arm, seed, fmt.Sprintf("%d of %d firmware attached", started, wanted))
 
 	// Provision every node before the run.
@@ -432,4 +444,46 @@ func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpA
 		out.AtRisk[i] = sens.AtRisk(i)
 	}
 	return out
+}
+
+// cellBuilds is the distinct firmware each role runs in this cell, once the arm
+// has been written over the scenario. Version only; the file it resolves to and
+// its size are filled in by resolveBuild once the attach has cached them.
+func cellBuilds(nodes []scenario.Node, sweep session.SweepArm) []BuildRef {
+	seen := map[string]bool{}
+	var out []BuildRef
+	for _, n := range nodes {
+		if !n.Kind.RunsFirmware() {
+			continue
+		}
+		n = session.WithFirmware(n, sweep)
+		role := session.NodeRole(n)
+		key := role + "@" + n.Firmware.Version
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, BuildRef{Role: role, Version: n.Firmware.Version})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Role != out[j].Role {
+			return out[i].Role < out[j].Role
+		}
+		return out[i].Version < out[j].Version
+	})
+	return out
+}
+
+// resolveBuild fills in the file a build ref resolved to and its size. Best
+// effort: a build that will not resolve is one the attach has already failed
+// on, and that failure is in Err.
+func resolveBuild(ctx context.Context, b *BuildRef) {
+	path, err := firmware.Resolve(ctx, "", b.Role, b.Version, firmware.DefaultCacheDir())
+	if err != nil {
+		return
+	}
+	b.File = filepath.Base(path)
+	if st, statErr := os.Stat(path); statErr == nil {
+		b.Bytes = st.Size()
+	}
 }

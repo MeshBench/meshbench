@@ -321,6 +321,12 @@ func summariseArm(name string, rs []Result) map[string]any {
 	if len(ran) == 0 {
 		return row
 	}
+	// The build the arm ran, from the first cell that ran: every cell of an arm
+	// runs the same one, and a summary that says "these arms are the same" is
+	// only worth reading beside what each of them was.
+	if len(ran[0].Builds) > 0 {
+		row["builds"] = ran[0].Builds
+	}
 	n := float64(len(ran))
 	row["tx"], row["rx"], row["delivered"] = tx/n, rx/n, del/n
 	row["redundant"], row["collisions"] = red/n, coll/n

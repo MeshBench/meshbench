@@ -28,7 +28,7 @@ func registerExperimentResults(st *state.Store, s *session.Sim, e *experiment) {
 				"arm": r.Arm, "seed": r.Seed, "tx": r.TX, "rx": r.RX,
 				"delivered": r.Delivered, "redundant": r.Redundant,
 				"collisions": r.Collided, "airtime_ms": r.AirtimeMs,
-				"err": r.Err,
+				"builds": r.Builds, "err": r.Err,
 			})
 		}
 		sums := e.summarise()

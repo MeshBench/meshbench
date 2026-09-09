@@ -42,6 +42,17 @@ type Result struct {
 	Firmware int    `json:"firmware"`
 	Err      string `json:"err,omitempty"`
 
+	// Builds is the firmware each role actually ran, so an arm's numbers can be
+	// read as its build's. A sweep exists to compare builds and recorded
+	// everything about a run except which build it ran, so two arms that came
+	// back identical could not be told from two arms that never switched: the
+	// only place a mismatch surfaced was Err, empty on exactly the interesting
+	// cases. Per role because the senders are companions and the relayers
+	// repeaters, and the file and its size are here because a label like
+	// local-main is rebuilt in place - two runs a week apart are not the same
+	// binary, and a version string alone would call them equal.
+	Builds []BuildRef `json:"builds,omitempty"`
+
 	// PerSecond is receptions in each second after the burst. The shape of a
 	// flood, rather than its total: one clean wave and a long tail of retries
 	// deliver the same count and are not the same network.
@@ -58,6 +69,16 @@ type Result struct {
 	// actually made, so it needs no second arm to compare against and no
 	// assumption about what boosted gain is worth.
 	AtRisk []float64 `json:"at_risk,omitempty"`
+}
+
+// BuildRef identifies one firmware a cell ran: the version the arm asked for
+// and the file it resolved to, with its size. File and Bytes tell two builds
+// under one label apart.
+type BuildRef struct {
+	Role    string `json:"role"`
+	Version string `json:"version,omitempty"`
+	File    string `json:"file,omitempty"`
+	Bytes   int64  `json:"bytes,omitempty"`
 }
 
 // experiment is the matrix and what has come back from it.
