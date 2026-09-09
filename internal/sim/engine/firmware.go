@@ -206,7 +206,7 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 				Role:    string(role),
 				WorkDir: dir,
 				Log:     stderr,
-				Seed:    seed + uint64(i)*0x9E3779B97F4A7C15,
+				Seed:    nativeIdentitySeed(seed, n.specRef().Name),
 				SF:      e.Config.SF, BandwidthKHz: e.Config.BandwidthHz / 1000,
 				CodingRate: e.Config.CodingRate,
 			}
