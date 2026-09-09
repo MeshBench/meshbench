@@ -109,9 +109,10 @@
     ],
     "returns": [
       "nodes",
-      "regions"
+      "regions",
+      "live"
     ],
-    "answers": "`nodes` is how many were written to, which is 0 when the name matched nothing. What is given replaces what a node held rather than adding to it.",
+    "answers": "`nodes` is how many were written to, which is 0 when the name matched nothing. What is given replaces what a node held rather than adding to it. `live` is how many of them were already running firmware and so were re-provisioned over their console then and there, rather than only at their next start: a region set on a running node used to reach the scenario and the map and never the node.",
     "example": {
       "params": {
         "node": "West Lomond",

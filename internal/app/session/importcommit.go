@@ -270,11 +270,13 @@ func registerImport(st *state.Store, s *Sim) {
 		// cure, left in place on the side a person actually looks at: the verb
 		// answered 44 and the map coloured 4. The key belongs to the scenario
 		// node, so the row is found from it rather than asked to know its own.
+		live := 0
 		n := s.updateNodes(w, func(n *scenario.Node, row *state.Node) bool {
 			in, ok := find(n.Name, n.PublicKey)
 			if !ok {
 				return false
 			}
+			old := n.Regions
 			n.Regions = append([]string(nil), in.Regions...)
 			if in.DefaultScope != "" {
 				n.DefaultScope = in.DefaultScope
@@ -286,10 +288,21 @@ func registerImport(st *state.Store, s *Sim) {
 				// just been given a scope read as sending unscoped.
 				row.DefaultScope = n.DefaultScope
 			}
+			// And the running node, not only the model: applied after
+			// firmware.start, the regions reached the scenario and the map and
+			// the node relayed under what it booted with. Usually apply runs
+			// before start and there is nothing up to reach.
+			if s.ApplyRegionsLive(n.Name, old, *n) {
+				live++
+			}
 			return true
 		})
-		w.Say(fmt.Sprintf("applied regions to %d nodes", n))
-		return map[string]any{"applied": n}, nil
+		say := fmt.Sprintf("applied regions to %d nodes", n)
+		if live > 0 {
+			say += fmt.Sprintf(", %d already running and re-provisioned", live)
+		}
+		w.Say(say)
+		return map[string]any{"applied": n, "live": live}, nil
 	})
 }
 

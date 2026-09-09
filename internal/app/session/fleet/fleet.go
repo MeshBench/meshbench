@@ -150,21 +150,35 @@ func registerFleet(st *state.Store, s *session.Sim) {
 			}
 		}
 		only, _ := session.StringField(p, "node")
-		n := 0
+		n, live := 0, 0
 		for i := range s.Nodes() {
 			if only != "" && s.Nodes()[i].Name != only {
 				continue
 			}
+			old := s.Nodes()[i].Regions
 			s.Nodes()[i].Regions = append([]string(nil), regions...)
 			n++
+			// A region set on a node whose firmware is already running has to
+			// reach the node, not only the model: it was written to the
+			// scenario and the map and nothing was sent, so the node relayed
+			// under whatever it was provisioned with at boot and nothing said
+			// so. Typed into its console now, the same lines a boot would send
+			// plus the removes a boot never needs.
+			if s.ApplyRegionsLive(s.Nodes()[i].Name, old, s.Nodes()[i]) {
+				live++
+			}
 		}
 		for i := range w.Nodes {
 			if only == "" || w.Nodes[i].Name == only {
 				w.Nodes[i].Regions = append([]string(nil), regions...)
 			}
 		}
-		w.Say(fmt.Sprintf("%d nodes now hold %s", n, strings.Join(regions, " ")))
-		return map[string]any{"nodes": n, "regions": regions}, nil
+		say := fmt.Sprintf("%d nodes now hold %s", n, strings.Join(regions, " "))
+		if live > 0 {
+			say += fmt.Sprintf("; %d re-provisioned live", live)
+		}
+		w.Say(say)
+		return map[string]any{"nodes": n, "regions": regions, "live": live}, nil
 	})
 
 	st.Handle("nodes.allow_flood", func(w *state.World, p any) (any, error) {

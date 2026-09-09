@@ -156,7 +156,7 @@ Two verbs are **not** in this table:
 | `nodes.move` | `node` string, `lat` number, `lon` number | `node`, `name`, `lat`, `lon` | `node.move(lat, lon)` |
 | `nodes.near` | *a bare string*, `node` string, `count` number | `node`, `near` | `wb.nodes.near()` |
 | `nodes.place` | *a bare string*, `name` string, `lat` number, `lon` number, `kind` string, `board` string, `height_m` number, `tx_dbm` number | `placed`, `kind`, `regions`, `board`, `nodes` | `wb.nodes.place(name, kind, lat, lon, ...)` |
-| `nodes.regions` | *a bare string*, `node` string, `regions` array | `nodes`, `regions` | `node.regions = [...]` |
+| `nodes.regions` | *a bare string*, `node` string, `regions` array | `nodes`, `regions`, `live` | `node.regions = [...]` |
 | `nodes.search` | *a bare string*, `query` string, `limit` number | `query`, `matches`, `total` | `wb.nodes.search() / wb.nodes.find()` |
 | `nodes.select` | *a bare string*, `node` string | `selected` | `wb.nodes.select(name)` |
 | `nodes.select_many` | *a bare string*, `names` array | `selected` | `wb.nodes.select(*names)` |
@@ -323,7 +323,7 @@ Two verbs are **not** in this table:
 | `import.fetch` | *a bare string*, `url` string | `records`, `nodes`, `skipped_no_position`, `uncertain` | `wb.import_.fetch(url)` - *planned*, no client defines `wb.import_` yet; call the verb |
 | `import.set` | — | — | *none* — the fetch publishing its preview |
 | `import.set_source` | *a bare string*, `url` string | `url` | `wb.import_.source = url` - *planned*, no client defines `wb.import_` yet; call the verb |
-| `infer.apply` | — | `applied` | `wb.import_.apply_inference()` - *planned*, no client defines `wb.import_` yet; call the verb |
+| `infer.apply` | — | `applied`, `live` | `wb.import_.apply_inference()` - *planned*, no client defines `wb.import_` yet; call the verb |
 | `infer.progress` | — | — | *none* — the traffic reader saying how far it has got |
 | `infer.result` | — | `packets`, `nodes`, `regions` | *none* — the traffic reader handing its packets back; wb.import_.inference reads the answer |
 | `infer.run` | *a bare string*, `hours` number | `reading`, `hours` | `wb.import_.infer(hours=)` - *planned*, no client defines `wb.import_` yet; call the verb |

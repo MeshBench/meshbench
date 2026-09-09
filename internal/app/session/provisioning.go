@@ -133,3 +133,60 @@ func whyProvision(cmd string) string {
 	}
 	return "from this session's settings"
 }
+
+// ApplyRegionsLive re-provisions a running node's region map to match the
+// scenario, and reports whether it did. A node whose firmware is not up needs
+// nothing: it is provisioned from the scenario when it starts.
+//
+// A region set on a running node was written to the scenario and the map and
+// nothing was sent, so the node relayed under whatever it was provisioned with
+// at boot and nothing said so. The lines here are the ones a boot sends - put
+// and allowf for each region, save, and the default scope - preceded by a
+// remove for every region the node held and no longer should, which a boot
+// never issues because it starts from an empty map.
+func (s *Sim) ApplyRegionsLive(name string, old []string, n scenario.Node) bool {
+	if s.Engine() == nil {
+		return false
+	}
+	en, ok := s.Engine().NodeByName(name)
+	if !ok || en.Firmware == nil {
+		return false
+	}
+	cmds := liveRegionCommands(old, n)
+	if len(cmds) == 0 {
+		return false
+	}
+	for _, cmd := range cmds {
+		if err := en.Firmware.Bridge.Type([]byte(cmd + "\r\n")); err != nil {
+			break
+		}
+	}
+	return true
+}
+
+// liveRegionCommands is the console script that moves a running node from the
+// regions it held to the ones it should: a remove for each region dropped,
+// then the put, allowf, save and default a boot would send. A boot never
+// removes because it starts from an empty map.
+func liveRegionCommands(old []string, n scenario.Node) []string {
+	held := map[string]bool{}
+	for _, r := range n.Regions {
+		held[strings.TrimPrefix(r, "#")] = true
+	}
+	var cmds []string
+	dropped := false
+	for _, r := range old {
+		if tok := strings.TrimPrefix(r, "#"); !held[tok] {
+			cmds = append(cmds, "region remove "+tok)
+			dropped = true
+		}
+	}
+	add := fixture.RegionCommands(n)
+	cmds = append(cmds, add...)
+	// A run that only removed regions still has to save; RegionCommands emits
+	// the save only when it added something.
+	if dropped && len(add) == 0 {
+		cmds = append(cmds, "region save")
+	}
+	return cmds
+}

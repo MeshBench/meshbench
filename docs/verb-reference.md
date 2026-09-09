@@ -1061,7 +1061,7 @@ Say which regions a node holds, which is how a node placed by hand is given what
 | `node` | string | optional, primary | the one node to set, matched on the whole name; absent, every node in the scenario is set, and a name that matches nothing sets nothing and is not refused |
 | `regions` | array | optional | the regions the node is to hold, as strings; absent or not a list of strings leaves the node holding none, which is a clear rather than a call that did nothing |
 
-**Answers** `nodes`, `regions`. `nodes` is how many were written to, which is 0 when the name matched nothing. What is given replaces what a node held rather than adding to it.
+**Answers** `nodes`, `regions`, `live`. `nodes` is how many were written to, which is 0 when the name matched nothing. What is given replaces what a node held rather than adding to it. `live` is how many of them were already running firmware and so were re-provisioned over their console then and there, rather than only at their next start: a region set on a running node used to reach the scenario and the map and never the node.
 
 **Example** - give a hand-placed repeater the region its neighbours use
 
@@ -3396,7 +3396,7 @@ Write the inferred regions onto the nodes, and each node's default scope with th
 
 **Takes** nothing.
 
-**Answers** `applied`. `applied` is how many nodes were written to, and 0 is the answer worth reading: the inference ran and nothing was written back. It matches on the public key a node kept from the feed and falls back to the name, so it only reaches nodes that were seen on the real network. It is refused outright when nothing has been inferred yet.
+**Answers** `applied`, `live`. `applied` is how many nodes were written to, and 0 is the answer worth reading: the inference ran and nothing was written back. It matches on the public key a node kept from the feed and falls back to the name, so it only reaches nodes that were seen on the real network. It is refused outright when nothing has been inferred yet. `live` is how many of the written nodes were already running firmware and were re-provisioned over their console; usually apply runs before firmware.start and it is zero.
 
 **Example** - apply what the traffic proved about which node relays what
 
