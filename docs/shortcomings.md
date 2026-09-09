@@ -198,12 +198,24 @@ a real path better than we predict.
 
 ### 1.5 Noise is thermal AWGN and nothing else
 
-`N = −174 + 10·log₁₀(BW) + NF`. No impulsive noise, no elevated man-made noise
-floor, no adjacent-channel interference, no intermodulation.
+`N = −174 + 10·log₁₀(BW) + NF` for the mean. No impulsive noise, no elevated
+man-made noise floor, no adjacent-channel interference, no intermodulation.
+
+The floor is that mean plus a short-term fluctuation: the calculated path draws
+a Gaussian of **σ = 2 dB** per reception, seeded from the run, and adds it to
+the floor before the decode decision. It is what makes a link within a couple
+of dB of threshold decode on one seed and miss on the next, so a sweep's
+`rx_spread` is a measured noise floor rather than a structural zero — without
+it the calculated path is a pure function of geometry and every seed produces
+the identical run. The waveform path needs none of this: it draws real noise
+into the samples. The 2 dB is a deliberately conservative, tunable figure
+(`thermalNoiseSigmaDB` in the engine), the one number in the reception decision
+that is a claim about the air rather than arithmetic.
 
 **Consequence.** A node beside a switch-mode supply, a solar inverter or an EV
-charger sees a noise floor well above thermal. MSIM-20 adds deliberate external
-emitters; ambient noise is not modelled at all.
+charger sees a noise floor well above thermal, and its *shape* — impulsive,
+periodic — is not the Gaussian modelled here. MSIM-20 adds deliberate external
+emitters; ambient non-thermal noise is not modelled.
 
 **Direction of error: optimistic.**
 

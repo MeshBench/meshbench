@@ -42,6 +42,15 @@ func (p Philox) uint64At(counter uint64) uint64 {
 // Realisations differ from the Box-Muller ones, so seeded results moved
 // once when this landed; the determinism contract - same seed, same
 // stream, any goroutine or GPU lane - is unchanged.
+// NormalAt is one standard-normal draw at a counter - a deterministic Gaussian
+// keyed on the seed, for a caller that needs a single sample rather than a
+// stream. The counter-based construction means the same seed and counter give
+// the same draw on every machine and in any order.
+func (p Philox) NormalAt(counter uint64) float64 {
+	a, _ := p.normalPair(counter)
+	return a
+}
+
 func (p Philox) normalPair(counter uint64) (float64, float64) {
 	a := p.uint64At(counter * 2)
 	b := p.uint64At(counter*2 + 1)

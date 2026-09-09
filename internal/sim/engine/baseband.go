@@ -21,6 +21,20 @@ import (
 // where it actually starts recovering the stronger one. The calculated path is
 // supposed to be a fast twin of that chain; if the two disagree, the constant
 // is wrong rather than the demodulator, and the test says so.
+// thermalNoiseSigmaDB is the standard deviation of the per-reception noise
+// floor in the calculated path, in dB. The thermal floor is a mean; the power
+// in any one reception's band fluctuates around it, and a link within a couple
+// of dB of the demodulator's threshold genuinely decodes on one run and misses
+// on the next. Two dB is a deliberately conservative figure for that short-term
+// fluctuation - large enough that a marginal link flips run to run and a
+// sweep's rx_spread becomes a measured floor rather than a structural zero,
+// small enough that a link comfortably above or below threshold does not move.
+// It is the one number here that is a claim about the air rather than
+// arithmetic; docs/shortcomings.md records it, and it is the knob to turn if a
+// study wants the model kinder or harsher. The waveform path does not use it:
+// it draws real noise into the samples.
+const thermalNoiseSigmaDB = 2.0
+
 const captureThresholdDB = 6
 
 // CaptureThresholdDB is that figure, for a UI that has to explain a verdict.
