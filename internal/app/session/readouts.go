@@ -59,6 +59,7 @@ func (s *Sim) refreshReadouts(w *state.World, index map[string]int) {
 	w.Counts = s.eventCounts()
 	w.Scores = s.scores()
 	w.Stats = s.nodeStats(w.Events)
+	s.syncRegions(w)
 	if s.history == nil {
 		s.history = newNodeHistory()
 	}
@@ -67,6 +68,34 @@ func (s *Sim) refreshReadouts(w *state.World, index map[string]int) {
 		if w.Nodes[i].Selected {
 			w.Series = s.history.seriesFor(w.Nodes[i].Name)
 			break
+		}
+	}
+}
+
+// syncRegions re-projects the scenario's regions and default scope onto the
+// snapshot rows, the way the scores and trails above are re-projected from the
+// engine.
+//
+// The scenario is authoritative: it is what nodes.regions and infer.apply
+// write and what the firmware was provisioned from, so a mesh that relays
+// scoped traffic holds its regions there. The row is a published copy, and a
+// change applied while the mesh runs reaches the scenario but was seen to be
+// lost from the row - nodes.list, the one place the manual says regions can be
+// read, then answered "no regions" on a mesh where every node held one. Copied
+// here every readout, the row cannot drift from the scenario for longer than a
+// readout, whatever rebuilt it.
+func (s *Sim) syncRegions(w *state.World) {
+	if len(s.nodes) == 0 || len(w.Nodes) == 0 {
+		return
+	}
+	byName := make(map[string]int, len(w.Nodes))
+	for i := range w.Nodes {
+		byName[w.Nodes[i].Name] = i
+	}
+	for i := range s.nodes {
+		if j, ok := byName[s.nodes[i].Name]; ok {
+			w.Nodes[j].Regions = s.nodes[i].Regions
+			w.Nodes[j].DefaultScope = s.nodes[i].DefaultScope
 		}
 	}
 }
