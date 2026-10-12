@@ -443,6 +443,7 @@ func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpA
 	for i := range engine.MarginEdgesDB {
 		out.AtRisk[i] = sens.AtRisk(i)
 	}
+	out.Chip = chipStats(eng)
 	return out
 }
 

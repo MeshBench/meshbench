@@ -45,7 +45,7 @@
       "path",
       "bytes"
     ],
-    "answers": "JSON, holding the arms, seeds, senders and timings alongside `results`, which is every cell including the per-second histogram and the at-risk shares, and `summary`, which is the means. It will write an empty one before anything has run.",
+    "answers": "JSON, holding the arms, seeds, senders and timings alongside `results`, which is every cell including the per-second histogram, the at-risk shares and `chip`, each node's radio counters at the end of the cell, and `summary`, which is the means. It will write an empty one before anything has run.",
     "example": {
       "params": {},
       "what": "keep the sweep, wherever the machine puts temporary files",

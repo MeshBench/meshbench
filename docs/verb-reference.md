@@ -3569,7 +3569,7 @@ Write the whole experiment to a file, its definition beside every cell's raw num
 |---|---|---|---|
 | `path` | string | optional, primary | where to write it; empty writes meshbench-experiment.json in the system temporary directory, and a path that cannot be written is refused |
 
-**Answers** `path`, `bytes`. JSON, holding the arms, seeds, senders and timings alongside `results`, which is every cell including the per-second histogram and the at-risk shares, and `summary`, which is the means. It will write an empty one before anything has run.
+**Answers** `path`, `bytes`. JSON, holding the arms, seeds, senders and timings alongside `results`, which is every cell including the per-second histogram, the at-risk shares and `chip`, each node's radio counters at the end of the cell, and `summary`, which is the means. It will write an empty one before anything has run.
 
 **Example** - keep the sweep, wherever the machine puts temporary files
 
