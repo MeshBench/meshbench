@@ -247,6 +247,12 @@ func (b *Bridge) read(c net.Conn) {
 				if n >= 43 {
 					st.ConsoleBaud = binary.BigEndian.Uint32(buf[39:])
 				}
+				// What the firmware's IrqMask kept out, from a chip new enough
+				// to apply the mask at all.
+				if n >= 47 {
+					st.IRQSuppressed = binary.BigEndian.Uint32(buf[43:])
+					st.SuppressedReported = true
+				}
 				b.mu.Lock()
 				b.stats = st
 				b.mu.Unlock()

@@ -157,6 +157,11 @@ type NodeStat struct {
 	// a radio that cries busy too readily.
 	IRQReads, BusyReads uint32
 	BusyMs, Spurious    uint32
+	// What the firmware's IrqMask kept out, and whether the chip said:
+	// without the second, a chip too old to count reads as one that counted
+	// nothing.
+	IRQSuppressed      uint32
+	SuppressedReported bool
 
 	// Board is which hardware this node is, empty for a node running a host
 	// build. It is what decides the shape of the Hardware tab: a board's

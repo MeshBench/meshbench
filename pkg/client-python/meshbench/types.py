@@ -119,6 +119,10 @@ class NodeStat:
     busy_reads: int = 0
     busy_ms: int = 0
     spurious: int = 0
+    #: Events the firmware's IrqMask kept out of the chip's status register.
+    #: None from a chip that does not count them, which is not the same as
+    #: counting none.
+    irq_suppressed: int | None = None
 
     @classmethod
     def parse(cls, raw: dict[str, Any]) -> NodeStat:

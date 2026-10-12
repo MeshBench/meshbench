@@ -41,9 +41,21 @@ func statRows(stats []state.NodeStat) []map[string]any {
 			// a radio that cries busy too readily.
 			"irq_reads": n.IRQReads, "busy_reads": n.BusyReads,
 			"busy_ms": n.BusyMs, "spurious": n.Spurious,
+			// Absent from a chip that ignores IrqMask, for the same reason
+			// the costs above are: it did not count, so there is no zero.
+			"irq_suppressed": suppressedOrNil(n),
 		})
 	}
 	return out
+}
+
+// suppressedOrNil is the chip's masked-event count, or nothing from a chip
+// that does not keep one.
+func suppressedOrNil(n state.NodeStat) any {
+	if !n.SuppressedReported {
+		return nil
+	}
+	return n.IRQSuppressed
 }
 
 // costOrNil is a reading, or nothing where there was no reading to take.

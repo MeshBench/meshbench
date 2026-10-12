@@ -456,6 +456,15 @@ def test_scheduling_and_asserting(wb):
     assert "best case" in str(report)
 
 
+def test_a_suppressed_count_is_none_unless_the_chip_kept_one():
+    """Absent is unknown, not zero: an older chip ignored the mask entirely."""
+    counted = meshbench.types.NodeStat.parse({"name": "a", "irq_suppressed": 41})
+    assert counted.irq_suppressed == 41
+    uncounted = meshbench.types.NodeStat.parse({"name": "b", "irq_suppressed": None})
+    assert uncounted.irq_suppressed is None
+    assert meshbench.types.NodeStat.parse({"name": "c"}).irq_suppressed is None
+
+
 def test_no_assertions_is_not_a_pass():
     """A green tick that checked nothing is the worst outcome available."""
     empty = meshbench.Report()
@@ -513,6 +522,9 @@ def test_node_stats_carry_the_rows(wb):
     assert stats[0].name
     assert not stats[0].running
     assert stats[0].state == "stopped"
+    # A node with no chip running has counted nothing, and says so as None
+    # rather than as a zero.
+    assert stats[0].irq_suppressed is None
 
 
 def test_the_clock_advances_and_stops(wb):

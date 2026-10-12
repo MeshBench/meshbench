@@ -85,6 +85,17 @@ type RadioStats struct {
 	// sends a shorter record, and a zero DIO1 mask is a legal thing for a chip to
 	// be holding before the firmware has configured it.
 	DIO1Reported bool
+
+	// IRQSuppressed counts events the chip had to raise and the firmware's
+	// IrqMask kept out of the status register. A masked event is silence, and
+	// silence reads exactly like a quiet channel: a firmware that never
+	// enabled PREAMBLE_DETECTED and one that never heard a preamble report the
+	// same busy figures, and only this separates them.
+	//
+	// SuppressedReported is false for a chip older than the count, which
+	// ignored the mask and so had nothing to suppress - not zero, unknown.
+	IRQSuppressed      uint32
+	SuppressedReported bool
 }
 
 // FemState is whether a board's front-end module was in circuit when the node
