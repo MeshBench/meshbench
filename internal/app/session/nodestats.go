@@ -161,6 +161,7 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 			r := n.Firmware.Bridge.Stats()
 			st.IRQReads, st.BusyReads = r.IRQReads, r.BusyReads
 			st.BusyMs, st.Spurious = r.BusyMs, r.SpuriousUp
+			st.IRQSuppressed, st.SuppressedReported = r.IRQSuppressed, r.SuppressedReported
 			// The board's own screen, where it has one and has drawn. A board
 			// with no display and one that has drawn nothing both leave this
 			// nil - which of the two it is comes from the board's declaration,
