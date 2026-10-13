@@ -382,6 +382,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      # cgo, through Gio: cmd/meshbench links the workbench, so the binary does
+      # not build without these even though this job opens no window.
+      - name: Headers cgo needs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gcc pkg-config libgl1-mesa-dev xorg-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-xcb-dev libegl1-mesa-dev libvulkan-dev libffi-dev
+
       # Built once and handed to the tests, rather than left for each of them
       # to build: the suite starts a process per test and `go build` is not
       # what is being tested.
