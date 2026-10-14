@@ -143,6 +143,10 @@ func (s *Sim) refreshCompanions(w *state.World) {
 	if len(s.comps) == 0 && s.servedCount() == 0 {
 		return
 	}
+	now := s.eng.NowMs()
+	for _, c := range s.comps {
+		c.simMs.Store(now)
+	}
 	s.collectWaiting()
 	if rev := s.companionRev(); rev != s.compRev {
 		s.publishCompanions(w)

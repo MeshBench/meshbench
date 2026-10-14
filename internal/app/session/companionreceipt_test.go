@@ -1,0 +1,62 @@
+package session
+
+import (
+	"encoding/binary"
+	"strings"
+	"testing"
+
+	"github.com/MeshBench/meshbench/internal/mesh/proto"
+)
+
+func frameOf(t *testing.T, b []byte) proto.Frame {
+	t.Helper()
+	f, err := proto.Decode(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// The firmware answers requests in the order it took them, and the answers do
+// not say which request they belong to. A delivered line has to name the
+// message that was delivered, not the one sent most recently.
+func TestReceiptsMatchTheRequestTheyAnswer(t *testing.T) {
+	c := &compSession{node: "A"}
+	c.expect("msg", "Bravo", "first")
+	c.expect("msg", "Charlie", "second")
+	sent := func(ack uint32) []byte {
+		b := binary.LittleEndian.AppendUint32([]byte{byte(proto.RespSent), 0}, ack)
+		return binary.LittleEndian.AppendUint32(b, 5000)
+	}
+	c.simMs.Store(1500)
+	c.apply(frameOf(t, sent(11)))
+	c.apply(frameOf(t, sent(22)))
+	conf := binary.LittleEndian.AppendUint32([]byte{byte(proto.PushSendConfirmed)}, 22)
+	conf = binary.LittleEndian.AppendUint32(conf, 900)
+	c.simMs.Store(2400)
+	c.apply(frameOf(t, conf))
+
+	joined := strings.Join(c.Lines(), "\n")
+	for _, want := range []string{
+		"sent msg to Bravo by direct",
+		"sent msg to Charlie by direct",
+		"[2.400 s] delivered to Charlie after 900 ms: second",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("transcript lacks %q:\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "delivered to Bravo") {
+		t.Errorf("Bravo's message was never acked:\n%s", joined)
+	}
+}
+
+// A refusal belongs to the oldest unanswered request, and says why.
+func TestARefusedRequestSaysSo(t *testing.T) {
+	c := &compSession{node: "A"}
+	c.expect("login", "Delta", "")
+	c.apply(frameOf(t, []byte{byte(proto.RespErr), 2}))
+	if j := strings.Join(c.Lines(), "\n"); !strings.Contains(j, "login to Delta refused") {
+		t.Errorf("transcript lacks the refusal:\n%s", j)
+	}
+}

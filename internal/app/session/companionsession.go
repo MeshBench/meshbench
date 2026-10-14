@@ -12,6 +12,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/mesh/companion"
 	"github.com/MeshBench/meshbench/internal/mesh/proto"
@@ -49,6 +50,13 @@ type compSession struct {
 	// ask "has anything happened" that is cheaper than rebuilding the view
 	// and comparing it.
 	rev uint64
+	// queued and awaiting are the requests the firmware has yet to answer:
+	// queued until it says it sent one, awaiting its ack after that.
+	queued   []asked
+	awaiting map[uint32]asked
+	// simMs is the simulated time as of the last tick. Frames arrive on the
+	// bridge's goroutine, which must not take the engine's lock to ask.
+	simMs atomic.Uint32
 }
 
 // Write receives whatever the node sends while the claim is held.
@@ -114,6 +122,9 @@ func (c *compSession) apply(f proto.Frame) {
 	if f.Push == proto.PushMsgWaiting {
 		c.waiting = true
 	}
+	if c.receipt(f) {
+		return
+	}
 	switch {
 	case f.SelfInfo != nil:
 		c.self = f.SelfInfo
@@ -144,7 +155,7 @@ func (c *compSession) apply(f proto.Frame) {
 			}
 			c.unread[f.Message.ChannelIdx]++
 		}
-		c.note("message: " + f.Message.Text)
+		c.note(fmt.Sprintf("[%.3f s] message: %s", float64(c.simMs.Load())/1000, f.Message.Text))
 	case f.Scope != nil:
 		c.scope, c.scopeKnown = f.Scope.Name, true
 		if f.Scope.Name == "" {
