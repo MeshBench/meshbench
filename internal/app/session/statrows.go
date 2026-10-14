@@ -49,6 +49,29 @@ func statRows(stats []state.NodeStat) []map[string]any {
 	return out
 }
 
+// withAirtime adds each node's time on the air, as the Scores panel shows it.
+//
+// The engine has always counted it, and the panel has always drawn it, but a
+// script could only get the whole mesh's total out of an experiment cell - so
+// "which repeater is over its duty cycle" had an answer on screen and none
+// outside it. airtime_ms is cumulative over the run, so a caller wanting a
+// window subtracts two readings; duty_cycle_pct is over the whole run, boot
+// included, exactly as the panel's column is. A node the engine has no score
+// for has neither, rather than a zero.
+func withAirtime(rows []map[string]any, scores []state.Score) []map[string]any {
+	by := make(map[string]state.Score, len(scores))
+	for _, sc := range scores {
+		by[sc.Name] = sc
+	}
+	for _, r := range rows {
+		name, _ := r["name"].(string)
+		if sc, ok := by[name]; ok {
+			r["airtime_ms"], r["duty_cycle_pct"] = sc.AirtimeMs, sc.DutyCyclePct
+		}
+	}
+	return rows
+}
+
 // suppressedOrNil is the chip's masked-event count, or nothing from a chip
 // that does not keep one.
 func suppressedOrNil(n state.NodeStat) any {

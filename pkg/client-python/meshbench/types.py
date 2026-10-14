@@ -123,6 +123,12 @@ class NodeStat:
     #: None from a chip that does not count them, which is not the same as
     #: counting none.
     irq_suppressed: int | None = None
+    #: Time on the air over the whole run, as the Scores panel shows it.
+    #: Cumulative, so a window is the difference of two readings. None for a
+    #: node the engine has no score for.
+    airtime_ms: float | None = None
+    #: airtime_ms over the run's whole length, boot included.
+    duty_cycle_pct: float | None = None
 
     @classmethod
     def parse(cls, raw: dict[str, Any]) -> NodeStat:
