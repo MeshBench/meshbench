@@ -49,7 +49,7 @@
       "board",
       "nodes"
     ],
-    "answers": "`regions` and the firmware build are inherited from the neighbours rather than left empty: a node holding a region its neighbours do not is as silent as one holding none. `nodes` is the whole network's count afterwards. The links are not in the answer, because measuring them is a worker's job and this returns before it.",
+    "answers": "`regions` and the firmware build are inherited from the neighbours rather than left empty: a node holding a region its neighbours do not is as silent as one holding none. So is the radio: the modem every node already shares, or EU/UK (Narrow) where they do not agree, since a node on a channel nobody else uses hears nobody. `nodes` is the whole network's count afterwards. The links are not in the answer, because measuring them is a worker's job and this returns before it.",
     "example": {
       "params": {
         "board": "Heltec_v3",

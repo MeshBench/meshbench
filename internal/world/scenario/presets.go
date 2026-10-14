@@ -7,8 +7,8 @@ type RadioPreset struct {
 	FreqMHz float64
 	BwKHz   float64
 	SF      int
-	// CR is the denominator minus four, as MeshCore's CLI takes it: 5..8 on the
-	// wire means 4/5..4/8.
+	// CR is the coding rate's denominator, as MeshCore's CLI takes it: 5..8
+	// means 4/5..4/8. A node's RadioConfig holds it minus four; Config converts.
 	CR int
 }
 
