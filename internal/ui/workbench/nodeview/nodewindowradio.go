@@ -110,12 +110,16 @@ func (p *WindowPanel) radio(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 		radioRow{label: "IRQ mask", value: fmt.Sprintf("%#04x", r.IRQMask),
 			why: "what the firmware allowed into the chip's interrupt register"},
 		dio1MaskRow(r),
+		suppressedRow(st),
 		radioRow{label: "IRQ flags", value: fmt.Sprintf("%#04x", r.IRQFlags),
 			why: "what is raised now; a flag that sticks is a node that stops transmitting"},
 		radioRow{label: "IRQ reads", value: fmt.Sprintf("%d, %d found the air busy",
 			st.IRQReads, st.BusyReads),
 			why: "how often the driver asked, and how often it was told to wait"},
 		radioRow{label: "busy time", value: fmt.Sprintf("%d ms", st.BusyMs)},
+		radioRow{label: "spurious detections", value: fmt.Sprintf("%d", st.Spurious),
+			why:  "false detections the faulty chip variants inject; none on a chip that behaves",
+			warn: st.Spurious > 0},
 	)
 
 	// Vertical, said out loud. A list left on the zero value lays its rows out
@@ -165,6 +169,27 @@ func (p *WindowPanel) radio(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 // A dash rather than 0x0000 where the node has not said: a radioserver older
 // than this field sends a shorter record, and zero is a legal mask for a chip
 // the firmware has not configured yet. "no data" is never drawn as zero.
+// suppressedRow is what the IRQ mask above it cost: events the chip raised and
+// the firmware never saw.
+//
+// "Not counted" rather than zero for a chip that predates the count, because
+// zero is the answer a firmware that enabled everything gives, and the two
+// must not look alike.
+func suppressedRow(st state.NodeStat) radioRow {
+	row := radioRow{label: "IRQ suppressed",
+		why: "events the chip raised that the IRQ mask kept out of the register; " +
+			"a firmware waiting on one it never enabled looks like a quiet mesh"}
+	if !st.SuppressedReported {
+		row.value = "not counted"
+		row.why = "this node's chip model predates the count, which arrived in " +
+			"virtual-sx1262 v1.3.2"
+		return row
+	}
+	row.value = fmt.Sprintf("%d", st.IRQSuppressed)
+	row.warn = st.IRQSuppressed > 0
+	return row
+}
+
 func dio1MaskRow(r state.RadioState) radioRow {
 	if !r.DIO1Reported {
 		return radioRow{label: "DIO1 mask", value: "-",

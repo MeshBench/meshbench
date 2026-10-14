@@ -26,6 +26,13 @@ type ArmSummary struct {
 	// spread - and a difference between arms cannot be called larger than a
 	// noise nobody has measured.
 	RXSpread float64
+	// IRQSuppressed and BusyMs are what the arm's chips counted over a cell,
+	// summed across nodes and averaged across seeds: events the firmware's
+	// IrqMask kept out, and how long the detection flags were up. Two
+	// firmwares that deliver identically can differ only here. Each Has is
+	// false where no seed's chip counted it, which is a dash and not a zero.
+	IRQSuppressed, BusyMs  float64
+	HasSuppressed, HasBusy bool
 	// PerSecond is receptions in each second after the burst, summed over this
 	// arm's seeds. The shape of the flood rather than its total.
 	PerSecond []int
