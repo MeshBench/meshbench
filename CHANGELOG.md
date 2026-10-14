@@ -21,6 +21,40 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-14
+
+What the radio was told, beside what the mesh did. Two firmwares can flood a
+network identically while one of them is blind to half of what its chip saw;
+this release puts the chip's own counters where that difference can be read.
+
+### Added
+
+- **What each node's IRQ mask kept out.** `nodes.stats` carries
+  `irq_suppressed`: events the chip raised that the firmware's IRQ mask kept
+  out of the register, and absent rather than zero for a chip model that does
+  not keep the count. The node window's Radio tab shows it as **IRQ
+  suppressed**, directly under the masks, in amber above zero and as "not
+  counted" for an older chip; **spurious detections** joins it under busy
+  time. (#745, #749)
+- **Every experiment cell records what each node's chip saw.** Each cell of
+  `experiment.export` carries `chip`: interrupt reads, busy reads, busy time,
+  spurious detections and suppressed events for every node, measured from the
+  cell's own baseline as its delivery totals are, plus the mask and modem
+  settings each chip ended on. `experiment.results` arm summaries carry the
+  `irq_suppressed` and `busy_ms` means, and the sweep's **Results** table shows
+  them as **IRQ suppressed** and **busy time**, beside **delivered**, as a dash
+  where no seed's chip counted them. (#746, #749)
+
+### Changed
+
+- **The published native firmware is rebuilt on virtual-sx1262 v1.3.3.** Native
+  builds are downloaded at runtime rather than shipped in this binary, so this
+  reaches an existing install too. The chip model enforces the
+  IRQ mask, raises HeaderValid once the programmed preamble, sync word and
+  header have gone by rather than twelve symbols in, and raises HeaderValid
+  alone for a LoRa header, so a firmware that rightly leaves the GFSK-only
+  SyncWordValid out of its mask is no longer counted as missing every header.
+
 ## [0.1.0] - 2026-09-09
 
 The first public stable release. It carries everything the 0.0.x line built -
@@ -802,7 +836,10 @@ First release: one binary per platform.
 - The radio model reachable over TCP where there is no unix socket.
 - Two data races found by `-race` and fixed.
 
-[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.0.8...HEAD
+[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/MeshBench/meshbench/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/MeshBench/meshbench/compare/v0.0.11...v0.1.0
+[0.0.11]: https://github.com/MeshBench/meshbench/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/MeshBench/meshbench/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/MeshBench/meshbench/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/MeshBench/meshbench/compare/v0.0.7...v0.0.8
