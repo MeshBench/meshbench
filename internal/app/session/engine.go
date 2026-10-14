@@ -33,6 +33,9 @@ type Sim struct {
 	// sendClock is when each scheduled send last fired, so a repeating one
 	// repeats per interval rather than per tick.
 	sendClock sendClock
+	// tickOwed is simulated time a tick has been given and the engine has not
+	// yet stepped through, because a tick can be shorter than one step.
+	tickOwed uint32
 	// statesMu guards states, which Reflash writes from its own goroutine and
 	// the store goroutine reads to answer nodes.stats.
 	statesMu sync.Mutex
