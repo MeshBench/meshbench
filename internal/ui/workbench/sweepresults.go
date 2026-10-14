@@ -102,9 +102,10 @@ func (p *sweepResults) matrix(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	children = append(children,
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 		layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Faint,
-			"against "+base.Arm+"; every column but rx and delivered is a cost, "+
+			"against "+base.Arm+"; every column but rx, delivered and busy is a cost, "+
 				"so red is worse in both directions. A seed that failed is left out "+
-				"of its arm's mean, and an arm no seed got through is a dash", false)))
+				"of its arm's mean, and a dash is an arm that did not run or a chip "+
+				"that did not count", false)))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
@@ -122,12 +123,13 @@ func armCell(t *theme.Theme, c armCol, a, base state.ArmSummary, isBase bool) (s
 		}
 		return c.plain(a), colour
 	}
-	if a.Runs == 0 {
+	if a.Runs == 0 || (c.has != nil && !c.has(a)) {
 		return "-", t.P.Faint
 	}
 	// Absolute where there is nothing to take it away from: the baseline's own
-	// row, a column with no good direction, and a baseline that did not run.
-	if isBase || c.better == 0 || base.Runs == 0 {
+	// row, a column with no good direction, and a baseline that did not run or
+	// whose chips did not count this.
+	if isBase || c.better == 0 || base.Runs == 0 || (c.has != nil && !c.has(base)) {
 		return fmt.Sprintf("%.0f%s", c.value(a), c.unit), t.P.Ink
 	}
 	ref := c.value(base)
@@ -210,6 +212,10 @@ type armCol struct {
 	value  func(state.ArmSummary) float64
 	unit   string
 	better int // -1 less is better, +1 more is better, 0 no delta
+	// has says whether the arm measured this column at all, for the chip's
+	// counters, which an emulated node or an older chip does not send. Nil
+	// means every arm that ran measured it.
+	has func(state.ArmSummary) bool
 }
 
 var armCols = []armCol{
@@ -229,6 +235,15 @@ var armCols = []armCol{
 		value: func(a state.ArmSummary) float64 { return a.AirtimeMs / 1000 }},
 	{title: "seed spread", width: 110,
 		value: func(a state.ArmSummary) float64 { return a.RXSpread * 100 }, unit: "%"},
+	// What the firmware let its chip report, which is where two builds that
+	// flood identically differ. Busy time has no good direction: more of it is
+	// a firmware seeing more of the traffic that is really there.
+	{title: "suppressed", width: 100, better: -1,
+		value: func(a state.ArmSummary) float64 { return a.IRQSuppressed },
+		has:   func(a state.ArmSummary) bool { return a.HasSuppressed }},
+	{title: "busy", width: 90, unit: " s",
+		value: func(a state.ArmSummary) float64 { return a.BusyMs / 1000 },
+		has:   func(a state.ArmSummary) bool { return a.HasBusy }},
 }
 
 // seedsRan says how an arm's seeds went, in the column where a bare count used

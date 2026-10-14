@@ -66,13 +66,31 @@ func TestDrawTheSweepResults(t *testing.T) {
 				{Arm: "9.9.9", Runs: 0, Failed: 3},
 			},
 		}},
+		// Three MeshCore releases over five seeds of scotland-strict. The flood
+		// came back identical in every arm, so the delivery columns cannot tell
+		// them apart; what each firmware let its chip report is the difference.
+		{"chip-counters", &state.Snapshot{
+			ExperimentWarning: "the seeds disagree by more than the arms do on " +
+				"receptions (±34.4% within an arm, 0.0% between them) - add repeats",
+			Experiment: []state.ArmSummary{
+				{Arm: "1.16.0", Runs: 5, TX: 229.6, RX: 192, Delivered: 110.8,
+					Redundant: 81.2, Collided: 573.8, AirtimeMs: 233059, RXSpread: 0.344,
+					IRQSuppressed: 550.6, HasSuppressed: true, BusyMs: 235893, HasBusy: true},
+				{Arm: "1.17.0", Runs: 5, TX: 229.6, RX: 192, Delivered: 110.8,
+					Redundant: 81.2, Collided: 554, AirtimeMs: 233059, RXSpread: 0.344,
+					IRQSuppressed: 83.2, HasSuppressed: true, BusyMs: 283620, HasBusy: true},
+				{Arm: "1.17.1", Runs: 5, TX: 229.6, RX: 192, Delivered: 110.8,
+					Redundant: 81.2, Collided: 550.2, AirtimeMs: 233059, RXSpread: 0.344,
+					IRQSuppressed: 83.2, HasSuppressed: true, BusyMs: 283356, HasBusy: true},
+			},
+		}},
 	}
 
 	for _, c := range cases {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			p := &sweepResults{}
-			img := uitest.RenderWidget(t, 1100, 260, func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+			img := uitest.RenderWidget(t, 1300, 260, func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 				return p.Draw(th, gtx, c.snap)
 			})
 			out := filepath.Join(dir, "sweep-"+c.name+".png")

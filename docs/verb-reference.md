@@ -3599,7 +3599,7 @@ Read the sweep back as one row per finished cell and one summary per arm, and pu
 
 **Takes** nothing.
 
-**Answers** `runs`, `arms`, `warning`. `runs` and `arms` are both lists, and an empty `runs` is the normal answer before anything has started. `warning` is present only where the numbers do not mean what they look like: nothing run, one seed, one arm, a cell that failed, or seeds that agree so exactly that a difference between arms has nothing to be called larger than. Each run and each arm summary carries `builds`: the firmware every role actually ran, as `{role, version, file, bytes}`, so two arms that came back identical can be told from two arms that never switched build.
+**Answers** `runs`, `arms`, `warning`. `runs` and `arms` are both lists, and an empty `runs` is the normal answer before anything has started. `warning` is present only where the numbers do not mean what they look like: nothing run, one seed, one arm, a cell that failed, or seeds that agree so exactly that a difference between arms has nothing to be called larger than. Each run and each arm summary carries `builds`: the firmware every role actually ran, as `{role, version, file, bytes}`, so two arms that came back identical can be told from two arms that never switched build. Each arm summary also carries `irq_suppressed` and `busy_ms`, its chips' counts per cell averaged over the seeds that counted them, and absent where none did.
 
 **Example** - read the table so far
 

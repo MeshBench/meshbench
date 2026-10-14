@@ -45,7 +45,7 @@ func registerExperimentResults(st *state.Store, s *session.Sim, e *experiment) {
 			// store's goroutine - taking the whole application with it - for
 			// what is at worst one arm with a missing number.
 			arm, _ := m["arm"].(string)
-			w.Experiment = append(w.Experiment, state.ArmSummary{
+			sum := state.ArmSummary{
 				Arm:       arm,
 				Runs:      mapInt(m, "runs"),
 				Failed:    mapInt(m, "failed"),
@@ -57,7 +57,12 @@ func registerExperimentResults(st *state.Store, s *session.Sim, e *experiment) {
 				AirtimeMs: mapFloat(m, "airtime_ms"),
 				RXSpread:  mapFloat(m, "rx_spread"),
 				PerSecond: e.perSecondFor(arm),
-			})
+			}
+			// Present or not, rather than read as zero: an arm whose chips
+			// counted nothing draws a dash.
+			sum.IRQSuppressed, sum.HasSuppressed = m["irq_suppressed"].(float64)
+			sum.BusyMs, sum.HasBusy = m["busy_ms"].(float64)
+			w.Experiment = append(w.Experiment, sum)
 		}
 		w.ExperimentRuns = e.runRows()
 		w.ExperimentWarning = warn

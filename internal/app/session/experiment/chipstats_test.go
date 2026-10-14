@@ -93,3 +93,32 @@ func TestANodeThatRestartedMidCellReportsWhatItCountedSince(t *testing.T) {
 		t.Errorf("irq_reads %d, want 15", got.IRQReads)
 	}
 }
+
+// An arm's chip means come from the seeds whose chips counted, and are absent
+// rather than zero where none did: an emulated node sends no record, and its
+// zeros averaged in would read as a firmware that missed less.
+func TestAnArmsChipMeansLeaveOutWhatWasNotCounted(t *testing.T) {
+	chip := func(supp uint64, reporting int) *ChipStats {
+		return &ChipStats{BusyMs: 1000, IRQSuppressed: supp, Reporting: reporting,
+			Nodes: []NodeChip{{Name: "A"}}}
+	}
+	row := summariseArm("1.17.0", []Result{
+		{Arm: "1.17.0", Chip: chip(80, 159)},
+		{Arm: "1.17.0", Chip: chip(0, 0)},
+		{Arm: "1.17.0"},
+	})
+	if got, _ := row["irq_suppressed"].(float64); got != 80 {
+		t.Errorf("irq_suppressed %v, want 80 from the one seed that counted", row["irq_suppressed"])
+	}
+	if got, _ := row["busy_ms"].(float64); got != 1000 {
+		t.Errorf("busy_ms %v, want 1000 from the two seeds with a chip record", row["busy_ms"])
+	}
+
+	bare := summariseArm("emulated", []Result{{Arm: "emulated", TX: 3}})
+	if _, ok := bare["irq_suppressed"]; ok {
+		t.Error("an arm with no chip record carries a suppressed mean")
+	}
+	if _, ok := bare["busy_ms"]; ok {
+		t.Error("an arm with no chip record carries a busy mean")
+	}
+}

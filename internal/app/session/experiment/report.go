@@ -334,7 +334,36 @@ func summariseArm(name string, rs []Result) map[string]any {
 	if at2n > 0 {
 		row["at_risk_2db"] = at2 / at2n
 	}
+	chipMeans(row, ran)
 	return row
+}
+
+// chipMeans adds the chip's counters to an arm's row, averaged over the seeds
+// whose chips counted them.
+//
+// Over those seeds only, and absent where there were none, for the reason
+// at_risk_2db is: a chip that predates the suppressed count, or an emulated
+// node that sends no record, measured nothing, and a mean with its zeros in
+// would read as a firmware that missed less.
+func chipMeans(row map[string]any, ran []Result) {
+	var busy, busyN, supp, suppN float64
+	for _, r := range ran {
+		if r.Chip == nil || len(r.Chip.Nodes) == 0 {
+			continue
+		}
+		busy += float64(r.Chip.BusyMs)
+		busyN++
+		if r.Chip.Reporting > 0 {
+			supp += float64(r.Chip.IRQSuppressed)
+			suppN++
+		}
+	}
+	if busyN > 0 {
+		row["busy_ms"] = busy / busyN
+	}
+	if suppN > 0 {
+		row["irq_suppressed"] = supp / suppN
+	}
 }
 
 // spreadOf is the range of receptions across seeds, which is what says whether
