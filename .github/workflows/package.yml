@@ -372,15 +372,15 @@ jobs:
     #
     # Skippable, because a dispatched test build has no reason to build the
     # dmg at all. Not to save money: nothing in this file is billed.
-    # Alex's own Mac, as an org runner. package.yml runs only on tags and
-    # manual dispatch - events that need write access - so nothing an
-    # outsider does can schedule work on it. Hosted macos-14 was the paid leg
-    # while this repository was private; now it is only that the M4 is faster.
+    # GitHub's hosted Apple-silicon runner. The repository is public, so it
+    # costs nothing, and it is there when the M4 org runner is not: a release
+    # waiting on one machine being switched on is a release that does not
+    # ship. Back to [self-hosted, macos-m4] when the speed is worth that.
     # A tag push carries no inputs, and a release with no Mac build in it is
     # not the release this job exists to make. The input still lets a
     # dispatched test build skip the Mac build.
     if: inputs.mac || startsWith(github.ref, 'refs/tags/v')
-    runs-on: [self-hosted, macos-m4]
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -389,10 +389,7 @@ jobs:
         # asks for - and every go command in this job died on
         # "go.mod requires go >= 1.25.0 (running go 1.24.13)".
         #
-        # cache: false - every job in this file runs on a persistent
-        # self-hosted runner (lab-2204, or the m4 pool), where the Go
-        # caches already survive between jobs. See ci.yml for the detail.
-        with: { go-version: '1.25', cache: false }
+        with: { go-version: '1.25' }
 
       - name: Build the bundle
         run: |
