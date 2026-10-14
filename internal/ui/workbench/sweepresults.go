@@ -102,7 +102,7 @@ func (p *sweepResults) matrix(t *theme.Theme, gtx layout.Context, s *state.Snaps
 	children = append(children,
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 		layout.Rigid(comp.OneLine(t, t.Sz.Caption, t.P.Faint,
-			"against "+base.Arm+"; every column but rx, delivered and busy is a cost, "+
+			"against "+base.Arm+"; every column but rx, delivered and busy time is a cost, "+
 				"so red is worse in both directions. A seed that failed is left out "+
 				"of its arm's mean, and a dash is an arm that did not run or a chip "+
 				"that did not count", false)))
@@ -227,6 +227,18 @@ var armCols = []armCol{
 		value: func(a state.ArmSummary) float64 { return a.RX }},
 	{title: "delivered", width: 100, better: +1,
 		value: func(a state.ArmSummary) float64 { return a.Delivered }},
+	// What the firmware let its chip report, which is where two builds that
+	// flood identically differ - so beside the delivery columns rather than at
+	// the end, where a docked panel cuts the table off. Named as the node
+	// window's radio rows are, so one word means one thing across the app.
+	// Busy time has no good direction: more of it is a firmware seeing more of
+	// the traffic that is really there.
+	{title: "IRQ suppressed", width: 130, better: -1,
+		value: func(a state.ArmSummary) float64 { return a.IRQSuppressed },
+		has:   func(a state.ArmSummary) bool { return a.HasSuppressed }},
+	{title: "busy time", width: 100, unit: " s",
+		value: func(a state.ArmSummary) float64 { return a.BusyMs / 1000 },
+		has:   func(a state.ArmSummary) bool { return a.HasBusy }},
 	{title: "redundant", width: 100, better: -1,
 		value: func(a state.ArmSummary) float64 { return a.Redundant }},
 	{title: "collisions", width: 100, better: -1,
@@ -235,15 +247,6 @@ var armCols = []armCol{
 		value: func(a state.ArmSummary) float64 { return a.AirtimeMs / 1000 }},
 	{title: "seed spread", width: 110,
 		value: func(a state.ArmSummary) float64 { return a.RXSpread * 100 }, unit: "%"},
-	// What the firmware let its chip report, which is where two builds that
-	// flood identically differ. Busy time has no good direction: more of it is
-	// a firmware seeing more of the traffic that is really there.
-	{title: "suppressed", width: 100, better: -1,
-		value: func(a state.ArmSummary) float64 { return a.IRQSuppressed },
-		has:   func(a state.ArmSummary) bool { return a.HasSuppressed }},
-	{title: "busy", width: 90, unit: " s",
-		value: func(a state.ArmSummary) float64 { return a.BusyMs / 1000 },
-		has:   func(a state.ArmSummary) bool { return a.HasBusy }},
 }
 
 // seedsRan says how an arm's seeds went, in the column where a bare count used

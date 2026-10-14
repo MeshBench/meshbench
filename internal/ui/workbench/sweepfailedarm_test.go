@@ -97,7 +97,7 @@ func TestAChipThatDidNotCountDrawsAsADash(t *testing.T) {
 		IRQSuppressed: 83.2, HasSuppressed: true, BusyMs: 283620, HasBusy: true}
 	silent := state.ArmSummary{Arm: "emulated", Runs: 5, RX: 192}
 
-	for _, title := range []string{"suppressed", "busy"} {
+	for _, title := range []string{"IRQ suppressed", "busy time"} {
 		got, colour := armCell(th, colNamed(title), silent, counted, false)
 		if got != "-" || colour != th.P.Faint {
 			t.Errorf("the %s of an arm whose chips did not count reads %q", title, got)
@@ -119,7 +119,7 @@ func TestFewerSuppressedEventsIsPaintedAsBetter(t *testing.T) {
 	th := linkTestTheme()
 	old := state.ArmSummary{Arm: "1.16.0", Runs: 5, IRQSuppressed: 550.6, HasSuppressed: true}
 	fixed := state.ArmSummary{Arm: "1.17.0", Runs: 5, IRQSuppressed: 83.2, HasSuppressed: true}
-	got, colour := armCell(th, colNamed("suppressed"), fixed, old, false)
+	got, colour := armCell(th, colNamed("IRQ suppressed"), fixed, old, false)
 	if colour != th.P.Good {
 		t.Errorf("%s fewer suppressed events is not painted as better", got)
 	}

@@ -90,7 +90,7 @@ func TestDrawTheSweepResults(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			p := &sweepResults{}
-			img := uitest.RenderWidget(t, 1300, 260, func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
+			img := uitest.RenderWidget(t, 1340, 260, func(gtx layout.Context, th *theme.Theme) layout.Dimensions {
 				return p.Draw(th, gtx, c.snap)
 			})
 			out := filepath.Join(dir, "sweep-"+c.name+".png")
