@@ -61,3 +61,35 @@ func TestTheExportCarriesEachCellsChipCounters(t *testing.T) {
 		t.Errorf("export row: %s", raw)
 	}
 }
+
+// What the chip counted while the mesh came up stays out of the cell, as the
+// boot chatter stays out of its delivery totals; what the chip holds at the end
+// is reported as it stands.
+func TestACellCountsTheChipFromItsBaselineNotFromBoot(t *testing.T) {
+	start := firmware.RadioStats{
+		IRQReads: 40, BusyReads: 4, BusyMs: 200, SpuriousUp: 1, IRQSuppressed: 6,
+		SuppressedReported: true, IRQMask: 0x0272, SF: 8, BandwidthHz: 62500,
+	}
+	end := firmware.RadioStats{
+		IRQReads: 100, BusyReads: 10, BusyMs: 500, SpuriousUp: 3, IRQSuppressed: 9,
+		SuppressedReported: true, IRQMask: 0x0276, SF: 8, BandwidthHz: 62500,
+	}
+	got := since(end, start)
+	if got.IRQReads != 60 || got.BusyReads != 6 || got.BusyMs != 300 ||
+		got.SpuriousUp != 2 || got.IRQSuppressed != 3 {
+		t.Errorf("counters %+v, want 60 6 300 2 3 counted from the baseline", got)
+	}
+	if got.IRQMask != 0x0276 || got.SF != 8 || got.BandwidthHz != 62500 || !got.SuppressedReported {
+		t.Errorf("state %+v, want the chip as it ended", got)
+	}
+}
+
+// A node that restarted mid-cell starts its counters again from zero, so
+// everything it holds came after the baseline. Subtracting the larger figure
+// from before would wrap to four billion.
+func TestANodeThatRestartedMidCellReportsWhatItCountedSince(t *testing.T) {
+	got := since(firmware.RadioStats{IRQReads: 15}, firmware.RadioStats{IRQReads: 40})
+	if got.IRQReads != 15 {
+		t.Errorf("irq_reads %d, want 15", got.IRQReads)
+	}
+}

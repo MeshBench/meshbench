@@ -70,7 +70,8 @@ type Result struct {
 	// assumption about what boosted gain is worth.
 	AtRisk []float64 `json:"at_risk,omitempty"`
 
-	// Chip is what every node's radio reported at the end of the cell.
+	// Chip is what every node's radio counted over the cell, from the same
+	// baseline as the totals above.
 	Chip *ChipStats `json:"chip,omitempty"`
 }
 

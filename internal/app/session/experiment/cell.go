@@ -316,6 +316,7 @@ func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpA
 	// boot chatter above are receptions too, and a cell that inherited them
 	// would report the mesh coming up rather than the flood it measured.
 	eng.ResetSensitivity()
+	chipBefore := chipBaseline(eng)
 	burstMs := uint32(0)
 
 	// Sends waiting for their moment, when the senders are staggered.
@@ -443,7 +444,7 @@ func runArm(ctx context.Context, s *session.Sim, e *experiment, arm session.ExpA
 	for i := range engine.MarginEdgesDB {
 		out.AtRisk[i] = sens.AtRisk(i)
 	}
-	out.Chip = chipStats(eng)
+	out.Chip = chipStats(eng, chipBefore)
 	return out
 }
 
