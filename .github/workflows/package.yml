@@ -200,7 +200,7 @@ jobs:
           # the licence window carries the attribution.
           mkdir -p dist/meshbench/fonts
           curl -fsSL -o dist/meshbench/fonts/NotoColorEmoji.ttf \
-            https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf \
+            https://github.com/googlefonts/noto-emoji/raw/v2.051/fonts/NotoColorEmoji.ttf \
             || echo "::warning::emoji font not fetched, bundle falls back to system fonts"
           # Renode's platform descriptions and our own C# peripherals. They are
           # ours, they are text, and Renode reads them at runtime rather than
@@ -709,12 +709,14 @@ jobs:
           # The compact pair, from the tree as it stands: application, chip
           # model and Renode's support files, and no emulators.
           # Emoji in node names should not depend on the user's font packages,
-          # and Windows has no Noto to fall back to. Before the compact zip, so
+          # and Windows has no Noto to fall back to. Pinned to a release tag:
+          # upstream removed fonts/ from main, and a moving branch is not a
+          # thing a release can depend on. Before the compact zip, so
           # both variants carry it, and before verify-bundle, which refuses a
           # bundle without one.
           mkdir -p dist/meshbench/fonts
           curl -fsSL -o dist/meshbench/fonts/NotoColorEmoji.ttf \
-            https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf
+            https://github.com/googlefonts/noto-emoji/raw/v2.051/fonts/NotoColorEmoji.ttf
           echo compact > dist/meshbench/VARIANT
           (cd dist && zip -qr meshbench-windows-x86_64-compact.zip meshbench)
           packaging/windows-msi.sh dist/meshbench "$VERSION" \
