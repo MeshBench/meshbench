@@ -32,7 +32,7 @@ func (c *compSession) expect(kind, to, text string) {
 // receipt turns the answer frames into lines that say which request they
 // answer, stamped with the simulated time they arrived. Called with c.mu held.
 func (c *compSession) receipt(f proto.Frame) bool {
-	at := fmt.Sprintf("[%.3f s] ", float64(c.simMs.Load())/1000)
+	at := fmt.Sprintf("[%.3f s] ", float64(c.simMs())/1000)
 	switch {
 	case f.Sent != nil:
 		if len(c.queued) == 0 {
@@ -40,7 +40,7 @@ func (c *compSession) receipt(f proto.Frame) bool {
 		}
 		a := c.queued[0]
 		c.queued = c.queued[1:]
-		a.sentMs = c.simMs.Load()
+		a.sentMs = c.simMs()
 		how := "direct"
 		if f.Sent.Flood {
 			how = "flood"

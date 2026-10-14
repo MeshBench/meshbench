@@ -12,7 +12,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"github.com/MeshBench/meshbench/internal/mesh/companion"
 	"github.com/MeshBench/meshbench/internal/mesh/proto"
@@ -54,9 +53,18 @@ type compSession struct {
 	// queued until it says it sent one, awaiting its ack after that.
 	queued   []asked
 	awaiting map[uint32]asked
-	// simMs is the simulated time as of the last tick. Frames arrive on the
-	// bridge's goroutine, which must not take the engine's lock to ask.
-	simMs atomic.Uint32
+	// clock is the simulated time of the tick the node is running, which is
+	// when anything it writes was written: the bridge's own record, so the
+	// goroutine reading frames need not take the engine's lock to ask.
+	clock func() uint32
+}
+
+// simMs is the simulated time a frame arriving now was written at.
+func (c *compSession) simMs() uint32 {
+	if c.clock == nil {
+		return 0
+	}
+	return c.clock()
 }
 
 // Write receives whatever the node sends while the claim is held.
@@ -155,7 +163,7 @@ func (c *compSession) apply(f proto.Frame) {
 			}
 			c.unread[f.Message.ChannelIdx]++
 		}
-		c.note(fmt.Sprintf("[%.3f s] message: %s", float64(c.simMs.Load())/1000, f.Message.Text))
+		c.note(fmt.Sprintf("[%.3f s] message: %s", float64(c.simMs())/1000, f.Message.Text))
 	case f.Scope != nil:
 		c.scope, c.scopeKnown = f.Scope.Name, true
 		if f.Scope.Name == "" {

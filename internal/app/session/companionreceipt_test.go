@@ -21,19 +21,20 @@ func frameOf(t *testing.T, b []byte) proto.Frame {
 // not say which request they belong to. A delivered line has to name the
 // message that was delivered, not the one sent most recently.
 func TestReceiptsMatchTheRequestTheyAnswer(t *testing.T) {
-	c := &compSession{node: "A"}
+	var now uint32
+	c := &compSession{node: "A", clock: func() uint32 { return now }}
 	c.expect("msg", "Bravo", "first")
 	c.expect("msg", "Charlie", "second")
 	sent := func(ack uint32) []byte {
 		b := binary.LittleEndian.AppendUint32([]byte{byte(proto.RespSent), 0}, ack)
 		return binary.LittleEndian.AppendUint32(b, 5000)
 	}
-	c.simMs.Store(1500)
+	now = 1500
 	c.apply(frameOf(t, sent(11)))
 	c.apply(frameOf(t, sent(22)))
 	conf := binary.LittleEndian.AppendUint32([]byte{byte(proto.PushSendConfirmed)}, 22)
 	conf = binary.LittleEndian.AppendUint32(conf, 900)
-	c.simMs.Store(2400)
+	now = 2400
 	c.apply(frameOf(t, conf))
 
 	joined := strings.Join(c.Lines(), "\n")

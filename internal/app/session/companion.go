@@ -63,7 +63,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 			w.Endpoints = s.endpoints()
 			w.Say("took " + node + "'s port back from an idle listener")
 		}
-		c := &compSession{node: node}
+		c := &compSession{node: node, clock: en.Firmware.Bridge.Now}
 		c.release = en.Firmware.Bridge.Claim(c)
 		s.comps[node] = c
 		// AppStart then a device query: the same opening a phone makes, so a
