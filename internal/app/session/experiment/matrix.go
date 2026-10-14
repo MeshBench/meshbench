@@ -69,6 +69,10 @@ type Result struct {
 	// actually made, so it needs no second arm to compare against and no
 	// assumption about what boosted gain is worth.
 	AtRisk []float64 `json:"at_risk,omitempty"`
+
+	// Chip is what every node's radio counted over the cell, from the same
+	// baseline as the totals above.
+	Chip *ChipStats `json:"chip,omitempty"`
 }
 
 // BuildRef identifies one firmware a cell ran: the version the arm asked for
