@@ -198,3 +198,20 @@ func (c *compSession) Lines() []string {
 // write. The envelope moved down to the transport's own package when the
 // headless fixture runner came to need it too, so that there is one of it.
 func compFrame(payload []byte) []byte { return companion.Frame(payload) }
+
+// consoleLines is what the console being looked at shows.
+//
+// A companion the session holds speaks binary frames on its serial port, and
+// its raw console buffer is those bytes; drawn as text they are noise with a
+// contact's name in the middle. The session's own transcript is the console
+// for it: what was typed, and what the decoded frames meant. Anything else
+// shows its buffer, as it always has.
+func (s *Sim) consoleLines(node string, current []string) []string {
+	if c, ok := s.comps[node]; ok {
+		return c.Lines()
+	}
+	if buf, ok := s.consoles[node]; ok {
+		return buf.Snapshot()
+	}
+	return current
+}

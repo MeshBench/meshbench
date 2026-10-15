@@ -61,3 +61,17 @@ func TestARefusedRequestSaysSo(t *testing.T) {
 		t.Errorf("transcript lacks the refusal:\n%s", j)
 	}
 }
+
+// The console of a companion the session holds is the session's transcript,
+// not the binary frames its serial port carries.
+func TestAHeldCompanionsConsoleIsItsTranscript(t *testing.T) {
+	s := &Sim{comps: map[string]*compSession{"A": {node: "A"}}}
+	s.comps["A"].note("> login Bravo hunter2")
+	got := s.consoleLines("A", []string{">\x01\x02 raw"})
+	if len(got) != 1 || got[0] != "> login Bravo hunter2" {
+		t.Fatalf("console shows %q", got)
+	}
+	if got := s.consoleLines("B", []string{"kept"}); len(got) != 1 || got[0] != "kept" {
+		t.Fatalf("a node with nothing to show lost its lines: %q", got)
+	}
+}
