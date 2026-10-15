@@ -50,6 +50,13 @@ func addMeshPanels(d panelDeps) {
 			*d.nodeTabFlag, strings.Join(nodeview.TabNames(), ", "))
 		os.Exit(2)
 	}
+	if m, ok := nodeview.CompanionModeByName(*d.compModeFlag); ok {
+		nodeview.OpenOnCompanionMode = m
+	} else {
+		fmt.Fprintf(os.Stderr, "-companion-mode %q: no such mode. There is: %s\n",
+			*d.compModeFlag, strings.Join(nodeview.CompanionModeNames(), ", "))
+		os.Exit(2)
+	}
 	packetview.OpenOnTab = *d.packetTabFlag
 	if *d.nodeWinFlag != "" {
 		go func() {

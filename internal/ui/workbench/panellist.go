@@ -63,6 +63,7 @@ type panelDeps struct {
 	openMenuFlag                      *string
 	packetTabFlag                     *int
 	nodeTabFlag                       *string
+	compModeFlag                      *string
 }
 
 // addPanels registers every panel.

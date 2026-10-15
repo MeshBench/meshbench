@@ -97,6 +97,8 @@ func Run(args []string) {
 	nodeTabFlag := flag.String("node-tab", "",
 		"which tab a node window opens on, by name: "+
 			strings.Join(nodeview.TabNames(), ", "))
+	compModeFlag := flag.String("companion-mode", "",
+		"which way in a companion's tab shows: "+strings.Join(nodeview.CompanionModeNames(), ", "))
 	coverFlag := flag.String("coverage", "",
 		"compute and show coverage from this node at startup")
 	energyFlag := flag.Bool("energy", false, "run the site study for the selected node at startup")
@@ -301,7 +303,7 @@ func Run(args []string) {
 		boardWinFlag: boardWinFlag, boardTabFlag: boardTabFlag,
 		boardDecodeFlag: boardDecodeFlag,
 		openFwFlag:      openFwFlag, openMenuFlag: openMenuFlag,
-		packetTabFlag: packetTabFlag, nodeTabFlag: nodeTabFlag,
+		packetTabFlag: packetTabFlag, nodeTabFlag: nodeTabFlag, compModeFlag: compModeFlag,
 	})
 	// After the panels are registered, because it opens one of them. Not when
 	// a single panel fills the window: that is a capture, and a page docking
