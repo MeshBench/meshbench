@@ -103,7 +103,8 @@ func registerNodeFirmwareVerbs(st *state.Store, s *Sim) {
 		// was no way to ask whether a node was running, which is the first
 		// thing any script wants to know and the thing every wait is built
 		// on. The count stays for whoever is already reading it.
-		return map[string]any{"nodes": len(w.Stats), "stats": statRows(w.Stats)}, nil
+		return map[string]any{"nodes": len(w.Stats),
+			"stats": withAirtime(statRows(w.Stats), s.scores())}, nil
 	})
 
 	st.Handle("node.stop", func(w *state.World, p any) (any, error) {
