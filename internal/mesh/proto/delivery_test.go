@@ -47,7 +47,7 @@ func TestAnswersNameWhoAnswered(t *testing.T) {
 	if !bytes.Equal(f.Answer.From, from) || len(f.Answer.Status) != 3 {
 		t.Fatalf("answer = %+v", *f.Answer)
 	}
-	frame = append(append([]byte{byte(proto.PushLoginFail), 0}, from...))
+	frame = append([]byte{byte(proto.PushLoginFail), 0}, from...)
 	if f, _ = proto.Decode(frame); f.Answer == nil || f.Answer.Push != proto.PushLoginFail {
 		t.Fatalf("login refusal did not decode: %+v", f)
 	}
