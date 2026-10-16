@@ -62,9 +62,15 @@ const (
 	// the frame as it arrived. A real SX1262 says so - HeaderErr for a header
 	// it could not read, RxDone beside CrcErr for a payload it could not - and
 	// a firmware that never hears either has error paths nothing exercises.
-	// A node built before this kind existed skips it, as it skips any kind it
-	// does not know, and sees what it always saw: nothing.
+	// Sent only to a node whose radio stats record carries capFrameFailed: a
+	// native bridge built before this kind ends its connection on a kind it
+	// does not know, so a node that never says it understands is never sent it
+	// and sees what it always saw - nothing.
 	kindFrameFailed = 0x0A
+
+	// capFrameFailed is the bit in byte 47 of the radio stats record by which a
+	// node says it takes kindFrameFailed.
+	capFrameFailed = 0x01
 )
 
 // FrameFailure is where a frame the receiver locked onto went wrong, numbered
@@ -121,6 +127,11 @@ type Bridge struct {
 
 	// stats is the radio's own account of what it was asked.
 	stats RadioStats
+
+	// takesFailed is whether the node has said it understands kindFrameFailed.
+	// A native bridge built before that kind closes its connection on any kind
+	// it does not know, so it is sent only to a node that has asked for it.
+	takesFailed bool
 
 	// done is closed when the bridge is. Anything waiting on the node must
 	// select on it: a node whose process has gone will never ack, and a wait
@@ -277,6 +288,7 @@ func (b *Bridge) read(c net.Conn) {
 				}
 				b.mu.Lock()
 				b.stats = st
+				b.takesFailed = n >= 48 && buf[47]&capFrameFailed != 0
 				b.mu.Unlock()
 			}
 
@@ -309,7 +321,16 @@ func (b *Bridge) Deliver(frame []byte) error {
 // DeliverFailed tells the firmware's chip that a frame it locked onto failed,
 // and where. Nothing is decoded from it; the frame rides along because a CRC
 // failure leaves the corrupt bytes in the chip's buffer, as the part does.
+//
+// A node that has not said it takes the kind is told nothing, which is what it
+// was always told.
 func (b *Bridge) DeliverFailed(frame []byte, why FrameFailure) error {
+	b.mu.Lock()
+	takes := b.takesFailed
+	b.mu.Unlock()
+	if !takes {
+		return nil
+	}
 	if err := b.send(kindFrameFailed, append([]byte{byte(why)}, frame...)); err != nil {
 		return fmt.Errorf("firmware: deliver failed frame: %w", err)
 	}

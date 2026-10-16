@@ -84,8 +84,10 @@ func TestDeliveryReachesTheEmulator(t *testing.T) {
 
 // A frame the receiver locked onto and lost reaches the chip as its own kind,
 // with where it failed in front of the bytes, so the chip can raise HeaderErr
-// or CrcErr rather than nothing.
-func TestAFailedFrameReachesTheEmulatorWithItsCause(t *testing.T) {
+// or CrcErr rather than nothing - but only once the node has said it takes
+// that kind. A native bridge built before it ends its connection on a kind it
+// does not know, so a node that never says so is sent nothing.
+func TestAFailedFrameReachesOnlyANodeThatTakesIt(t *testing.T) {
 	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
 	defer func() { _ = b.Close() }()
 	c := fakeRadio(t, b.Addr())
@@ -93,6 +95,24 @@ func TestAFailedFrameReachesTheEmulatorWithItsCause(t *testing.T) {
 
 	for i := 0; i < 50 && !b.Attached(); i++ {
 		time.Sleep(10 * time.Millisecond)
+	}
+	if err := b.DeliverFailed([]byte{0x11}, FailedCRC); err != nil {
+		t.Fatal(err)
+	}
+
+	record := make([]byte, 48)
+	record[47] = capFrameFailed
+	if _, err := c.Write(append([]byte{kindRadioStats, 0, 48}, record...)); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 100; i++ {
+		b.mu.Lock()
+		takes := b.takesFailed
+		b.mu.Unlock()
+		if takes {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	if err := b.DeliverFailed([]byte{0x22, 0xBB}, FailedHeader); err != nil {
 		t.Fatal(err)
@@ -103,15 +123,15 @@ func TestAFailedFrameReachesTheEmulatorWithItsCause(t *testing.T) {
 	if _, err := io.ReadFull(c, hdr[:]); err != nil {
 		t.Fatal(err)
 	}
-	if hdr[0] != 0x0A {
-		t.Errorf("wrong frame kind 0x%02x, want 0x0a", hdr[0])
+	if hdr[0] != kindFrameFailed {
+		t.Fatalf("wrong frame kind 0x%02x, want 0x0a", hdr[0])
 	}
 	buf := make([]byte, binary.BigEndian.Uint16(hdr[1:]))
 	if _, err := io.ReadFull(c, buf); err != nil {
 		t.Fatal(err)
 	}
 	if string(buf) != string([]byte{2, 0x22, 0xBB}) {
-		t.Errorf("emulator received % x, want 02 22 bb", buf)
+		t.Errorf("emulator received % x, want 02 22 bb: the failure sent before it said it takes the kind leaked", buf)
 	}
 }
 

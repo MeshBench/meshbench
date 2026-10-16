@@ -111,8 +111,8 @@ func TestTheFirmwareIsToldWhereAFrameFailed(t *testing.T) {
 	}
 }
 
-// recorder acks every tick, as firmware does, and keeps the first failed
-// frame it is handed.
+// recorder acks every tick, as firmware does, says it takes failed frames,
+// and keeps the first one it is handed.
 type recorder struct {
 	conn net.Conn
 	mu   sync.Mutex
@@ -144,8 +144,12 @@ func (r *recorder) serve() {
 		}
 		switch {
 		case hdr[0] == fakeKindTick && len(buf) >= 4:
+			// A radio stats record that says it takes failed frames, ahead of
+			// the ack, as a native bridge sends one with every tick.
+			stats := make([]byte, 3+48)
+			stats[0], stats[2], stats[3+47] = 0x09, 48, 0x01
 			reply := []byte{fakeKindAck, 0, 4, buf[0], buf[1], buf[2], buf[3]}
-			if _, err := r.conn.Write(reply); err != nil {
+			if _, err := r.conn.Write(append(stats, reply...)); err != nil {
 				return
 			}
 		case hdr[0] == 0x0A:
