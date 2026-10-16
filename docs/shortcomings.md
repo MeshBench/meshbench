@@ -494,6 +494,10 @@ the eight-symbol header block, which is coded at CR 4/8, is a header error, and
 anything else that is lost is a CRC error. In waveform mode the demodulator
 decides.
 
+Only a node that says it takes the message is told: a native build whose
+bridge sets the capability bit in its radio stats record. Emulated boards, and
+native builds from before that bit, are told nothing, as before.
+
 Three things are still kinder than the part:
 
 - **Only collisions fail a frame.** A signal near the floor that the chip would
