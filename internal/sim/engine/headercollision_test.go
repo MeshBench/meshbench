@@ -146,10 +146,11 @@ func (r *recorder) serve() {
 		case hdr[0] == fakeKindTick && len(buf) >= 4:
 			// A radio stats record that says it takes failed frames, ahead of
 			// the ack, as a native bridge sends one with every tick.
-			stats := make([]byte, 3+48)
-			stats[0], stats[2], stats[3+47] = 0x09, 48, 0x01
-			reply := []byte{fakeKindAck, 0, 4, buf[0], buf[1], buf[2], buf[3]}
-			if _, err := r.conn.Write(append(stats, reply...)); err != nil {
+			record := make([]byte, 48)
+			record[47] = 0x01
+			msg := append([]byte{0x09, 0, 48}, record...)
+			msg = append(msg, fakeKindAck, 0, 4, buf[0], buf[1], buf[2], buf[3])
+			if _, err := r.conn.Write(msg); err != nil {
 				return
 			}
 		case hdr[0] == 0x0A:
