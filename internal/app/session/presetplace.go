@@ -31,12 +31,11 @@ func registerPresetsAndPlace(st *state.Store, s *Sim) {
 			if only != "" && s.nodes[i].Name != only {
 				continue
 			}
-			s.nodes[i].Radio = scenario.RadioConfig{
-				CentreHz:     preset.FreqMHz * 1e6,
-				BandwidthHz:  preset.BwKHz * 1e3,
-				SpreadFactor: preset.SF,
-				CodingRate:   preset.CR,
-			}
+			// The preset's own conversion. The table holds MeshCore's
+			// denominator (8 for 4/8) and a node's radio holds it minus four;
+			// copying the table across made every preset 4/12, half again the
+			// airtime, and a companion told CR 12 refuses it.
+			s.nodes[i].Radio = preset.Config()
 			n++
 		}
 		if n > 0 && len(s.nodes) > 0 {
@@ -73,6 +72,7 @@ func registerPresetsAndPlace(st *state.Store, s *Sim) {
 		}
 		node.HeightAGLm = 10
 		node.TxPowerDBm = 22
+		node.Radio = placedRadio(s.nodes)
 		if v, ok := namedNum(p, "height_m"); ok {
 			node.HeightAGLm = v
 		}
@@ -190,4 +190,33 @@ func regionsOfNeighbours(nodes []scenario.Node, lat, lon float64) []string {
 		}
 	}
 	return out
+}
+
+// placedRadio is the modem a placed node joins on: the one every node already
+// here shares, or the documented default where they do not agree or there are
+// none.
+//
+// Left empty, a placed node fell back to the engine's own figures - SF10 at
+// 250 kHz - while its firmware booted on its build's SF8 at 62.5 kHz, so on any
+// narrow mesh it was on a channel nothing else used and never heard anybody,
+// with nothing to say why.
+func placedRadio(nodes []scenario.Node) scenario.RadioConfig {
+	var shared *scenario.RadioConfig
+	for i := range nodes {
+		r := nodes[i].Radio
+		if r.CentreHz == 0 {
+			continue
+		}
+		if shared == nil {
+			shared = &r
+			continue
+		}
+		if *shared != r {
+			return scenario.DefaultRadio()
+		}
+	}
+	if shared == nil {
+		return scenario.DefaultRadio()
+	}
+	return *shared
 }
