@@ -439,7 +439,11 @@ mesh its own time, and then reads.
 repeater reads typed text, over `console.type`. A companion does not: it speaks
 the framed companion protocol, and its command line is meshcore-cli's
 vocabulary, over `console.cli` — `advert`, `floodadv`, `public <msg>`,
-`chan <n> <msg>`, `infos`, `ver`, `contacts`, `sync_msgs`, `set`, `time`.
+`chan <n> <msg>`, `msg <contact> <msg>`, `login <contact> <password>`,
+`req_status <contact>`, `scope <name>`, `infos`, `ver`, `contacts`,
+`sync_msgs`, `set`, `time`. The three that address one node are answered when
+the firmware sends them and again when the ack, login reply or status returns,
+in the companion's transcript and stamped in simulated time.
 
 Text typed at a companion is echoed locally and goes nowhere, which looks
 exactly like a command that ran and did nothing. `node.console` picks the right

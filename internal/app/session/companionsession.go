@@ -49,6 +49,22 @@ type compSession struct {
 	// ask "has anything happened" that is cheaper than rebuilding the view
 	// and comparing it.
 	rev uint64
+	// queued and awaiting are the requests the firmware has yet to answer:
+	// queued until it says it sent one, awaiting its ack after that.
+	queued   []asked
+	awaiting map[uint32]asked
+	// clock is the simulated time of the tick the node is running, which is
+	// when anything it writes was written: the bridge's own record, so the
+	// goroutine reading frames need not take the engine's lock to ask.
+	clock func() uint32
+}
+
+// simMs is the simulated time a frame arriving now was written at.
+func (c *compSession) simMs() uint32 {
+	if c.clock == nil {
+		return 0
+	}
+	return c.clock()
 }
 
 // Write receives whatever the node sends while the claim is held.
@@ -114,6 +130,9 @@ func (c *compSession) apply(f proto.Frame) {
 	if f.Push == proto.PushMsgWaiting {
 		c.waiting = true
 	}
+	if c.receipt(f) {
+		return
+	}
 	switch {
 	case f.SelfInfo != nil:
 		c.self = f.SelfInfo
@@ -144,7 +163,7 @@ func (c *compSession) apply(f proto.Frame) {
 			}
 			c.unread[f.Message.ChannelIdx]++
 		}
-		c.note("message: " + f.Message.Text)
+		c.note(fmt.Sprintf("[%.3f s] message: %s", float64(c.simMs())/1000, f.Message.Text))
 	case f.Scope != nil:
 		c.scope, c.scopeKnown = f.Scope.Name, true
 		if f.Scope.Name == "" {
@@ -179,3 +198,20 @@ func (c *compSession) Lines() []string {
 // write. The envelope moved down to the transport's own package when the
 // headless fixture runner came to need it too, so that there is one of it.
 func compFrame(payload []byte) []byte { return companion.Frame(payload) }
+
+// consoleLines is what the console being looked at shows.
+//
+// A companion the session holds speaks binary frames on its serial port, and
+// its raw console buffer is those bytes; drawn as text they are noise with a
+// contact's name in the middle. The session's own transcript is the console
+// for it: what was typed, and what the decoded frames meant. Anything else
+// shows its buffer, as it always has.
+func (s *Sim) consoleLines(node string, current []string) []string {
+	if c, ok := s.comps[node]; ok {
+		return c.Lines()
+	}
+	if buf, ok := s.consoles[node]; ok {
+		return buf.Snapshot()
+	}
+	return current
+}

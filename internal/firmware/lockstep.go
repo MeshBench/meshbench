@@ -34,6 +34,7 @@ func (b *Bridge) Advance(ctx context.Context, atMs uint32) error {
 // CPU actually went — three hundred serialised round trips per step, at twelve
 // steps a frame.
 func (b *Bridge) BeginAdvance(atMs uint32) error {
+	b.tickAt.Store(atMs)
 	var payload [4]byte
 	binary.BigEndian.PutUint32(payload[:], atMs)
 	if err := b.send(kindTick, payload[:]); err != nil {
