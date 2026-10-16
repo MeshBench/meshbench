@@ -174,25 +174,14 @@ func Register(st *state.Store, s *Sim) {
 		for i, n := range f.nodes {
 			index[n.Name] = i
 		}
-		w.Tick = func(uint32) {
+		w.Tick = func(tickMs uint32) {
 			w.FirmwareRunning, w.FirmwareStarting = s.firmwareCount(), s.starting.Load()
 			// A sweep cell paces its own engine against wall time and counts on
 			// that pacing. Stepping it again here would not make the run
 			// faster - it would make its airtime accounting wrong - so while a
 			// cell owns the clock this only reads.
 			if !s.benchOwnsTheClock() {
-				// Close takes the engine away, from the workbench's own
-				// shutdown goroutine, while this tick stays installed - so a
-				// step arriving after a close finds nothing there and the
-				// panic takes the store's goroutine with it. fireDueSends
-				// below has always asked; this is the call that did not.
-				if eng := s.eng; eng != nil {
-					_ = eng.Step(context.Background())
-				}
-				// Whatever the schedule is due to say at this moment of
-				// simulated time. After the step, so a send lands on a mesh
-				// whose clock has already reached its moment.
-				s.fireDueSends(w)
+				s.stepTick(w, tickMs)
 			}
 			// A rebuild anywhere leaves the matrix cold; this is the one
 			// place every run passes through, so it is where the warm is
