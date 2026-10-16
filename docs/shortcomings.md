@@ -483,6 +483,35 @@ the same pair and puts it in the status line, the sweep panel prints it beside
 the cost estimate before the run starts, and the results panel repeats it above
 the table. Use native for anything being compared.
 
+### 3.2b A failed frame reaches the chip from a collision, and from nothing else
+
+A frame a receiver locked onto and lost reaches the firmware's chip as the part
+reports it: a header it could not read raises `HeaderErr` and nothing more, and
+a header that read with a payload that did not raises `RxDone` beside `CrcErr`,
+with the corrupt bytes in the buffer. In calculated mode the engine decides
+which from where a collision landed: more than one destroyed symbol inside
+the eight-symbol header block, which is coded at CR 4/8, is a header error, and
+anything else that is lost is a CRC error. In waveform mode the demodulator
+decides.
+
+Three things are still kinder than the part:
+
+- **Only collisions fail a frame.** A signal near the floor that the chip would
+  lock onto and then lose is, in calculated mode, simply not heard. Real radios
+  raise header and CRC errors on weak signals all the time.
+- **The failure arrives when the packet ends.** The calculated path judges a
+  reception once the whole packet is on the air, so `HeaderErr` is raised at the
+  end of the frame rather than the end of its header.
+- **The detection flags clear with the carrier.** The datasheet holds
+  `PreambleDetected` and `HeaderValid` until the firmware clears them; the chip
+  model drops them when the engine says the channel has gone quiet. It does so
+  because, until failed frames reached the chip, a frame the engine withheld
+  left `HeaderValid` up with nothing to end it.
+
+**Consequence.** A firmware's error paths now run, so a fault in how it handles
+a stale `HeaderErr` can be seen. A fault that depends on a detection flag
+outliving its carrier cannot, yet.
+
 ### 3.3 Native nodes cannot catch anything architecture-dependent
 
 A native node is x86-64 or arm64, 64-bit, with a different `int` width in

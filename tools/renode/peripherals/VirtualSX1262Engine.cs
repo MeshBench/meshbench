@@ -105,14 +105,29 @@ namespace Antmicro.Renode.Peripherals.Radio
             switch(kind)
             {
             case Frame:
-                // A packet the channel delivered. Only frames that passed CRC
-                // arrive here, exactly as on hardware: everything else was
-                // recorded and withheld.
+                // A packet the channel delivered, and passed its CRC. A frame
+                // that locked and failed comes as FrameFailed; one that never
+                // locked does not come at all, exactly as on hardware.
                 if(payload.Length > 0)
                 {
                     lock(chipLock)
                     {
                         lib.DeliverFrame(chip, payload, (UIntPtr)payload.Length);
+                    }
+                }
+                break;
+
+            case FrameFailed:
+                // A frame the receiver locked onto and lost; the first byte is
+                // where. The chip raises HeaderErr, or RxDone beside CrcErr,
+                // exactly as the part does.
+                if(payload.Length >= 1 && lib.DeliverFrameFailed != null)
+                {
+                    var frame = new byte[payload.Length - 1];
+                    Array.Copy(payload, 1, frame, 0, frame.Length);
+                    lock(chipLock)
+                    {
+                        lib.DeliverFrameFailed(chip, frame, (UIntPtr)frame.Length, payload[0]);
                     }
                 }
                 break;
@@ -326,6 +341,7 @@ namespace Antmicro.Renode.Peripherals.Radio
         private const byte TxDone = 0x04;
         private const byte ChannelBusy = 0x08;
         private const byte RadioStats = 0x09;
+        private const byte FrameFailed = 0x0A;
 
         // The stats record, whose layout the engine reads on length.
         private const int StatsLength = 39;

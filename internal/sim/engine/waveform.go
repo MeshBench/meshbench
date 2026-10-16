@@ -427,6 +427,10 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 			SNRdB: r.snrdB, Frame: t.frame, Class: class,
 			Detail: why})
+		// No lock is no event at all; a lock is one the chip reports.
+		if dst.Firmware != nil && r.synced {
+			_ = dst.Firmware.Bridge.DeliverFailed(r.payload, failureOf(r.stats.HeaderOK))
+		}
 		e.Ledger.Record(rec)
 		e.captureWrite(t, src, dst, txPHY, rec)
 		return

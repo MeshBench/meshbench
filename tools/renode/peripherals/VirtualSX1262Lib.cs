@@ -106,6 +106,9 @@ namespace Antmicro.Renode.Peripherals.Radio
         public TickFn Tick;
         public SetChannelBusyFn SetChannelBusy;
         public DeliverFrameFn DeliverFrame;
+        // Null on a chip model older than 1.3.2, which has no way to be told a
+        // frame failed: such a node goes on hearing nothing for one, as before.
+        public DeliverFrameFailedFn DeliverFrameFailed;
         public TransmitFinishedFn TransmitFinished;
         public TakeTxFn TakeTx;
         public SetFemEnabledFn SetFemEnabled;
@@ -124,6 +127,7 @@ namespace Antmicro.Renode.Peripherals.Radio
         public delegate void TickFn(IntPtr chip, ulong nowMs);
         public delegate void SetChannelBusyFn(IntPtr chip, int busy);
         public delegate void DeliverFrameFn(IntPtr chip, byte[] frame, UIntPtr len);
+        public delegate void DeliverFrameFailedFn(IntPtr chip, byte[] frame, UIntPtr len, byte failure);
         public delegate void TransmitFinishedFn(IntPtr chip);
         public delegate UIntPtr TakeTxFn(IntPtr chip, byte[] dst, UIntPtr cap);
         public delegate void SetFemEnabledFn(IntPtr chip, int enabled);
@@ -147,6 +151,11 @@ namespace Antmicro.Renode.Peripherals.Radio
             Tick = (TickFn)Bind("vsx_tick", typeof(TickFn));
             SetChannelBusy = (SetChannelBusyFn)Bind("vsx_set_channel_busy", typeof(SetChannelBusyFn));
             DeliverFrame = (DeliverFrameFn)Bind("vsx_deliver_frame", typeof(DeliverFrameFn));
+            var failed = NativeSymbol(handle, "vsx_deliver_frame_failed");
+            if(failed != IntPtr.Zero)
+            {
+                DeliverFrameFailed = (DeliverFrameFailedFn)Marshal.GetDelegateForFunctionPointer(failed, typeof(DeliverFrameFailedFn));
+            }
             TransmitFinished = (TransmitFinishedFn)Bind("vsx_transmit_finished", typeof(TransmitFinishedFn));
             TakeTx = (TakeTxFn)Bind("vsx_take_tx", typeof(TakeTxFn));
             SetFemEnabled = (SetFemEnabledFn)Bind("vsx_set_fem_enabled", typeof(SetFemEnabledFn));

@@ -56,6 +56,28 @@ const (
 	// it - only the engine has every waveform in flight and how strongly each
 	// one arrives at a given antenna.
 	kindChannelBusy = 0x08
+
+	// kindFrameFailed is host → node: a frame this receiver locked onto and
+	// could not trust. The first payload byte says where it failed, the rest is
+	// the frame as it arrived. A real SX1262 says so - HeaderErr for a header
+	// it could not read, RxDone beside CrcErr for a payload it could not - and
+	// a firmware that never hears either has error paths nothing exercises.
+	// A node built before this kind existed skips it, as it skips any kind it
+	// does not know, and sees what it always saw: nothing.
+	kindFrameFailed = 0x0A
+)
+
+// FrameFailure is where a frame the receiver locked onto went wrong, numbered
+// as virtual-sx1262's vsx_deliver_frame_failed numbers it.
+type FrameFailure byte
+
+const (
+	// FailedCRC is a header that decoded and a payload that did not: the chip
+	// raises RxDone beside CrcErr and the corrupt bytes are in its buffer.
+	FailedCRC FrameFailure = 1
+	// FailedHeader is a header the receiver could not read: the chip raises
+	// HeaderErr, and no RxDone follows.
+	FailedHeader FrameFailure = 2
 )
 
 // ErrClosed is returned once a bridge has been shut down.
@@ -274,11 +296,22 @@ func (b *Bridge) read(c net.Conn) {
 }
 
 // Deliver hands a frame to the emulated firmware — a frame the channel decided
-// this node received. Only CRC-passing frames should be delivered; everything
-// else belongs in the ledger and is withheld, exactly as on real hardware.
+// this node received. Only CRC-passing frames go this way; a frame the receiver
+// locked onto and could not trust goes through DeliverFailed, and one it never
+// locked onto reaches the firmware not at all, exactly as on real hardware.
 func (b *Bridge) Deliver(frame []byte) error {
 	if err := b.send(kindFrame, frame); err != nil {
 		return fmt.Errorf("firmware: deliver: %w", err)
+	}
+	return nil
+}
+
+// DeliverFailed tells the firmware's chip that a frame it locked onto failed,
+// and where. Nothing is decoded from it; the frame rides along because a CRC
+// failure leaves the corrupt bytes in the chip's buffer, as the part does.
+func (b *Bridge) DeliverFailed(frame []byte, why FrameFailure) error {
+	if err := b.send(kindFrameFailed, append([]byte{byte(why)}, frame...)); err != nil {
+		return fmt.Errorf("firmware: deliver failed frame: %w", err)
 	}
 	return nil
 }

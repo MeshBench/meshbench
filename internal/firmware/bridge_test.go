@@ -82,6 +82,39 @@ func TestDeliveryReachesTheEmulator(t *testing.T) {
 	}
 }
 
+// A frame the receiver locked onto and lost reaches the chip as its own kind,
+// with where it failed in front of the bytes, so the chip can raise HeaderErr
+// or CrcErr rather than nothing.
+func TestAFailedFrameReachesTheEmulatorWithItsCause(t *testing.T) {
+	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
+	defer func() { _ = b.Close() }()
+	c := fakeRadio(t, b.Addr())
+	defer func() { _ = c.Close() }()
+
+	for i := 0; i < 50 && !b.Attached(); i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := b.DeliverFailed([]byte{0x22, 0xBB}, FailedHeader); err != nil {
+		t.Fatal(err)
+	}
+
+	var hdr [3]byte
+	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := io.ReadFull(c, hdr[:]); err != nil {
+		t.Fatal(err)
+	}
+	if hdr[0] != 0x0A {
+		t.Errorf("wrong frame kind 0x%02x, want 0x0a", hdr[0])
+	}
+	buf := make([]byte, binary.BigEndian.Uint16(hdr[1:]))
+	if _, err := io.ReadFull(c, buf); err != nil {
+		t.Fatal(err)
+	}
+	if string(buf) != string([]byte{2, 0x22, 0xBB}) {
+		t.Errorf("emulator received % x, want 02 22 bb", buf)
+	}
+}
+
 // The point of the bridge: an emulated node's frame goes through the SAME
 // channel as a native one. If it took a different path the two backends could
 // not be compared, which is the whole reason ADR-0010 keeps both.

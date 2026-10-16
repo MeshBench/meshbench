@@ -72,7 +72,7 @@ abstraction hides, ADR-0002 needs revisiting rather than patching.
 |---|---|
 | `startSendRaw` | Enqueue frame to the RF engine with node id and sim time. Return false if already transmitting. |
 | `isSendComplete` | True once sim time ≥ start + airtime. |
-| `recvRaw` | Pop from this node's delivered queue. **Only CRC-passing frames reach here** — everything else is recorded but withheld, exactly like real hardware. |
+| `recvRaw` | Pop from this node's delivered queue. **Only CRC-passing frames reach here.** A frame the receiver locked onto and lost reaches the chip as a header error or a CRC error, as the part reports it; one it never locked onto is recorded and withheld, exactly like real hardware. |
 | `getEstAirtimeFor` | Must equal our own airtime formula. Test this first. |
 | `getNoiseFloor` | Real value from the channel, including external emitters. |
 | `setCADEnabled` / CAD result | Answer from actual channel energy, not a guess. This is where firmware CSMA becomes observable. |

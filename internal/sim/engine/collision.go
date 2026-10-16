@@ -21,18 +21,27 @@ package engine
 
 import (
 	"math"
+
+	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/rf/dsp"
 )
 
 // corruptedSymbols counts how many of a transmission's symbols were destroyed
-// by co-channel traffic the receiver could not capture over.
+// by co-channel traffic the receiver could not capture over, in the whole
+// packet and in its header block alone.
 //
 // Overlaps are unioned, not summed: two interferers stamping on the same
 // stretch of a packet destroy it once. Anything the wanted signal leads by the
 // capture threshold contributes nothing, however long it overlaps for. A hit
 // shorter than one symbol still costs a whole symbol, because a chirp
 // interrupted anywhere lands in the wrong FFT bin.
+//
+// The header is counted apart because the chip answers differently for it: a
+// header it cannot read raises HeaderErr and nothing more, where a payload it
+// cannot read raises RxDone beside CrcErr. Which of the two a firmware is told
+// decides which of its error paths runs.
 func (e *Engine) corruptedSymbols(rx int, t transmission, wantedDBm float64,
-	concurrent []transmission, nodes []*Node, txPHY phy) float64 {
+	concurrent []transmission, nodes []*Node, txPHY phy) (total, header float64) {
 
 	type span struct{ from, to uint32 }
 	var hits []span
@@ -59,7 +68,7 @@ func (e *Engine) corruptedSymbols(rx int, t transmission, wantedDBm float64,
 		hits = append(hits, span{from, to})
 	}
 	if len(hits) == 0 {
-		return 0
+		return 0, 0
 	}
 	// Union by sweep, so two interferers over the same symbols cost one packet
 	// rather than two. Insertion sort: the list is one entry per concurrent
@@ -85,9 +94,43 @@ func (e *Engine) corruptedSymbols(rx int, t transmission, wantedDBm float64,
 
 	symbolMs := 1000 * math.Pow(2, float64(txPHY.sf)) / txPHY.bandwidthHz
 	if symbolMs <= 0 {
-		return 0
+		return 0, 0
 	}
-	return math.Ceil(float64(damagedMs) / symbolMs)
+	hdrFrom, hdrTo := headerBlockMs(t.startMs, txPHY.sf, symbolMs)
+	var headerMs float64
+	for _, h := range hits {
+		from, to := math.Max(float64(h.from), hdrFrom), math.Min(float64(h.to), hdrTo)
+		if to > from {
+			headerMs += to - from
+		}
+	}
+	return math.Ceil(float64(damagedMs) / symbolMs), math.Ceil(math.Min(headerMs, hdrTo-hdrFrom) / symbolMs)
+}
+
+// headerBlockMs is where a transmission's explicit header sits on the air: the
+// first interleaver block after the preamble, the two sync symbols and the
+// 2.25-symbol start of frame, eight symbols long and always coded at CR 4/8.
+func headerBlockMs(startMs uint32, sf int, symbolMs float64) (from, to float64) {
+	from = float64(startMs) + (float64(dsp.PreambleSymbols(sf))+4.25)*symbolMs
+	return from, from + 8*symbolMs
+}
+
+// headerSurvives reports whether the header block can be put back together.
+// It is coded at CR 4/8 whatever the payload uses, so one destroyed symbol is
+// repaired and a second is fatal, by the same interleaver argument as below.
+func headerSurvives(damagedSymbols float64) bool {
+	return damagedSymbols <= 1
+}
+
+// failureOf is what the chip raises for a frame it locked onto and lost: a
+// header it could not read is HeaderErr and nothing more; a header that read
+// and a payload that did not is RxDone beside CrcErr, with the bytes the
+// receive chain produced left in the buffer.
+func failureOf(headerOK bool) firmware.FrameFailure {
+	if headerOK {
+		return firmware.FailedCRC
+	}
+	return firmware.FailedHeader
 }
 
 // survivesCorruption reports whether forward error correction can put a packet
