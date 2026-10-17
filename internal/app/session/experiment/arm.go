@@ -8,6 +8,8 @@
 package experiment
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -93,6 +95,60 @@ func varied(base session.ExpArm, param, v string) (session.ExpArm, string, error
 	return arm, "", fmt.Errorf(
 		"cannot vary %q; there is: %s, or set:<any firmware setting>",
 		param, strings.Join(have, ", "))
+}
+
+// armsFrom reads experiment.define's arms, every field an arm has.
+//
+// It used to read three and drop the rest without a word, so an arm defined
+// with cad on ran with cad as the scenario had it, under a label saying
+// otherwise, and the row compared two identical configurations. A field it does
+// not know is refused for the same reason: a misspelt setting is the same
+// silent control arm.
+func armsFrom(xs []any) ([]session.ExpArm, error) {
+	raw, err := json.Marshal(xs)
+	if err != nil {
+		return nil, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	var arms []session.ExpArm
+	if err := dec.Decode(&arms); err != nil {
+		return nil, fmt.Errorf("experiment.define cannot read its arms: %w", err)
+	}
+	for i := range arms {
+		if err := checkArm(arms[i]); err != nil {
+			return nil, fmt.Errorf("arm %d: %w", i+1, err)
+		}
+		if arms[i].Label == "" {
+			arms[i].Label = arms[i].RepeaterVersion
+		}
+	}
+	return arms, nil
+}
+
+// checkArm holds a defined arm to what experiment.vary accepts for the same
+// settings, through the same function, so the two verbs cannot disagree about
+// what a setting may be.
+func checkArm(a session.ExpArm) error {
+	named := [][2]string{{"loop_detect", a.LoopDetect}, {"cad", a.CAD}}
+	if a.PathHashMode != nil {
+		named = append(named, [2]string{"path_hash_mode", strconv.Itoa(*a.PathHashMode)})
+	}
+	if a.RepPathHash != nil {
+		named = append(named, [2]string{"rep_path_hash", strconv.Itoa(*a.RepPathHash)})
+	}
+	for _, n := range named {
+		if n[1] == "" {
+			continue
+		}
+		if _, _, err := varied(a, n[0], n[1]); err != nil {
+			return err
+		}
+	}
+	if a.SpreadMs != nil && *a.SpreadMs < 0 {
+		return fmt.Errorf("spread_ms cannot be negative; got %d", *a.SpreadMs)
+	}
+	return nil
 }
 
 // cellText is what one cell floods: its own arm and seed, at a width every

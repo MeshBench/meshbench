@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/MeshBench/meshbench/internal/app/control"
 	"github.com/MeshBench/meshbench/internal/app/session"
 	"github.com/MeshBench/meshbench/internal/app/state"
 )
@@ -177,18 +178,11 @@ func registerExperiment(st *state.Store, s *session.Sim, e *experiment) {
 		defer func() { e.publish(w) }()
 		if m, ok := p.(map[string]any); ok {
 			if xs, ok := m["arms"].([]any); ok && len(xs) > 0 {
-				e.Arms = e.Arms[:0]
-				for _, x := range xs {
-					am, _ := x.(map[string]any)
-					arm := session.ExpArm{}
-					arm.Label, _ = am["label"].(string)
-					arm.RepeaterVersion, _ = am["repeater_version"].(string)
-					arm.CompanionVersion, _ = am["companion_version"].(string)
-					if arm.Label == "" {
-						arm.Label = arm.RepeaterVersion
-					}
-					e.Arms = append(e.Arms, arm)
+				arms, err := armsFrom(xs)
+				if err != nil {
+					return nil, control.WithCode(control.BadParams, err)
 				}
+				e.Arms = arms
 			}
 			if xs, ok := m["seeds"].([]any); ok && len(xs) > 0 {
 				e.Seeds = e.Seeds[:0]

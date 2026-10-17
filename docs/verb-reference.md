@@ -3538,7 +3538,7 @@ State a whole matrix in one call - the arms, the seeds, the senders and the burs
 
 | parameter | type | | what |
 |---|---|---|---|
-| `arms` | array | optional | one object per arm, carrying `label`, `repeater_version` and `companion_version`; an arm with no label takes its repeater version as one, and an absent or empty list leaves the arms alone |
+| `arms` | array | optional | one object per arm, carrying `label`, `repeater_version` and `companion_version`, and optionally any setting experiment.vary crosses on: `path_hash_mode`, `rep_path_hash`, `loop_detect`, `cad`, `spread_ms` and `set`, a map of firmware settings as the CLI names them; a field an arm does not have, or a value its setting cannot take, is refused and the arms already defined are kept; an arm with no label takes its repeater version as one, and an absent or empty list leaves the arms alone |
 | `seeds` | array | optional | the seeds each arm is repeated over, as numbers; anything that is not a number is dropped, and an absent or empty list leaves the seeds alone |
 | `senders` | array | optional | the nodes that originate the burst, by name; unlike the others an empty list is obeyed and clears them, which leaves an experiment experiment.start will refuse |
 | `run_for_ms` | number | optional | how long each cell runs, in simulated milliseconds; zero or less is ignored and the current length kept |
