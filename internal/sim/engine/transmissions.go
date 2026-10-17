@@ -257,9 +257,9 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 
 		// What a collision destroyed on the way through, for a packet that
 		// won the demodulator in the first place.
-		damaged, repaired, survives := 0.0, 0, true
+		damaged, headerDamaged, repaired, survives := 0.0, 0.0, 0, true
 		if !deaf && held == "" {
-			damaged = e.corruptedSymbols(i, t, rxDBm, concurrent, nodes, txPHY)
+			damaged, headerDamaged = e.corruptedSymbols(i, t, rxDBm, concurrent, nodes, txPHY)
 			repaired, survives = survivesCorruption(damaged, txPHY.codingRate)
 		}
 
@@ -315,14 +315,27 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			// through the demodulator; here it is the interleaver's own
 			// guarantee applied to the overlap the timing actually produced.
 			rec.Outcome = capture.NotDemodulated
-			rec.Demod = true
+			rec.Demod = headerSurvives(headerDamaged)
+			why := fmt.Sprintf(
+				"decoded its header, then %.0f symbol(s) were destroyed by a collision "+
+					"it could not capture over; beyond what CR 4/%d can repair",
+				damaged, txPHY.codingRate+4)
+			if !rec.Demod {
+				why = fmt.Sprintf(
+					"locked on, then %.0f of its 8 header symbols were destroyed by a collision "+
+						"it could not capture over; beyond what the header's CR 4/8 can repair",
+					headerDamaged)
+			}
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
-				SNRdB: reported, Frame: t.frame, Class: ClassCollision,
-				Detail: fmt.Sprintf(
-					"decoded its header, then %.0f symbol(s) were destroyed by a collision "+
-						"it could not capture over; beyond what CR 4/%d can repair",
-					damaged, txPHY.codingRate+4)})
+				SNRdB: reported, Frame: t.frame, Class: ClassCollision, Detail: why})
+			if dst.Firmware != nil {
+				if err := dst.Firmware.Bridge.DeliverFailed(t.frame, failureOf(rec.Demod)); err != nil {
+					e.Ledger.Record(rec)
+					e.captureWrite(t, src, dst, txPHY, rec)
+					return fmt.Errorf("engine: deliver failed frame to %s: %w", dst.specRef().Name, err)
+				}
+			}
 		case effective < required:
 			rec.Outcome = capture.NotDemodulated
 			// How near it came. Interference is included deliberately: a packet
@@ -334,6 +347,16 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 				SNRdB: reported, Frame: t.frame, Class: class, Detail: why})
+			// Only while the demodulator is free: one following another frame
+			// has that frame's flags up, and that frame says how it ended.
+			if dst.Firmware != nil && held == "" {
+				why := e.weakFailure(i, t, rxDBm, concurrent, nodes, txPHY, headerDamaged)
+				if err := dst.Firmware.Bridge.DeliverFailed(t.frame, why); err != nil {
+					e.Ledger.Record(rec)
+					e.captureWrite(t, src, dst, txPHY, rec)
+					return fmt.Errorf("engine: deliver failed frame to %s: %w", dst.specRef().Name, err)
+				}
+			}
 		default:
 			rec.Demod, rec.CRCOK, rec.FirmwareSaw = true, true, true
 			rec.Outcome = capture.Accepted

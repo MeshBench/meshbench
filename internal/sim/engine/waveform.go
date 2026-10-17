@@ -427,6 +427,10 @@ func (e *Engine) settleWaveform(t transmission, src, dst *Node, c wfCandidate,
 			PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 			SNRdB: r.snrdB, Frame: t.frame, Class: class,
 			Detail: why})
+		// A lock the chip reports as such; no lock withdraws its header guess.
+		if dst.Firmware != nil {
+			_ = dst.Firmware.Bridge.DeliverFailed(r.payload, lockFailure(r.synced, r.stats.HeaderOK))
+		}
 		e.Ledger.Record(rec)
 		e.captureWrite(t, src, dst, txPHY, rec)
 		return
