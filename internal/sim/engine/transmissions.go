@@ -347,6 +347,16 @@ func (e *Engine) deliver(t transmission, concurrent []transmission, cache modCac
 			e.record(Event{AtMs: t.endMs, Kind: "miss", From: src.specRef().Name, To: dst.specRef().Name,
 				PacketID: t.packetID, MessageID: t.payload, Outcome: rec.Outcome,
 				SNRdB: reported, Frame: t.frame, Class: class, Detail: why})
+			// Only while the demodulator is free: one following another frame
+			// has that frame's flags up, and that frame says how it ended.
+			if dst.Firmware != nil && held == "" {
+				why := e.weakFailure(i, t, rxDBm, concurrent, nodes, txPHY, headerDamaged)
+				if err := dst.Firmware.Bridge.DeliverFailed(t.frame, why); err != nil {
+					e.Ledger.Record(rec)
+					e.captureWrite(t, src, dst, txPHY, rec)
+					return fmt.Errorf("engine: deliver failed frame to %s: %w", dst.specRef().Name, err)
+				}
+			}
 		default:
 			rec.Demod, rec.CRCOK, rec.FirmwareSaw = true, true, true
 			rec.Outcome = capture.Accepted

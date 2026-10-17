@@ -135,6 +135,68 @@ func TestAFailedFrameReachesOnlyANodeThatTakesIt(t *testing.T) {
 	}
 }
 
+// A chip older than ABI 1.7 reads failure 3 as a CRC error and would raise
+// RxDone for a frame it never locked onto, so a node that takes failed frames
+// but has not said its chip reads that code is never sent it.
+func TestANeverLockedFrameReachesOnlyAChipThatReadsIt(t *testing.T) {
+	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
+	defer func() { _ = b.Close() }()
+	c := fakeRadio(t, b.Addr())
+	defer func() { _ = c.Close() }()
+
+	for i := 0; i < 50 && !b.Attached(); i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	say := func(caps byte, want func() bool) {
+		record := make([]byte, 48)
+		record[47] = caps
+		if _, err := c.Write(append([]byte{kindRadioStats, 0, 48}, record...)); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 100; i++ {
+			b.mu.Lock()
+			ok := want()
+			b.mu.Unlock()
+			if ok {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		t.Fatalf("the bridge never read capability byte 0x%02x", caps)
+	}
+	read := func() []byte {
+		var hdr [3]byte
+		_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+		if _, err := io.ReadFull(c, hdr[:]); err != nil {
+			t.Fatal(err)
+		}
+		buf := make([]byte, binary.BigEndian.Uint16(hdr[1:]))
+		if _, err := io.ReadFull(c, buf); err != nil {
+			t.Fatal(err)
+		}
+		return buf
+	}
+
+	say(capFrameFailed, func() bool { return b.takesFailed })
+	if err := b.DeliverFailed([]byte{0x11}, FailedNoLock); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.DeliverFailed([]byte{0x22}, FailedHeader); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); string(got) != string([]byte{2, 0x22}) {
+		t.Fatalf("received % x, want 02 22: a chip that never said it reads failure 3 was sent it", got)
+	}
+
+	say(capFrameFailed|capNoLock, func() bool { return b.takesNoLock })
+	if err := b.DeliverFailed([]byte{0x33}, FailedNoLock); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); string(got) != string([]byte{3, 0x33}) {
+		t.Errorf("received % x, want 03 33", got)
+	}
+}
+
 // The point of the bridge: an emulated node's frame goes through the SAME
 // channel as a native one. If it took a different path the two backends could
 // not be compared, which is the whole reason ADR-0010 keeps both.

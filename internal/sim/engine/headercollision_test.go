@@ -111,21 +111,72 @@ func TestTheFirmwareIsToldWhereAFrameFailed(t *testing.T) {
 	}
 }
 
+// A frame swamped by an interferer it could not capture over is told to the
+// chip by when the interferer arrived. Arriving while the preamble still had to
+// be found, it left the receiver nothing to lock onto; arriving after the
+// header, it found a receiver that had locked and read the header, and the
+// payload failed its CRC.
+func TestAFrameSwampedBeforeLockIsOneTheChipNeverLockedOnto(t *testing.T) {
+	told := func(interfererStartMs uint32) []byte {
+		t.Helper()
+		e := engine.New(flat{100}, engine.Config{StepMs: 10, Seed: 4417})
+		defer func() { _ = e.Close() }()
+		br, err := firmware.Listen("127.0.0.1:0", "b")
+		if err != nil {
+			t.Fatalf("listen: %v", err)
+		}
+		e.Add(wfNode("a", 0, 22), nil)
+		e.Add(wfNode("b", 0.010, 22), &firmware.Node{Bridge: br, Backend: noopBackend{}})
+		e.Add(wfNode("c", 0.011, 30), nil)
+		peer := dialRecorderSaying(t, br.Addr(), 0x03)
+		defer func() { _ = peer.conn.Close() }()
+		for i := 0; i < 200 && !br.Attached(); i++ {
+			time.Sleep(5 * time.Millisecond)
+		}
+		if err := e.Run(context.Background(), 10); err != nil {
+			t.Fatal(err)
+		}
+		e.InjectFrame(0, make([]byte, 40))
+		if err := e.Run(context.Background(), interfererStartMs); err != nil {
+			t.Fatal(err)
+		}
+		e.InjectFrame(2, make([]byte, 60))
+		if err := e.Run(context.Background(), 8000); err != nil {
+			t.Fatal(err)
+		}
+		return peer.failed()
+	}
+
+	if got := told(30); len(got) == 0 || got[0] != byte(firmware.FailedNoLock) {
+		t.Fatalf("a frame swamped during its preamble reached the chip as % x, want never locked onto", got)
+	}
+	if got := told(120); len(got) == 0 || got[0] != byte(firmware.FailedCRC) {
+		t.Fatalf("a frame swamped after its header reached the chip as % x, want a CRC failure", got)
+	}
+}
+
 // recorder acks every tick, as firmware does, says it takes failed frames,
 // and keeps the first one it is handed.
 type recorder struct {
 	conn net.Conn
+	caps byte
 	mu   sync.Mutex
 	got  []byte
 }
 
 func dialRecorder(t *testing.T, addr string) *recorder {
 	t.Helper()
+	return dialRecorderSaying(t, addr, 0x01)
+}
+
+// dialRecorderSaying is dialRecorder with the capability byte chosen.
+func dialRecorderSaying(t *testing.T, addr string, caps byte) *recorder {
+	t.Helper()
 	c, err := net.Dial("tcp", addr)
 	if err != nil {
 		t.Fatalf("dial bridge: %v", err)
 	}
-	r := &recorder{conn: c}
+	r := &recorder{conn: c, caps: caps}
 	go r.serve()
 	return r
 }
@@ -147,7 +198,7 @@ func (r *recorder) serve() {
 			// A radio stats record that says it takes failed frames, ahead of
 			// the ack, as a native bridge sends one with every tick.
 			record := make([]byte, 48)
-			record[47] = 0x01
+			record[47] = r.caps
 			msg := append([]byte{0x09, 0, 48}, record...)
 			msg = append(msg, fakeKindAck, 0, 4, buf[0], buf[1], buf[2], buf[3])
 			if _, err := r.conn.Write(msg); err != nil {

@@ -71,6 +71,10 @@ const (
 	// capFrameFailed is the bit in byte 47 of the radio stats record by which a
 	// node says it takes kindFrameFailed.
 	capFrameFailed = 0x01
+	// capNoLock is the bit by which it says its chip reads FailedNoLock. A chip
+	// older than that reads the code as a CRC error and would raise RxDone for
+	// a frame it never locked onto, so the code goes only where this is set.
+	capNoLock = 0x02
 )
 
 // FrameFailure is where a frame the receiver locked onto went wrong, numbered
@@ -84,6 +88,11 @@ const (
 	// FailedHeader is a header the receiver could not read: the chip raises
 	// HeaderErr, and no RxDone follows.
 	FailedHeader FrameFailure = 2
+	// FailedNoLock is a frame the receiver could detect and never locked onto.
+	// The part raises nothing for it and leaves PreambleDetected latched; the
+	// chip model withdraws the HeaderValid it raised from the carrier's length,
+	// because that was its stand-in for a header it cannot decode.
+	FailedNoLock FrameFailure = 3
 )
 
 // ErrClosed is returned once a bridge has been shut down.
@@ -132,6 +141,7 @@ type Bridge struct {
 	// A native bridge built before that kind closes its connection on any kind
 	// it does not know, so it is sent only to a node that has asked for it.
 	takesFailed bool
+	takesNoLock bool
 
 	// done is closed when the bridge is. Anything waiting on the node must
 	// select on it: a node whose process has gone will never ack, and a wait
@@ -289,6 +299,7 @@ func (b *Bridge) read(c net.Conn) {
 				b.mu.Lock()
 				b.stats = st
 				b.takesFailed = n >= 48 && buf[47]&capFrameFailed != 0
+				b.takesNoLock = n >= 48 && buf[47]&capNoLock != 0
 				b.mu.Unlock()
 			}
 
@@ -326,7 +337,7 @@ func (b *Bridge) Deliver(frame []byte) error {
 // was always told.
 func (b *Bridge) DeliverFailed(frame []byte, why FrameFailure) error {
 	b.mu.Lock()
-	takes := b.takesFailed
+	takes := b.takesFailed && (why != FailedNoLock || b.takesNoLock)
 	b.mu.Unlock()
 	if !takes {
 		return nil

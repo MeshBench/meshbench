@@ -43,30 +43,7 @@ import (
 func (e *Engine) corruptedSymbols(rx int, t transmission, wantedDBm float64,
 	concurrent []transmission, nodes []*Node, txPHY phy) (total, header float64) {
 
-	type span struct{ from, to uint32 }
-	var hits []span
-	for _, other := range concurrent {
-		if other.packetID == t.packetID || other.from == rx || other.from == t.from {
-			continue
-		}
-		from, to := maxU32(other.startMs, t.startMs), minU32(other.endMs, t.endMs)
-		if to <= from {
-			continue
-		}
-		if !e.phyOf(nodes[other.from].specRef()).sameChannel(txPHY) {
-			continue
-		}
-		loss, ok := e.pathLoss(other.from, rx)
-		if !ok {
-			continue
-		}
-		otherDBm := e.rxPowerDBm(nodes, other.from, rx, loss)
-		if wantedDBm-otherDBm >= captureThresholdDB {
-			// Captured: the interferer is present, and irrelevant.
-			continue
-		}
-		hits = append(hits, span{from, to})
-	}
+	hits := e.uncapturedSpans(rx, t, wantedDBm, concurrent, nodes, txPHY)
 	if len(hits) == 0 {
 		return 0, 0
 	}
@@ -107,6 +84,58 @@ func (e *Engine) corruptedSymbols(rx int, t transmission, wantedDBm float64,
 	return math.Ceil(float64(damagedMs) / symbolMs), math.Ceil(math.Min(headerMs, hdrTo-hdrFrom) / symbolMs)
 }
 
+// span is a stretch of a transmission, in engine milliseconds.
+type span struct{ from, to uint32 }
+
+// uncapturedSpans is where co-channel traffic the receiver could not capture
+// over lands on a transmission, one span per interferer, unsorted.
+func (e *Engine) uncapturedSpans(rx int, t transmission, wantedDBm float64,
+	concurrent []transmission, nodes []*Node, txPHY phy) []span {
+
+	var hits []span
+	for _, other := range concurrent {
+		if other.packetID == t.packetID || other.from == rx || other.from == t.from {
+			continue
+		}
+		from, to := maxU32(other.startMs, t.startMs), minU32(other.endMs, t.endMs)
+		if to <= from {
+			continue
+		}
+		if !e.phyOf(nodes[other.from].specRef()).sameChannel(txPHY) {
+			continue
+		}
+		loss, ok := e.pathLoss(other.from, rx)
+		if !ok {
+			continue
+		}
+		otherDBm := e.rxPowerDBm(nodes, other.from, rx, loss)
+		if wantedDBm-otherDBm >= captureThresholdDB {
+			// Captured: the interferer is present, and irrelevant.
+			continue
+		}
+		hits = append(hits, span{from, to})
+	}
+	return hits
+}
+
+// weakFailure is what the chip is told of a frame lost to interference it
+// could not capture over. Interference that arrived while the preamble still
+// had to be found left the receiver nothing to lock onto; arriving later, it
+// found a receiver that had locked, and what it then destroyed decides between
+// a header error and a CRC error.
+func (e *Engine) weakFailure(rx int, t transmission, wantedDBm float64,
+	concurrent []transmission, nodes []*Node, txPHY phy, headerDamaged float64) firmware.FrameFailure {
+
+	symbolMs := 1000 * math.Pow(2, float64(txPHY.sf)) / txPHY.bandwidthHz
+	lockMs := float64(t.startMs) + float64(dsp.PreambleSymbols(txPHY.sf)-4)*symbolMs
+	for _, h := range e.uncapturedSpans(rx, t, wantedDBm, concurrent, nodes, txPHY) {
+		if float64(h.from) < lockMs {
+			return firmware.FailedNoLock
+		}
+	}
+	return failureOf(headerSurvives(headerDamaged))
+}
+
 // headerBlockMs is where a transmission's explicit header sits on the air: the
 // first interleaver block after the preamble, the two sync symbols and the
 // 2.25-symbol start of frame, eight symbols long and always coded at CR 4/8.
@@ -131,6 +160,16 @@ func failureOf(headerOK bool) firmware.FrameFailure {
 		return firmware.FailedCRC
 	}
 	return firmware.FailedHeader
+}
+
+// lockFailure is failureOf for a receiver that may never have locked at all,
+// which the chip has to hear about too: it guessed at a header from how long
+// the carrier lasted, and for a frame it never locked onto the guess was wrong.
+func lockFailure(synced, headerOK bool) firmware.FrameFailure {
+	if !synced {
+		return firmware.FailedNoLock
+	}
+	return failureOf(headerOK)
 }
 
 // survivesCorruption reports whether forward error correction can put a packet

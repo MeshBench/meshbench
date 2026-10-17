@@ -483,7 +483,7 @@ the same pair and puts it in the status line, the sweep panel prints it beside
 the cost estimate before the run starts, and the results panel repeats it above
 the table. Use native for anything being compared.
 
-### 3.2b A failed frame reaches the chip from a collision, and from nothing else
+### 3.2b A failed frame reaches the chip from interference, and from nothing else
 
 A frame a receiver locked onto and lost reaches the firmware's chip as the part
 reports it: a header it could not read raises `HeaderErr` and nothing more, and
@@ -494,27 +494,44 @@ the eight-symbol header block, which is coded at CR 4/8, is a header error, and
 anything else that is lost is a CRC error. In waveform mode the demodulator
 decides.
 
-Only a node that says it takes the message is told: a native build whose
-bridge sets the capability bit in its radio stats record. Emulated boards, and
-native builds from before that bit, are told nothing, as before.
+A frame the receiver could detect and never locked onto is reported too, as
+the third case. In calculated mode that is a frame swamped by an interferer it
+could not capture over that arrived while the preamble was still to be found;
+in waveform mode it is any frame the demodulator found no preamble lock in.
+The part raises nothing for it, so the chip model withdraws the `HeaderValid`
+it raised from how long the carrier lasted, and leaves `PreambleDetected` set.
 
-Three things are still kinder than the part:
+Native builds with strict receive keep the detection flags as the part does:
+`PreambleDetected` and `HeaderValid` stay set until the firmware clears them,
+and a frame the receiver was not listening for from its preamble to its end is
+not received, so a re-arm or a CAD scan part-way through a frame loses it.
 
-- **Only collisions fail a frame.** A signal near the floor that the chip would
-  lock onto and then lose is, in calculated mode, simply not heard. Real radios
-  raise header and CRC errors on weak signals all the time.
+Only a node that says it takes each message is told: a native build whose
+bridge sets the capability bits in its radio stats record. Emulated boards, and
+native builds from before those bits, are told nothing, and their chip clears
+the detection flags when the carrier ends, as before.
+
+Four things are still kinder than the part:
+
+- **Only interference fails a frame.** A signal near the floor that the chip
+  would lock onto and then lose is, in calculated mode, simply not heard. Real
+  radios raise header and CRC errors on weak signals all the time.
 - **The failure arrives when the packet ends.** The calculated path judges a
   reception once the whole packet is on the air, so `HeaderErr` is raised at the
   end of the frame rather than the end of its header.
-- **The detection flags clear with the carrier.** The datasheet holds
-  `PreambleDetected` and `HeaderValid` until the firmware clears them; the chip
-  model drops them when the engine says the channel has gone quiet. It does so
-  because, until failed frames reached the chip, a frame the engine withheld
-  left `HeaderValid` up with nothing to end it.
+- **`HeaderValid` is raised from the carrier, not from a decoded header.** The
+  chip model cannot decode, so it raises the flag once a carrier has lasted as
+  long as a header takes, and only withdraws it when the frame ends without a
+  lock. During such a frame a firmware sees a header where the part would show
+  only a preamble, and holds off transmitting for longer than it would on air.
+- **The processor takes no time.** A native node runs its loop in no simulated
+  time, so a firmware that is slow to collect a packet loses nothing to the
+  delay, where on a real board the next frame can arrive in the meantime.
 
-**Consequence.** A firmware's error paths now run, so a fault in how it handles
-a stale `HeaderErr` can be seen. A fault that depends on a detection flag
-outliving its carrier cannot, yet.
+**Consequence.** A firmware's error paths now run, and on native builds with
+strict receive a fault in how it handles a stale `PreambleDetected`, or a
+receiver re-armed mid-frame, can be seen. A fault that needs the processor to be
+slow cannot, yet.
 
 ### 3.3 Native nodes cannot catch anything architecture-dependent
 
