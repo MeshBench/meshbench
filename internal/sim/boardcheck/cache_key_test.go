@@ -8,7 +8,7 @@ import (
 func TestReportKeysCannotSelectDirectories(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", root)
-	t.Setenv("LocalAppData", root)
+	t.Setenv("LOCALAPPDATA", root)
 	for _, key := range []string{"", ".", "..", "../outside", `..\outside`, "/tmp/report", "a/b", "a\x00b"} {
 		for _, version := range []bool{false, true} {
 			board, tag := key, "repeater-v1.17.0"
