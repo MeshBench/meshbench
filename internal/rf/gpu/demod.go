@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"fmt"
 	"math/cmplx"
-	"unsafe"
 
 	"github.com/cogentcore/webgpu/wgpu"
 
@@ -86,10 +85,10 @@ func (d *Device) DemodBatch(rx []complex64, sf int) (bins []int, conf []float64,
 	}
 	defer out.Release()
 
-	params := struct{ N, Symbols uint32 }{uint32(n), uint32(symbols)}
+	params := []uint32{uint32(n), uint32(symbols)}
 	pbuf, err := d.device.CreateBufferInit(&wgpu.BufferInitDescriptor{
 		Label:    "demod-params",
-		Contents: unsafe.Slice((*byte)(unsafe.Pointer(&params)), 8),
+		Contents: wgpu.ToBytes(params),
 		Usage:    wgpu.BufferUsageUniform,
 	})
 	if err != nil {
@@ -134,7 +133,7 @@ func (d *Device) DemodBatch(rx []complex64, sf int) (bins []int, conf []float64,
 	if err != nil {
 		return nil, nil, err
 	}
-	pairs := unsafe.Slice((*uint32)(unsafe.Pointer(&raw[0])), symbols*2)
+	pairs := wgpu.FromBytes[uint32](raw)
 	bins = make([]int, symbols)
 	conf = make([]float64, symbols)
 	for i := 0; i < symbols; i++ {

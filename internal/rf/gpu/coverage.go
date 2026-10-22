@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"math"
-	"unsafe"
 
 	"github.com/cogentcore/webgpu/wgpu"
 
@@ -139,6 +138,6 @@ func (cg *CoverageGrid) Loss(p propagation.GridLossParams) ([]float32, error) {
 		return nil, err
 	}
 	res := make([]float32, cells)
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(&res[0])), outLen), raw)
+	copy(wgpu.ToBytes(res), raw)
 	return res, nil
 }
