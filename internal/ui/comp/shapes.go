@@ -50,6 +50,10 @@ func segment(p *clip.Path, a, b f32.Point, width float32) {
 // frame. An octagon is eight straight lines and needs no flattening at all. At
 // the four-pixel radius a node is actually drawn, the two are the same picture.
 func dot(p *clip.Path, c f32.Point, r float32) {
+	dotWound(p, c, r, 1)
+}
+
+func dotWound(p *clip.Path, c f32.Point, r, direction float32) {
 	// cos(22.5 degrees) and sin(22.5 degrees), so the octagon is drawn with a
 	// flat edge uppermost and reads as round rather than as a stop sign.
 	const (
@@ -57,14 +61,14 @@ func dot(p *clip.Path, c f32.Point, r float32) {
 		si = 0.3826834
 	)
 	pts := [8]f32.Point{
-		{X: c.X + r*co, Y: c.Y + r*si},
-		{X: c.X + r*si, Y: c.Y + r*co},
-		{X: c.X - r*si, Y: c.Y + r*co},
-		{X: c.X - r*co, Y: c.Y + r*si},
-		{X: c.X - r*co, Y: c.Y - r*si},
-		{X: c.X - r*si, Y: c.Y - r*co},
-		{X: c.X + r*si, Y: c.Y - r*co},
-		{X: c.X + r*co, Y: c.Y - r*si},
+		{X: c.X + r*co, Y: c.Y + direction*r*si},
+		{X: c.X + r*si, Y: c.Y + direction*r*co},
+		{X: c.X - r*si, Y: c.Y + direction*r*co},
+		{X: c.X - r*co, Y: c.Y + direction*r*si},
+		{X: c.X - r*co, Y: c.Y - direction*r*si},
+		{X: c.X - r*si, Y: c.Y - direction*r*co},
+		{X: c.X + r*si, Y: c.Y - direction*r*co},
+		{X: c.X + r*co, Y: c.Y - direction*r*si},
 	}
 	p.MoveTo(pts[0])
 	for _, q := range pts[1:] {
@@ -80,25 +84,7 @@ func length(p f32.Point) float32 {
 // dotReversed is dot wound the other way round, for punching a hole in a
 // filled shape under the non-zero winding rule.
 func dotReversed(p *clip.Path, c f32.Point, r float32) {
-	const (
-		co = 0.9238795
-		si = 0.3826834
-	)
-	pts := [8]f32.Point{
-		{X: c.X + r*co, Y: c.Y - r*si},
-		{X: c.X + r*si, Y: c.Y - r*co},
-		{X: c.X - r*si, Y: c.Y - r*co},
-		{X: c.X - r*co, Y: c.Y - r*si},
-		{X: c.X - r*co, Y: c.Y + r*si},
-		{X: c.X - r*si, Y: c.Y + r*co},
-		{X: c.X + r*si, Y: c.Y + r*co},
-		{X: c.X + r*co, Y: c.Y + r*si},
-	}
-	p.MoveTo(pts[0])
-	for _, q := range pts[1:] {
-		p.LineTo(q)
-	}
-	p.Close()
+	dotWound(p, c, r, -1)
 }
 
 // colorNRGBA is an alias so the map code can name a colour without every file

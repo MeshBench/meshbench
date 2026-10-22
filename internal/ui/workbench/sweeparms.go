@@ -120,19 +120,23 @@ func (c *sweepControls) senderList(t *theme.Theme, gtx layout.Context) layout.Di
 	// so this is bounded and scrolls.
 	senders := c.sendersNow()
 	return capped(t, gtx, &c.sendScroll, len(senders), 180, func(gtx layout.Context, i int) layout.Dimensions {
-		n := senders[i]
-		if c.senderRm[n] == nil {
-			c.senderRm[n] = &comp.Button{Label: "x", Kind: comp.Quiet}
-		}
-		b := c.senderRm[n]
-		return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return b.Layout(t, gtx)
-				}),
-				layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
-				layout.Flexed(1, comp.OneLine(t, t.Sz.Body, t.P.Ink, n, false)),
-			)
-		})
+		return removableSweepRow(t, gtx, c.senderRm, senders[i], false)
+	})
+}
+
+// Both sweep lists remove an entry with the same button and spacing.
+func removableSweepRow(t *theme.Theme, gtx layout.Context, buttons map[string]*comp.Button,
+	label string, emphasis bool) layout.Dimensions {
+	if buttons[label] == nil {
+		buttons[label] = &comp.Button{Label: "x", Kind: comp.Quiet}
+	}
+	return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return buttons[label].Layout(t, gtx)
+			}),
+			layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
+			layout.Flexed(1, comp.OneLine(t, t.Sz.Body, t.P.Ink, label, emphasis)),
+		)
 	})
 }

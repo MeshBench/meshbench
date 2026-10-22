@@ -53,25 +53,25 @@ func (p *validatePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	}
 	r := s.Residuals
 	rows := []comp.Row{
-		{Key: "pairs", Cells: []string{"observed pairs matched", fmt.Sprintf("%d", r.Matched),
-			"receptions between two nodes this scenario also has"}},
+		detailRow("pairs", "observed pairs matched", fmt.Sprintf("%d", r.Matched),
+			"receptions between two nodes this scenario also has"),
 		// The two ways an observation fails to match are different problems
 		// with different fixes, and their sum shown as one number is how a
 		// total matching failure once went undiagnosed for weeks.
-		{Key: "offscenario", Cells: []string{"named a node not in this scenario",
+		detailRow("offscenario", "named a node not in this scenario",
 			fmt.Sprintf("%d", r.OffScenario),
-			"the real network is bigger than this import - widen the region if these matter"}},
-		{Key: "nolink", Cells: []string{"no measured link for the pair",
+			"the real network is bigger than this import - widen the region if these matter"),
+		detailRow("nolink", "no measured link for the pair",
 			fmt.Sprintf("%d", r.NoLink),
-			"both nodes are here but the engine has not priced the path - let the links finish warming"}},
-		{Key: "censored", Cells: []string{"predicted past the modem's ceiling",
+			"both nodes are here but the engine has not priced the path - let the links finish warming"),
+		detailRow("censored", "predicted past the modem's ceiling",
 			fmt.Sprintf("%d", r.Censored),
-			"these can only say 'at least this optimistic', so they are counted but do not vote in the fit"}},
-		{Key: "median", Cells: []string{"median residual", fmt.Sprintf("%+.1f dB", r.MedianDB),
-			"positive means the model predicts more margin than was observed"}},
-		{Key: "spread", Cells: []string{"half the residuals within",
+			"these can only say 'at least this optimistic', so they are counted but do not vote in the fit"),
+		detailRow("median", "median residual", fmt.Sprintf("%+.1f dB", r.MedianDB),
+			"positive means the model predicts more margin than was observed"),
+		detailRow("spread", "half the residuals within",
 			fmt.Sprintf("%.1f dB", r.IQRdB),
-			"the interquartile range; a wide one means the model is inconsistent, not merely wrong"}},
+			"the interquartile range; a wide one means the model is inconsistent, not merely wrong"),
 	}
 	p.tb.SetRows(rows)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,

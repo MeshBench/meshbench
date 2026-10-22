@@ -20,6 +20,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -28,6 +29,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Entry is one thing the application ships under, in the window's words.
@@ -199,7 +201,9 @@ func readCurated(root string) (curated, error) {
 // goLibraries walks the build graph of ./cmd/meshbench (the superset: both
 // workbenches) and reads each linked module's licence from the module cache.
 func goLibraries(root string, notes map[string]string) ([]Entry, error) {
-	cmd := exec.Command("go", "list", "-deps",
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "list", "-deps",
 		"-f", `{{if .Module}}{{if not .Module.Main}}{{.Module.Path}}	{{.Module.Version}}	{{.Module.Dir}}{{end}}{{end}}`,
 		"./cmd/meshbench")
 	cmd.Dir = root

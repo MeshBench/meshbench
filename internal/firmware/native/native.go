@@ -143,7 +143,7 @@ func (n *Native) Start(ctx context.Context, bridgeAddr string) (err error) {
 	if n.cmd != nil {
 		return errors.New("firmware: native node already started")
 	}
-	cmd := exec.CommandContext(ctx, path, n.args(bridgeAddr)...)
+	cmd := exec.CommandContext(ctx, path, n.args(bridgeAddr)...) //nolint:gosec // G204: executing the selected firmware is the requested operation; no shell is involved.
 	// The same attributes the emulated backend gives its children: a
 	// parent-death signal where the platform has one, and no console window
 	// on Windows, where every node is a console program and a national

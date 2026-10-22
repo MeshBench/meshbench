@@ -131,6 +131,8 @@ func (y Yagi) GainDBi(azimuthDeg, elevationDeg float64) float64 {
 }
 
 // Mounted is a pattern placed in the world: rotated to a bearing and tilt.
+//
+//nolint:recvcheck // JSON decoding mutates through a pointer; gain queries and MarshalJSON deliberately read value snapshots.
 type Mounted struct {
 	Pattern      Pattern
 	BearingDeg   float64 // compass bearing of boresight

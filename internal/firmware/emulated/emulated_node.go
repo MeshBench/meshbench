@@ -397,7 +397,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 		args = append(args, "-m", fmt.Sprintf("%dM", e.PSRAMMB))
 	}
 	args = append(args, qemuDebugArgs(e.Dir)...)
-	e.qemu = exec.CommandContext(ctx, qemuBin, args...)
+	e.qemu = exec.CommandContext(ctx, qemuBin, args...) //nolint:gosec // G204: the resolved emulator must be executed; arguments are constructed separately, without a shell.
 	e.qemu.Env = e.radioEnv
 	e.qemu.Stdout, e.qemu.Stderr = emuLog, emuLog
 	// The emulator dies with the simulator. Without this a workbench killed

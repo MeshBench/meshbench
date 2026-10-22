@@ -110,7 +110,7 @@ type Bridge struct {
 // Listen starts a bridge for one emulated node. Addr is typically
 // "127.0.0.1:0"; the emulator connects to Addr().
 func Listen(addr, node string) (*Bridge, error) {
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr) //nolint:noctx // The node bridge owns this listener until Bridge.Close.
 	if err != nil {
 		return nil, fmt.Errorf("firmware: bridge listen: %w", err)
 	}

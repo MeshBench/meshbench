@@ -145,6 +145,7 @@ func (e *EmulatedNode) startRenode(ctx context.Context, bridge string) error {
 	if err != nil {
 		return err
 	}
+	//nolint:gosec // G204: resolved emulator and generated script path, not shell text.
 	e.qemu = exec.CommandContext(ctx, renodeBin,
 		"--disable-xwt", "--console", "-e", "include @"+script)
 	e.qemu.Stdin = stdin

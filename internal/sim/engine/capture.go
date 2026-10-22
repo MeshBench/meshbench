@@ -66,7 +66,7 @@ func (e *Engine) StartCaptureUDP(addr string) error {
 	// went out and the second killed the capture - one packet per run, which
 	// reads as a simulator that has stopped forwarding. An unconnected socket
 	// has no such conversation.
-	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
+	conn, err := net.ListenPacket("udp", "127.0.0.1:0") //nolint:noctx // The capture sink owns this local datagram socket until capture closes.
 	if err != nil {
 		return fmt.Errorf("engine: udp capture: %w", err)
 	}

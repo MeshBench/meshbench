@@ -333,7 +333,7 @@ func (c *BoardCatalogue) Ensure(ctx context.Context, img BoardImage) (string, er
 	// Written to a temporary name and renamed, so an interrupted download
 	// cannot leave a half-file that looks cached and boots nothing.
 	tmp := dst + ".part"
-	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	f, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return "", err
 	}

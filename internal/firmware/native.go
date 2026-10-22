@@ -55,7 +55,7 @@ func FindNative(explicit, role string) (string, error) {
 		return explicit, nil
 	}
 	if p := os.Getenv(EnvNativeBinary); p != "" {
-		st, err := os.Stat(p)
+		st, err := os.Stat(p) //nolint:gosec // G703: the environment explicitly selects the operator's native binary or directory.
 		if err != nil {
 			return "", fmt.Errorf("%w at %s (from %s): %w", ErrNativeMissing, p, EnvNativeBinary, err)
 		}
@@ -65,7 +65,7 @@ func FindNative(explicit, role string) (string, error) {
 		// became a mesh of whichever one was named.
 		if st.IsDir() {
 			q := filepath.Join(p, NativeBinaryName(role))
-			if _, err := os.Stat(q); err != nil {
+			if _, err := os.Stat(q); err != nil { //nolint:gosec // G703: q is the role binary in the explicitly selected local directory.
 				return "", fmt.Errorf("%w: %s is a directory but holds no %s (from %s)",
 					ErrNativeMissing, p, NativeBinaryName(role), EnvNativeBinary)
 			}

@@ -2,6 +2,8 @@
 //
 // One board to a file: a board is edited on its own, so a change to one
 // cannot reach another by accident.
+//
+//nolint:dupl // Board profiles intentionally stay independent: equal wiring today must not couple later hardware edits.
 package board
 
 import "github.com/MeshBench/meshbench/internal/mesh/energy"

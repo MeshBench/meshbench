@@ -1,6 +1,6 @@
 // Package gpu runs the DSP kernels on the GPU.
 //
-// Every kernel here has a CPU twin in internal/dsp and a test asserting they
+// Every kernel here has a CPU twin in internal/rf and a test asserting they
 // agree (ADR-0004). The CPU path is the oracle, not a fallback: a wrong kernel
 // does not crash, it produces a plausible waterfall and slightly wrong
 // sensitivity, and CI runs the twin rather than the kernel, because a runner
@@ -13,7 +13,6 @@ import (
 	_ "embed"
 	"fmt"
 	"sync"
-	"unsafe"
 
 	"github.com/cogentcore/webgpu/wgpu"
 )
@@ -113,17 +112,17 @@ func Open() (*Device, error) {
 	defer acquireMu.Unlock()
 	inst := wgpu.CreateInstance(nil)
 	if inst == nil {
-		return nil, fmt.Errorf("gpu: no WebGPU instance (no Vulkan/Metal/DX12 backend?)")
+		return nil, unavailableError{fmt.Errorf("gpu: no WebGPU instance (no Vulkan/Metal/DX12 backend?)")}
 	}
 	ad, err := inst.RequestAdapter(nil)
 	if err != nil {
-		return nil, fmt.Errorf("gpu: no adapter: %w", err)
+		return nil, unavailableError{fmt.Errorf("gpu: no adapter: %w", err)}
 	}
 	info := ad.GetInfo()
 	if err := usable(info); err != nil {
 		ad.Release()
 		inst.Release()
-		return nil, err
+		return nil, unavailableError{err}
 	}
 	// The adapter's own limits rather than WebGPU's defaults. The default
 	// storage-buffer binding is 128 MiB, and a country-sized height grid is
@@ -140,7 +139,7 @@ func Open() (*Device, error) {
 		dev, err = ad.RequestDevice(nil)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("gpu: no device: %w", err)
+		return nil, unavailableError{fmt.Errorf("gpu: no device: %w", err)}
 	}
 	// The device's own limits, not the adapter's. The request for the
 	// adapter's limits can be refused, and the fallback device then sits at
@@ -289,6 +288,6 @@ func (d *Device) Dechirp(rx []complex64, sf int) ([]complex64, error) {
 		return nil, err
 	}
 	res := make([]complex64, len(rx))
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(&res[0])), byteLen), raw)
+	copy(wgpu.ToBytes(res), raw)
 	return res, nil
 }

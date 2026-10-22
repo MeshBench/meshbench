@@ -7,7 +7,6 @@ package gpu
 import (
 	"fmt"
 	"math"
-	"unsafe"
 
 	"github.com/cogentcore/webgpu/wgpu"
 
@@ -190,8 +189,8 @@ func (f *CoverageFold) Read() (best, second []propagation.FoldSlot, served []uin
 	best = make([]propagation.FoldSlot, f.cells)
 	second = make([]propagation.FoldSlot, f.cells)
 	served = make([]uint32, f.cells)
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(&best[0])), f.cells*foldSlotBytes), bestRaw)
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(&second[0])), f.cells*foldSlotBytes), secRaw)
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(&served[0])), f.cells*4), srvRaw)
+	copy(wgpu.ToBytes(best), bestRaw)
+	copy(wgpu.ToBytes(second), secRaw)
+	copy(wgpu.ToBytes(served), srvRaw)
 	return best, second, served, nil
 }

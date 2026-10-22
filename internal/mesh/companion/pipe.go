@@ -213,7 +213,7 @@ type TCPLink struct {
 
 // ListenTCP starts a TCP server for one node's serial port.
 func ListenTCP(addr string, s Serial) (*TCPLink, error) {
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr) //nolint:noctx // The serial server owns this listener until TCPLink.Close.
 	if err != nil {
 		return nil, fmt.Errorf("companion: listen: %w", err)
 	}

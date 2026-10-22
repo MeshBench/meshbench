@@ -94,7 +94,7 @@ func NewTileStore(cacheDir string) (*TileStore, error) {
 	if cacheDir == "" {
 		return nil, fmt.Errorf("terrain: tile store needs a cache directory")
 	}
-	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil { //nolint:gosec // G703: cacheDir is the operator-selected cache root, not a path from a tile response.
 		return nil, fmt.Errorf("terrain: cache directory: %w", err)
 	}
 	return &TileStore{
@@ -195,7 +195,7 @@ func (s *TileStore) get(ctx context.Context, x, y int) (*tile, error) {
 
 func (s *TileStore) load(ctx context.Context, x, y int) (*tile, error) {
 	p := s.path(x, y)
-	if b, err := os.ReadFile(p); err == nil {
+	if b, err := os.ReadFile(p); err == nil { //nolint:gosec // G703: p joins the cache root with integer tile coordinates only.
 		return decodeTerrarium(b)
 	}
 	if s.Offline {
@@ -238,8 +238,8 @@ func (s *TileStore) load(ctx context.Context, x, y int) (*tile, error) {
 	}
 	// Written after decoding, so a truncated or HTML response never lands in
 	// the cache. A poisoned cache entry is permanent by design here.
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err == nil {
-		_ = os.WriteFile(p, body, 0o644)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err == nil { //nolint:gosec // G703: the directory is derived from the cache root and integer tile coordinates.
+		_ = os.WriteFile(p, body, 0o644) //nolint:gosec // G703: only the decoded tile body is remote; p uses local integer tile coordinates.
 	}
 	return t, nil
 }

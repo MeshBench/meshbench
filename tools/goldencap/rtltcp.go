@@ -14,7 +14,7 @@ type rtlClient struct {
 }
 
 func dialRTL(addr string) (*rtlClient, error) {
-	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second) //nolint:noctx // This CLI helper has no caller context; its dial is explicitly bounded to five seconds.
 	if err != nil {
 		return nil, err
 	}

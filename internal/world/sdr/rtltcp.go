@@ -48,7 +48,7 @@ type RTLTCP struct {
 // ServeRTLTCP starts serving source at addr ("127.0.0.1:0" for an OS-picked
 // port). It returns immediately; the listener runs until Close.
 func ServeRTLTCP(addr string, source SampleSource) (*RTLTCP, error) {
-	ln, err := net.Listen("tcp", addr)
+	ln, err := net.Listen("tcp", addr) //nolint:noctx // The SDR server owns this listener until RTLTCP.Close.
 	if err != nil {
 		return nil, err
 	}

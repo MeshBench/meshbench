@@ -111,11 +111,11 @@ func runProfile(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	fromGround, ok := t.ElevationM(*fromLat, *fromLon)
+	fromGround, ok := t.ElevationAt(ctx, *fromLat, *fromLon)
 	if !ok {
 		return fmt.Errorf("no terrain at the first point")
 	}
-	toGround, ok := t.ElevationM(*toLat, *toLon)
+	toGround, ok := t.ElevationAt(ctx, *toLat, *toLon)
 	if !ok {
 		return fmt.Errorf("no terrain at the second point")
 	}
@@ -125,7 +125,7 @@ func runProfile(ctx context.Context, args []string) error {
 	worst, worstAt, worstGround := math.Inf(-1), 0.0, 0.0
 	for i := 0; i <= *samples; i++ {
 		f := float64(i) / float64(*samples)
-		h, ok := t.ElevationM(*fromLat+(*toLat-*fromLat)*f, *fromLon+(*toLon-*fromLon)*f)
+		h, ok := t.ElevationAt(ctx, *fromLat+(*toLat-*fromLat)*f, *fromLon+(*toLon-*fromLon)*f)
 		if !ok {
 			return fmt.Errorf("terrain runs out %.1f km along the path", f*distKm)
 		}

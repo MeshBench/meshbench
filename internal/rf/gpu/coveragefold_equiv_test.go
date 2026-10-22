@@ -11,12 +11,8 @@ import (
 // pattern, so the gain table's interpolation is on trial too - folded on
 // the device against the CPU twin folding the CPU kernel's losses. Best
 // and second slots must agree cell by cell: same station, same margins.
-func TestCoverageFoldMatchesCPU(t *testing.T) {
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no GPU available: %v", err)
-	}
-	defer d.Close()
+func compareCoverageFoldCPU(t *testing.T) {
+	d := comparisonDevice(t)
 
 	g := hilly()
 	base := propagation.GridLossParams{
@@ -75,8 +71,16 @@ func TestCoverageFoldMatchesCPU(t *testing.T) {
 	}
 
 	check := func(name string, got, want []propagation.FoldSlot) {
+		if len(got) != len(want) {
+			t.Fatalf("%s: GPU returned %d slots, CPU %d", name, len(got), len(want))
+		}
 		wrong := 0
 		for i := range want {
+			for _, v := range []float32{got[i].MinDB, got[i].OutDB, got[i].InDB} {
+				if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+					t.Fatalf("%s cell %d: non-finite margin %v", name, i, got[i])
+				}
+			}
 			if got[i].Station != want[i].Station {
 				// A rank swap at a near-tie is float noise, not a defect:
 				// accept it only when the margins are within noise of tied.
@@ -97,9 +101,13 @@ func TestCoverageFoldMatchesCPU(t *testing.T) {
 	}
 	check("best", gotBest, wantBest)
 	check("second", gotSecond, wantSecond)
+	if len(gotServed) != len(wantServed) {
+		t.Fatalf("GPU returned %d serving counts, CPU %d", len(gotServed), len(wantServed))
+	}
 	for i := range wantServed {
 		if gotServed[i] != wantServed[i] {
 			t.Fatalf("served[%d]: gpu %d, cpu %d", i, gotServed[i], wantServed[i])
 		}
 	}
+	compareFoldSelfCells(t, d)
 }

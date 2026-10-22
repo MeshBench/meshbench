@@ -130,7 +130,7 @@ func ListenAt(want string, h Handler) (*Server, error) {
 	switch addr.Kind {
 	case Unix:
 		_ = os.Remove(addr.Addr)
-		ln, err := net.Listen("unix", addr.Addr)
+		ln, err := net.Listen("unix", addr.Addr) //nolint:noctx // Control listeners are owned by Server.Close, not by a request context.
 		if err != nil {
 			return nil, fmt.Errorf("control: listen: %w", err)
 		}
@@ -142,7 +142,7 @@ func ListenAt(want string, h Handler) (*Server, error) {
 		}
 		s.ln, s.addr = ln, addr
 	case TCP:
-		ln, err := net.Listen("tcp", addr.Addr)
+		ln, err := net.Listen("tcp", addr.Addr) //nolint:noctx // Control listeners are owned by Server.Close, not by a request context.
 		if err != nil {
 			return nil, fmt.Errorf("control: listen: %w", err)
 		}

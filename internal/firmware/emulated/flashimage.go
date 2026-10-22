@@ -52,7 +52,7 @@ func padToDeclaredFlash(image, dir string) (string, error) {
 	for i := len(b); i < want; i++ {
 		grown[i] = 0xFF
 	}
-	if err := os.WriteFile(out, grown, 0o644); err != nil {
+	if err := os.WriteFile(out, grown, 0o644); err != nil { //nolint:gosec // G703: out is the node work directory's flash image, selected by the operator.
 		return "", fmt.Errorf("firmware: writing the padded flash image: %w", err)
 	}
 	return out, nil
@@ -237,7 +237,7 @@ func PadImage(src, dst string) (int, error) {
 	for i := len(data); i < want; i++ {
 		out[i] = 0xFF // erased flash
 	}
-	return mb, os.WriteFile(dst, out, 0o644)
+	return mb, os.WriteFile(dst, out, 0o644) //nolint:gosec // G703: dst is the requested local flash image destination, not a member extracted from an archive.
 }
 
 // ClassifyESPImage reads an ESP32 flash image's header and answers the flash

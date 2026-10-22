@@ -316,7 +316,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, b, 0o644)
+	return os.WriteFile(dst, b, 0o644) //nolint:gosec // G703: dst is a file in the operator-selected replacement cache, not a remote path.
 }
 
 // applyMemoryCeiling puts a soft limit on the Go heap: the tile budget plus

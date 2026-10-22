@@ -168,20 +168,7 @@ func (c *sweepControls) armList(t *theme.Theme, gtx layout.Context) layout.Dimen
 	// everything under it off the window with no way back.
 	arms := c.armsNow()
 	return capped(t, gtx, &c.armScroll, len(arms), 200, func(gtx layout.Context, i int) layout.Dimensions {
-		a := arms[i]
-		if c.armRm[a] == nil {
-			c.armRm[a] = &comp.Button{Label: "x", Kind: comp.Quiet}
-		}
-		b := c.armRm[a]
-		return layout.Inset{Bottom: t.Sp.XS}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return b.Layout(t, gtx)
-				}),
-				layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout),
-				layout.Flexed(1, comp.OneLine(t, t.Sz.Body, t.P.Ink, a, true)),
-			)
-		})
+		return removableSweepRow(t, gtx, c.armRm, arms[i], true)
 	})
 }
 

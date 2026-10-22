@@ -37,7 +37,7 @@ func lookupTool(name string) (string, error) {
 	}
 	env := tool.env
 	if p := os.Getenv(env); p != "" {
-		if _, err := os.Stat(p); err == nil {
+		if _, err := os.Stat(p); err == nil { //nolint:gosec // G703: the environment explicitly selects a local emulator executable.
 			return p, nil
 		}
 		return "", fmt.Errorf("firmware: %s points at %s, which is not there", env, p)

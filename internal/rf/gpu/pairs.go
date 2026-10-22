@@ -4,7 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"math"
-	"unsafe"
 
 	"github.com/cogentcore/webgpu/wgpu"
 
@@ -124,6 +123,6 @@ func (d *Device) PairProfileLoss(p propagation.PairProfiles, freqMHz float64) ([
 		return nil, err
 	}
 	res := make([]float32, n)
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(&res[0])), outLen), raw)
+	copy(wgpu.ToBytes(res), raw)
 	return res, nil
 }

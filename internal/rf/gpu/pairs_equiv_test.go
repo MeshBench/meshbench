@@ -41,16 +41,18 @@ func syntheticProfiles(nPairs int, seed int64) propagation.PairProfiles {
 	}
 	p.Add(flat, 0, 10, 1.5)
 	p.Add(flat, 0, 30, 30)
+	// These take the kernel's free-space-only branch, before it reads any
+	// heights. Long hilly profiles cannot exercise a zero-, one- or two-point
+	// profile, even when they happen to have no diffraction.
+	for _, hs := range [][]float32{nil, {100}, {100, 130}} {
+		p.Add(hs, 8000, 10, 1.5)
+	}
 	return p
 }
 
 // The pairs kernel and its CPU twin have to agree (ADR-0004).
-func TestPairLossMatchesCPU(t *testing.T) {
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no usable GPU here: %v", err)
-	}
-	defer d.Close()
+func comparePairLossCPU(t *testing.T) {
+	d := comparisonDevice(t)
 
 	p := syntheticProfiles(600, 9001)
 	got, err := d.PairProfileLoss(p, 869.618)
@@ -59,17 +61,11 @@ func TestPairLossMatchesCPU(t *testing.T) {
 	}
 	want := propagation.ProfilePairLossCPU(p, 869.618)
 
-	worst, at := 0.0, -1
-	for i := range want {
-		if d := math.Abs(float64(got[i] - want[i])); d > worst {
-			worst, at = d, i
-		}
-	}
-	// A tenth of a decibel: the same arithmetic in the same order, so the
-	// only difference should be single-precision transcendentals.
-	if worst > 0.1 {
-		t.Errorf("worst disagreement %.3f dB at pair %d over %d pairs",
-			worst, at, len(want))
+	// The profile heights are shared byte for byte, so only f32
+	// transcendentals differ: hold the twins within a tenth of a dB.
+	worst, err := lossDifference(got, want, 0.1)
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Logf("%d pairs compared, worst disagreement %.4f dB", len(want), worst)
 }
@@ -79,11 +75,7 @@ func TestPairLossIsWorthIt(t *testing.T) {
 	if testing.Short() {
 		t.Skip("timing")
 	}
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no usable GPU here: %v", err)
-	}
-	defer d.Close()
+	d := comparisonDevice(t)
 
 	p := syntheticProfiles(48205, 9001)
 	start := time.Now()
@@ -96,16 +88,11 @@ func TestPairLossIsWorthIt(t *testing.T) {
 	want := propagation.ProfilePairLossCPU(p, 869.618)
 	onCPU := time.Since(start)
 
-	worst := 0.0
-	for i := range want {
-		if d := math.Abs(float64(got[i] - want[i])); d > worst {
-			worst = d
-		}
+	worst, err := lossDifference(got, want, 0.1)
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Logf("%d pairs: GPU %v, one core %v (%.1fx), worst disagreement %.4f dB",
 		len(want), onGPU.Round(time.Millisecond), onCPU.Round(time.Millisecond),
 		float64(onCPU)/float64(onGPU), worst)
-	if worst > 0.1 {
-		t.Errorf("worst disagreement %.3f dB", worst)
-	}
 }

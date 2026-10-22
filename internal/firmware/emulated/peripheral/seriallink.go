@@ -63,7 +63,7 @@ func DialSerial(ctx context.Context, addr string, log io.Writer) *SerialLink {
 				err = ctx.Err()
 				break
 			}
-			if conn, err = net.Dial(network, addr); err == nil {
+			if conn, err = (&net.Dialer{}).DialContext(ctx, network, addr); err == nil {
 				break
 			}
 			time.Sleep(25 * time.Millisecond)

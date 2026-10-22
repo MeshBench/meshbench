@@ -11,6 +11,8 @@ const NoDataLoss = float32(3.4e38)
 // to end, with per-pair offsets, counts, distances and antenna heights. Packed
 // once on the CPU from the hot tile cache, so the two computations see
 // byte-identical ground.
+//
+//nolint:recvcheck // Add mutates the packed buffers; Pairs reads a value snapshot shared with both compute paths.
 type PairProfiles struct {
 	Heights []float32
 	// MetaU is offset, count per pair. MetaF is distance in metres, antenna

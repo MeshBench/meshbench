@@ -165,7 +165,16 @@ func (d *Device) checkFold() error {
 // within noise of a tie, in which case the swap is float order rather than
 // wrong physics.
 func compareFoldSlots(what string, got, want []propagation.FoldSlot) error {
+	if len(got) != len(want) {
+		return fmt.Errorf("%s: GPU returned %d slots, CPU %d", what, len(got), len(want))
+	}
 	for i := range want {
+		for _, v := range []float32{got[i].MinDB, got[i].OutDB, got[i].InDB,
+			want[i].MinDB, want[i].OutDB, want[i].InDB} {
+			if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+				return fmt.Errorf("%s: non-finite margin at cell %d", what, i)
+			}
+		}
 		if got[i].Station != want[i].Station {
 			if math.Abs(float64(got[i].MinDB-want[i].MinDB)) > foldTolerance {
 				return fmt.Errorf("%s: cell %d picked station %d, the processor %d",
@@ -187,26 +196,8 @@ func compareFoldSlots(what string, got, want []propagation.FoldSlot) error {
 }
 
 func compare(what string, got, want []float32) error {
-	if len(got) != len(want) {
-		return fmt.Errorf("%s kernel returned %d values, the processor %d",
-			what, len(got), len(want))
-	}
-	worst, at := 0.0, -1
-	for i := range want {
-		// No-data cells are a refusal on both sides rather than a number, so
-		// they are compared as a pair of refusals.
-		if math.IsInf(float64(want[i]), 1) || want[i] == propagation.NoDataLoss {
-			continue
-		}
-		if d := math.Abs(float64(got[i] - want[i])); d > worst {
-			worst, at = d, i
-		}
-	}
-	if worst > tolerance {
-		return fmt.Errorf(
-			"%s kernel disagrees with the processor by %.1f dB at sample %d - "+
-				"the device computes a different answer, not a slower one",
-			what, worst, at)
+	if _, err := lossDifference(got, want, tolerance); err != nil {
+		return fmt.Errorf("%s kernel disagrees with the processor: %w", what, err)
 	}
 	return nil
 }

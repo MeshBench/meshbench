@@ -17,6 +17,6 @@ import (
 // suite is built on the headless path, and that is
 // not a stopgap for this.
 func runWorkbench(_ context.Context, args []string) error {
-	workbench.Run(args)
+	workbench.Run(args) //nolint:contextcheck // Run owns the GUI lifetime and cancels its session when the windows close.
 	return nil
 }

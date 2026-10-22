@@ -90,7 +90,7 @@ func EmulatorFingerprint() string {
 	if path == "" {
 		return "unconfigured"
 	}
-	fi, err := os.Stat(path)
+	fi, err := os.Stat(path) //nolint:gosec // G703: fingerprint the emulator explicitly selected by the local environment.
 	if err != nil {
 		return "unconfigured"
 	}

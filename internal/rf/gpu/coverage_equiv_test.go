@@ -36,12 +36,8 @@ func hilly() propagation.HeightGrid {
 // The ADR-0004 harness for the coverage kernel: the CPU twin is the oracle,
 // and the GPU must agree with it everywhere — including on the no-data cells,
 // where "agree" means both refuse rather than both inventing ground.
-func TestCoverageKernelMatchesCPU(t *testing.T) {
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no GPU available: %v", err)
-	}
-	defer d.Close()
+func compareCoverageCPU(t *testing.T) {
+	d := comparisonDevice(t)
 	t.Logf("GPU: %s (%s)", d.Name, d.Backend)
 
 	g := hilly()
@@ -60,29 +56,11 @@ func TestCoverageKernelMatchesCPU(t *testing.T) {
 		t.Fatalf("gpu returned %d cells, cpu %d", len(got), len(want))
 	}
 
-	worst, worstAt := 0.0, -1
-	mismatchedNoData := 0
-	for i := range want {
-		cpuNoData := want[i] > 1e30
-		gpuNoData := got[i] > 1e30
-		if cpuNoData != gpuNoData {
-			mismatchedNoData++
-			continue
-		}
-		if cpuNoData {
-			continue
-		}
-		if diff := math.Abs(float64(got[i] - want[i])); diff > worst {
-			worst, worstAt = diff, i
-		}
-	}
-	if mismatchedNoData > 0 {
-		t.Errorf("%d cells disagree about whether the terrain answered", mismatchedNoData)
-	}
-	// f32 against f64 across a 200-step accumulation: fractions of a dB is
-	// honest agreement; whole dB is a wrong kernel.
-	if worst > 0.5 {
-		t.Fatalf("worst disagreement %.3f dB at cell %d - the twins have diverged", worst, worstAt)
+	// f32 against f64 across 200 profile steps: fractions of a dB
+	// are float noise; whole dB is a wrong kernel.
+	worst, err := lossDifference(got, want, 0.5)
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Logf("worst disagreement %.4f dB over %d cells", worst, len(want))
 }

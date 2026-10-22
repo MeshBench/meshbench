@@ -2,6 +2,7 @@ package gpu
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/rf/dsp"
@@ -12,15 +13,11 @@ import (
 // near-tie. f32 against f64 can split a tie the noise made - which is why
 // the verdict path keeps the CPU as the judge and the kernel is an
 // accelerator, never an authority (ADR-0004, and the W6 gate).
-func TestDemodBatchMatchesCPU(t *testing.T) {
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no GPU available: %v", err)
-	}
-	defer d.Close()
+func compareDemodCPU(t *testing.T) {
+	d := comparisonDevice(t)
 	t.Logf("GPU: %s (%s)", d.Name, d.Backend)
 
-	for _, sf := range []int{7, 9, 11} {
+	for _, sf := range []int{7, 8, 9, 10, 11} {
 		n := dsp.SamplesPerSymbol(sf)
 		m := dsp.Modulator{SF: sf}
 		syms := make([]int, 64)
@@ -41,6 +38,10 @@ func TestDemodBatchMatchesCPU(t *testing.T) {
 			t.Fatalf("SF%d: %v", sf, err)
 		}
 
+		if len(bins) != len(syms) || len(conf) != len(syms) {
+			t.Fatalf("SF%d: got %d bins and %d confidences, want %d", sf, len(bins), len(conf), len(syms))
+		}
+
 		cpu := dsp.Demodulator{SF: sf}
 		scratch := make([]complex128, n)
 		disagreements := 0
@@ -55,7 +56,11 @@ func TestDemodBatchMatchesCPU(t *testing.T) {
 				}
 				disagreements++
 			}
-			_ = conf
+			// The kernel truncates confidence to thousandths. Another
+			// thousandth covers f32 FFT roundoff on these noisy symbols.
+			if math.IsNaN(conf[i]) || math.IsInf(conf[i], 0) || math.Abs(conf[i]-wantConf) > 0.002 {
+				t.Fatalf("SF%d symbol %d: gpu confidence %.6f, cpu %.6f", sf, i, conf[i], wantConf)
+			}
 		}
 		if disagreements > len(syms)/8 {
 			t.Fatalf("SF%d: %d of %d symbols split - more than ties explain",
@@ -66,11 +71,7 @@ func TestDemodBatchMatchesCPU(t *testing.T) {
 
 // SF12 must refuse loudly rather than truncate its FFT.
 func TestDemodBatchRefusesSF12(t *testing.T) {
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no GPU available: %v", err)
-	}
-	defer d.Close()
+	d := comparisonDevice(t)
 	if _, _, err := d.DemodBatch(make([]complex64, 4096), 12); err == nil {
 		t.Fatal("SF12 should refuse; the symbol does not fit workgroup memory")
 	}
@@ -78,11 +79,7 @@ func TestDemodBatchRefusesSF12(t *testing.T) {
 
 // The number the plan wants recorded: batch demodulation, CPU against GPU.
 func BenchmarkDemodBatch(b *testing.B) {
-	d, err := Open()
-	if err != nil {
-		b.Skipf("no GPU available: %v", err)
-	}
-	defer d.Close()
+	d := comparisonDevice(b)
 
 	const sf, count = 9, 512
 	n := dsp.SamplesPerSymbol(sf)

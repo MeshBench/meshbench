@@ -21,7 +21,7 @@ type floorNoise struct {
 
 func newFloorNoise(psd float64) *floorNoise {
 	// A fixed seed: deterministic per connection, never shared.
-	return &floorNoise{psd: psd, rng: rand.New(rand.NewSource(0x5DEECE66D))}
+	return &floorNoise{psd: psd, rng: rand.New(rand.NewSource(0x5DEECE66D))} //nolint:gosec // G404: reproducible simulated receiver noise, not a security token.
 }
 
 // sigma is the per-component amplitude of the floor at a given rate: total

@@ -174,7 +174,7 @@ func launchWireshark(bin, meshcoreLua, meshbenchLua string) string {
 	// its own fixed paths - and every argument is built above from constants
 	// and paths this process found. None of it reaches here from a caller.
 	// Starting a named program is the entire purpose of this function.
-	cmd := exec.Command(bin, args...) //nolint:gosec // G204: bin and args are resolved here, not supplied
+	cmd := exec.Command(bin, args...) //nolint:gosec,noctx // Resolved executable and fixed argv; this detached viewer deliberately outlives the session.
 	// Its own stdio, so a chatty GTK does not interleave with the session log.
 	cmd.Stdout, cmd.Stderr = nil, nil
 	// Wireshark finds dumpcap on PATH; put a runnable one first if the system
@@ -232,7 +232,7 @@ func usableDumpcap() string {
 		if os.MkdirAll(filepath.Dir(mine), 0o755) != nil {
 			continue
 		}
-		if os.WriteFile(mine, b, 0o755) != nil {
+		if os.WriteFile(mine, b, 0o755) != nil { //nolint:gosec // G703: mine is the fixed .local/bin/dumpcap path under the current user's home.
 			continue
 		}
 		return mine

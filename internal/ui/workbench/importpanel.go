@@ -62,22 +62,22 @@ func (p *importPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 		}
 		im := s.Import
 		rows := []comp.Row{
-			{Key: "found", Cells: []string{"records fetched",
-				fmt.Sprintf("%d", im.Records), "what the deployment published"}},
-			{Key: "usable", Cells: []string{"nodes importable",
-				fmt.Sprintf("%d", im.Nodes), "placed well enough to simulate"}},
-			{Key: "nopos", Cells: []string{"skipped, no position",
+			detailRow("found", "records fetched",
+				fmt.Sprintf("%d", im.Records), "what the deployment published"),
+			detailRow("usable", "nodes importable",
+				fmt.Sprintf("%d", im.Nodes), "placed well enough to simulate"),
+			detailRow("nopos", "skipped, no position",
 				fmt.Sprintf("%d", im.SkippedNoPosition),
-				"reported rather than invented; a node with no position cannot be placed"}},
-			{Key: "outside", Cells: []string{"skipped, outside the area",
+				"reported rather than invented; a node with no position cannot be placed"),
+			detailRow("outside", "skipped, outside the area",
 				fmt.Sprintf("%d", im.SkippedOutside),
-				"beyond the boundary and its RF margin"}},
-			{Key: "uncertain", Cells: []string{"placed loosely",
+				"beyond the boundary and its RF margin"),
+			detailRow("uncertain", "placed loosely",
 				fmt.Sprintf("%d", im.Uncertain),
-				"imported and flagged; any result involving them carries it"}},
-			{Key: "participants", Cells: []string{"participants",
+				"imported and flagged; any result involving them carries it"),
+			detailRow("participants", "participants",
 				fmt.Sprintf("%d", im.Participants),
-				"outside the area but kept for their RF - dropping them makes the mesh behave better than reality"}},
+				"outside the area but kept for their RF - dropping them makes the mesh behave better than reality"),
 		}
 		p.tb.SetRows(rows)
 		return p.tb.Layout(t, gtx, nil)
@@ -177,4 +177,8 @@ func (p *importPanel) areaRow(t *theme.Theme, gtx layout.Context,
 		}))
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)
+}
+
+func detailRow(key, label, value, explanation string) comp.Row {
+	return comp.Row{Key: key, Cells: []string{label, value, explanation}}
 }
