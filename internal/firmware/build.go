@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // BuildOptions is one build of one role.
@@ -72,7 +73,7 @@ func Build(ctx context.Context, o BuildOptions) (Built, error) {
 	}
 	label := o.Label
 	if label == "" {
-		label = "local-" + GitRef(src)
+		label = "local-" + gitRef(ctx, src)
 	}
 	bin, err := buildNative(ctx, src, o.Role, o.Log)
 	if err != nil {
@@ -99,7 +100,7 @@ func buildNative(ctx context.Context, src, role string, log io.Writer) (string, 
 	if err != nil {
 		return "", err
 	}
-	cmd := exec.CommandContext(ctx, "bash", script, role, out)
+	cmd := exec.CommandContext(ctx, "bash", script, role, out) //nolint:gosec // G204: running the operator-selected build script is the requested operation; arguments are separate argv entries.
 	cmd.Env = append(os.Environ(), "MESHCORE="+src, "CRYPTO="+crypto)
 	if log != nil {
 		cmd.Stderr, cmd.Stdout = log, log
@@ -130,7 +131,7 @@ func FindBuildScript() (string, error) {
 		filepath.Join(home, "msim", "meshcore-native", "build.sh"),
 		filepath.Join(home, "src", "meshcore-native", "build.sh"))
 	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
+		if _, err := os.Stat(c); err == nil { //nolint:gosec // G703: c is an explicit local tool override or a fixed candidate under the user's home/cache.
 			return c, nil
 		}
 	}
@@ -160,7 +161,7 @@ func FindCrypto(ctx context.Context, log io.Writer) (string, error) {
 		filepath.Join(home, "src", "arduinolibs", "libraries", "Crypto"),
 		filepath.Join(deps, "libraries", "Crypto"),
 	} {
-		if _, err := os.Stat(c); err == nil {
+		if _, err := os.Stat(c); err == nil { //nolint:gosec // G703: c is an explicit local tool override or a fixed candidate under the user's home/cache.
 			return c, nil
 		}
 	}
@@ -170,6 +171,7 @@ func FindCrypto(ctx context.Context, log io.Writer) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(deps), 0o755); err != nil {
 		return "", err
 	}
+	//nolint:gosec // G204: fixed repository URL; deps is the user cache destination, passed as one argument.
 	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1",
 		"https://github.com/rweather/arduinolibs", deps)
 	if log != nil {
@@ -186,10 +188,18 @@ func FindCrypto(ctx context.Context, log io.Writer) (string, error) {
 // GitRef names a checkout by its branch, or its short hash when it is not on
 // one, reduced to characters a build label can hold.
 func GitRef(dir string) string {
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return gitRef(ctx, dir)
+}
+
+func gitRef(ctx context.Context, dir string) string {
+	//nolint:gosec // G204: dir is the requested checkout passed as a separate git -C argument, without a shell.
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--abbrev-ref", "HEAD").Output()
 	ref := strings.TrimSpace(string(out))
 	if err != nil || ref == "" || ref == "HEAD" {
-		out, err = exec.Command("git", "-C", dir, "rev-parse", "--short", "HEAD").Output()
+		//nolint:gosec // G204: same local checkout query; the command and revision are fixed.
+		out, err = exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--short", "HEAD").Output()
 		ref = strings.TrimSpace(string(out))
 		if err != nil {
 			return "build"
