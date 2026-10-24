@@ -65,6 +65,11 @@ had changed in them - which is the gap this file exists to close.
   opened on a library of builds that looked unpublished. A row whose half of
   the catalogue is unreachable now offers a retry. `firmware.library` rows
   carry `checking` and `catalogue_down`.
+- **GPU coverage no longer depends on the driver's trig.** The fold kernel's
+  bearing cancelled two near-equal numbers, so a driver whose `sin` and `cos`
+  are only as accurate as Vulkan requires, as on an Intel UHD 620, put a
+  directional antenna's gain 0.9 dB out. The bearing, distance and elevation
+  now use the kernel's own series.
 
 ## [0.3.0] - 2026-10-24
 
