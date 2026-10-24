@@ -18,8 +18,9 @@ import (
 // asked is one request waiting on the firmware.
 type asked struct {
 	kind, to, text string
-	// sentMs is the simulated time the firmware took it, once it has.
-	sentMs uint32
+	// sentMs is the simulated time the firmware took it, once it has, and
+	// timeoutMs how long the firmware said it would wait for the ack.
+	sentMs, timeoutMs uint32
 }
 
 // expect records a request so its answers can be matched to it.
@@ -33,6 +34,7 @@ func (c *compSession) expect(kind, to, text string) {
 // answer, stamped with the simulated time they arrived. Called with c.mu held.
 func (c *compSession) receipt(f proto.Frame) bool {
 	at := fmt.Sprintf("[%.3f s] ", float64(c.simMs())/1000)
+	c.expire(at)
 	switch {
 	case f.Sent != nil:
 		if len(c.queued) == 0 {
@@ -40,7 +42,7 @@ func (c *compSession) receipt(f proto.Frame) bool {
 		}
 		a := c.queued[0]
 		c.queued = c.queued[1:]
-		a.sentMs = c.simMs()
+		a.sentMs, a.timeoutMs = c.simMs(), f.Sent.TimeoutMs
 		how := "direct"
 		if f.Sent.Flood {
 			how = "flood"
@@ -80,4 +82,17 @@ func (c *compSession) receipt(f proto.Frame) bool {
 		return false
 	}
 	return true
+}
+
+// expire gives up on a message whose ack is past the time the firmware said it
+// would wait, as the firmware does, and says so. Without it a message that was
+// never acked stayed waiting for the whole session. Called with c.mu held.
+func (c *compSession) expire(at string) {
+	now := c.simMs()
+	for ack, a := range c.awaiting {
+		if now > a.sentMs+a.timeoutMs {
+			delete(c.awaiting, ack)
+			c.note(fmt.Sprintf("%sno ack from %s within %d ms: %s", at, a.to, a.timeoutMs, a.text))
+		}
+	}
 }

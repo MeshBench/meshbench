@@ -75,3 +75,32 @@ func TestAHeldCompanionsConsoleIsItsTranscript(t *testing.T) {
 		t.Fatalf("a node with nothing to show lost its lines: %q", got)
 	}
 }
+
+// A message whose ack never comes is given up on once the firmware's own wait
+// is over, and the transcript says so, rather than waiting all session.
+func TestAnUnackedMessageIsGivenUpOn(t *testing.T) {
+	var now uint32
+	c := &compSession{node: "A", clock: func() uint32 { return now }}
+	c.expect("msg", "Bravo", "hello")
+	sent := binary.LittleEndian.AppendUint32([]byte{byte(proto.RespSent), 0}, 11)
+	sent = binary.LittleEndian.AppendUint32(sent, 5000)
+	now = 1000
+	c.apply(frameOf(t, sent))
+	// Something else arrives after the wait is over.
+	c.expect("msg", "Charlie", "later")
+	later := binary.LittleEndian.AppendUint32([]byte{byte(proto.RespSent), 0}, 22)
+	later = binary.LittleEndian.AppendUint32(later, 5000)
+	now = 7000
+	c.apply(frameOf(t, later))
+
+	if _, ok := c.awaiting[11]; ok {
+		t.Fatal("the message to Bravo is still waiting after its 5000 ms")
+	}
+	if !strings.Contains(strings.Join(c.Lines(), "\n"), "no ack from Bravo within 5000 ms: hello") {
+		t.Fatalf("the transcript does not say the message went unacked:\n%s",
+			strings.Join(c.Lines(), "\n"))
+	}
+	if _, ok := c.awaiting[22]; !ok {
+		t.Fatal("the message to Charlie, still inside its wait, was given up on")
+	}
+}
