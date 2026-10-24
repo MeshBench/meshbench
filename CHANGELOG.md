@@ -21,6 +21,75 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-24
+
+What a companion does beside flooding, and what a radio is told when a frame
+goes wrong. A companion can now message, log in and ask for status the way a
+phone does, and a receiver that locks onto a frame and loses it hears about it
+as an SX1262 would, instead of hearing nothing.
+
+### Added
+
+- **A companion's command line does more than flood.** `msg`, `login`,
+  `req_status` and `scope` work as meshcore-cli has them, typed in the
+  companion's CLI tab or scheduled in a fixture. Each is answered in the
+  transcript when the firmware takes it and again when the ack or reply
+  arrives, with the simulated time; a message whose ack never comes says so
+  once the firmware's wait is over. `-companion-mode Client|CLI|TCP` opens the
+  companion window on that tab. (#753)
+- **Each node's airtime and duty cycle from a script.** `nodes.stats` rows
+  carry `airtime_ms` and `duty_cycle_pct`, the numbers the Scores panel
+  already showed. (#754)
+- **A frame the receiver locked onto and lost reaches its chip.** A collision
+  in the header is a header error, a payload lost after a good header is a CRC
+  error, and a frame the receiver detected but never locked onto is reported
+  as that. Native firmware built from meshcore-native from this release takes
+  them; older native, Renode and QEMU nodes are sent nothing new and behave as
+  before. A collision's miss now says whether it hit the header. (#757)
+
+### Changed
+
+- **The published native firmware is rebuilt on virtual-sx1262 v1.4.0**, for
+  repeater, companion and room server at v1.17.1 and v1.18.0. Its receiver
+  takes only frames it was listening for: none that began while it was in
+  standby, in CAD or transmitting, and its detection flags stay set until the
+  firmware clears them, as silicon does. Results of runs with collisions in
+  them move with it, and there is no switch back in this release.
+- **`experiment.define` reads every setting an arm names** (`cad`,
+  `loop_detect`, `path_hash_mode`, `rep_path_hash`, `spread_ms`, `set`) and
+  refuses a field it does not know with `bad_params`. Before, everything past
+  the label and versions was dropped, and the arm ran as the scenario had it.
+  (#758)
+- **`console.read` on a companion held by its session returns the
+  transcript**, not the raw serial bytes. (#753)
+- **Built with Go 1.27, so the macOS app needs macOS 13 Ventura or later.**
+  (#767)
+
+### Fixed
+
+- **The speed control changes the speed.** Slower, faster and `sim.speed`
+  only ever changed the label; a tick now covers its size in engine steps,
+  bounded so the interface stays responsive on a large mesh. (#755)
+- **`radio.preset` kept the preset's coding rate.** Every preset came out four
+  too high (EU/UK Narrow became 4/12), and a companion refused it. A placed
+  node joins the modem its nearest neighbours are on rather than the engine's
+  own SF10 at 250 kHz, which nothing else used. (#756)
+- **Import keeps to the study area it shows.** An opened network's areas were
+  listed in the Import panel and not applied, a blank network kept filtering
+  by the last one's, and of several places with one name the first was always
+  taken. Places are now offered by their full name. (#766)
+- **Typing in a question over the map.** Backspace and Delete reached the
+  map instead of the field, and with a node selected asked to delete it; a
+  space pressed play. (#766)
+- **The lint ratchet fails when lint did not run**, instead of reading a
+  missing linter as a clean tree and, with `--update`, erasing the baseline.
+  (#760)
+- **Board report cache keys stay inside the cache.** (#761)
+- **A build's label lookup cannot hang**: the git call that names a local
+  build has a deadline. (#763)
+- **Every GPU kernel has a CPU twin and a comparison**, enforced, and a
+  non-finite value is a disagreement rather than a pass. (#762)
+
 ## [0.2.0] - 2026-10-14
 
 What the radio was told, beside what the mesh did. Two firmwares can flood a
@@ -836,7 +905,8 @@ First release: one binary per platform.
 - The radio model reachable over TCP where there is no unix socket.
 - Two data races found by `-race` and fixed.
 
-[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/MeshBench/meshbench/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MeshBench/meshbench/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MeshBench/meshbench/compare/v0.0.11...v0.1.0
 [0.0.11]: https://github.com/MeshBench/meshbench/compare/v0.0.10...v0.0.11
