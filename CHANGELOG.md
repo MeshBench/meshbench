@@ -55,6 +55,10 @@ had changed in them - which is the gap this file exists to close.
   and cleared the engine off the store's goroutine, so a close landing during
   a rebuild could miss the new engine and leave its firmware running. The
   engine is now handed over by the store before it is closed.
+- **The Events panel shows its rows when docked in a side rail.** Its
+  columns were wider than the rail, so the header wrapped a letter to a line
+  and left room for one row. A panel too narrow for the full row now lays
+  rows out the way the Inspector does.
 
 ## [0.3.0] - 2026-10-24
 
