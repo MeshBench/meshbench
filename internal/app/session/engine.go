@@ -330,6 +330,8 @@ func (s *Sim) SetLogPath(path string) { s.logPath = path }
 
 // buildSeeded is build, with the draw stated.
 func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
+	// A new engine owes nothing: time a tick gave the last one belongs to it.
+	s.tickOwed = 0
 	// A rebuild that changes nothing geometric keeps the measured matrix.
 	//
 	// Reset, a new seed, and switching run kinds all remake the engine, and

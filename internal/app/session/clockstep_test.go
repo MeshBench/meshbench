@@ -54,3 +54,33 @@ func TestAShortTickStepsEveryOtherTime(t *testing.T) {
 		t.Fatalf("four 5 ms ticks advanced the engine %d ms, want 20", got)
 	}
 }
+
+// A tick that overruns its wall-time budget stops there and drops the rest,
+// so a slow mesh cannot hold the store's goroutine for the whole tick.
+func TestATickStopsAtItsWallBudget(t *testing.T) {
+	s := &Sim{gpuAsked: true}
+	s.build([]scenario.Node{repeaterNode("Alpha"), repeaterNode("Bravo")}, 869.618)
+	was := tickWallBudget
+	tickWallBudget = -1
+	defer func() { tickWallBudget = was }()
+	w := &state.World{}
+	before := s.eng.NowMs()
+	s.stepTick(w, 1000)
+	if got := s.eng.NowMs() - before; got != 10 {
+		t.Fatalf("a tick over its budget advanced the engine %d ms, want one 10 ms step", got)
+	}
+	if s.tickOwed != 0 {
+		t.Fatalf("an overrun tick left %d ms owed; it should drop the rest", s.tickOwed)
+	}
+}
+
+// A rebuilt engine starts owing nothing.
+func TestARebuildClearsWhatATickWasOwed(t *testing.T) {
+	s := &Sim{gpuAsked: true}
+	s.build([]scenario.Node{repeaterNode("Alpha"), repeaterNode("Bravo")}, 869.618)
+	s.stepTick(&state.World{}, 5)
+	s.build([]scenario.Node{repeaterNode("Alpha"), repeaterNode("Bravo")}, 869.618)
+	if s.tickOwed != 0 {
+		t.Fatalf("a new engine inherited %d ms owed", s.tickOwed)
+	}
+}
