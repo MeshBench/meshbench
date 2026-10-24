@@ -72,7 +72,7 @@ func registerPresetsAndPlace(st *state.Store, s *Sim) {
 		}
 		node.HeightAGLm = 10
 		node.TxPowerDBm = 22
-		node.Radio = placedRadio(s.nodes)
+		node.Radio = placedRadio(s.nodes, lat, lon)
 		if v, ok := namedNum(p, "height_m"); ok {
 			node.HeightAGLm = v
 		}
@@ -192,31 +192,41 @@ func regionsOfNeighbours(nodes []scenario.Node, lat, lon float64) []string {
 	return out
 }
 
-// placedRadio is the modem a placed node joins on: the one every node already
-// here shares, or the documented default where they do not agree or there are
-// none.
+// placedRadio is the modem a placed node joins on: the one most of its ten
+// nearest neighbours are on, as regionsOfNeighbours decides regions, or the
+// documented default where there are none or no modem has a majority.
 //
 // Left empty, a placed node fell back to the engine's own figures - SF10 at
 // 250 kHz - while its firmware booted on its build's SF8 at 62.5 kHz, so on any
 // narrow mesh it was on a channel nothing else used and never heard anybody,
-// with nothing to say why.
-func placedRadio(nodes []scenario.Node) scenario.RadioConfig {
-	var shared *scenario.RadioConfig
-	for i := range nodes {
-		r := nodes[i].Radio
-		if r.CentreHz == 0 {
+// with nothing to say why. Nearest rather than the whole mesh, so a node
+// dropped into one side of a mixed mesh joins the side it was dropped into.
+func placedRadio(nodes []scenario.Node, lat, lon float64) scenario.RadioConfig {
+	type near struct {
+		d float64
+		r scenario.RadioConfig
+	}
+	var all []near
+	for _, n := range nodes {
+		if n.Radio.CentreHz == 0 {
 			continue
 		}
-		if shared == nil {
-			shared = &r
-			continue
-		}
-		if *shared != r {
-			return scenario.DefaultRadio()
+		all = append(all, near{geo.DistanceKm(lat, lon, n.Position.Lat, n.Position.Lon), n.Radio})
+	}
+	for i := 1; i < len(all); i++ {
+		for j := i; j > 0 && all[j].d < all[j-1].d; j-- {
+			all[j], all[j-1] = all[j-1], all[j]
 		}
 	}
-	if shared == nil {
-		return scenario.DefaultRadio()
+	if len(all) > 10 {
+		all = all[:10]
 	}
-	return *shared
+	count := map[scenario.RadioConfig]int{}
+	for _, a := range all {
+		count[a.r]++
+		if count[a.r]*2 > len(all) {
+			return a.r
+		}
+	}
+	return scenario.DefaultRadio()
 }

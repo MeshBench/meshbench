@@ -58,16 +58,42 @@ func TestAPlacedNodeJoinsTheMeshItIsPlacedIn(t *testing.T) {
 	}
 }
 
-// With nothing to join, or a mesh that does not agree with itself, a placed
-// node gets the default the presets table documents.
+// With nothing to join, or neighbours with no majority, a placed node gets the
+// default the presets table documents.
 func TestAPlacedNodeOnNoAgreedModemGetsTheDefault(t *testing.T) {
-	if got := placedRadio(nil); got != scenario.DefaultRadio() {
+	if got := placedRadio(nil, 56, -3); got != scenario.DefaultRadio() {
 		t.Fatalf("an empty mesh placed on %+v", got)
 	}
 	nl, _ := scenario.PresetByLabel("Netherlands")
 	uk, _ := scenario.PresetByLabel("EU/UK (Narrow)")
-	mixed := []scenario.Node{{Radio: nl.Config()}, {Radio: uk.Config()}}
-	if got := placedRadio(mixed); got != scenario.DefaultRadio() {
-		t.Fatalf("a mixed mesh placed on %+v", got)
+	tied := []scenario.Node{
+		{Radio: nl.Config(), Position: scenario.LatLon{Lat: 56, Lon: -3}},
+		{Radio: uk.Config(), Position: scenario.LatLon{Lat: 56, Lon: -3}},
+	}
+	if got := placedRadio(tied, 56, -3); got != scenario.DefaultRadio() {
+		t.Fatalf("a tied mesh placed on %+v", got)
+	}
+}
+
+// In a mixed mesh a placed node joins the side it was placed on.
+func TestAPlacedNodeJoinsItsNeighboursInAMixedMesh(t *testing.T) {
+	nl, _ := scenario.PresetByLabel("Netherlands")
+	uk, _ := scenario.PresetByLabel("EU/UK (Narrow)")
+	var mesh []scenario.Node
+	// Six Dutch nodes and ten Scottish ones: the mesh as a whole is mostly
+	// Scottish, and the ten nearest the Dutch spot are mostly Dutch.
+	for i := 0; i < 6; i++ {
+		mesh = append(mesh, scenario.Node{Radio: nl.Config(),
+			Position: scenario.LatLon{Lat: 52.0 + float64(i)*0.01, Lon: 5.0}})
+	}
+	for i := 0; i < 10; i++ {
+		mesh = append(mesh, scenario.Node{Radio: uk.Config(),
+			Position: scenario.LatLon{Lat: 56.0 + float64(i)*0.01, Lon: -3.0}})
+	}
+	if got := placedRadio(mesh, 52.01, 5.0); got != nl.Config() {
+		t.Fatalf("a node placed among the Dutch nodes joined %+v", got)
+	}
+	if got := placedRadio(mesh, 56.01, -3.0); got != uk.Config() {
+		t.Fatalf("a node placed among the Scottish nodes joined %+v", got)
 	}
 }
