@@ -100,7 +100,7 @@ func buildNative(ctx context.Context, src, role string, log io.Writer) (string, 
 	if err != nil {
 		return "", err
 	}
-	cmd := exec.CommandContext(ctx, "bash", script, role, out) //nolint:gosec // G204: running the operator-selected build script is the requested operation; arguments are separate argv entries.
+	cmd := exec.CommandContext(ctx, "bash", script, role, out)
 	cmd.Env = append(os.Environ(), "MESHCORE="+src, "CRYPTO="+crypto)
 	if log != nil {
 		cmd.Stderr, cmd.Stdout = log, log
@@ -131,7 +131,7 @@ func FindBuildScript() (string, error) {
 		filepath.Join(home, "msim", "meshcore-native", "build.sh"),
 		filepath.Join(home, "src", "meshcore-native", "build.sh"))
 	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil { //nolint:gosec // G703: c is an explicit local tool override or a fixed candidate under the user's home/cache.
+		if _, err := os.Stat(c); err == nil {
 			return c, nil
 		}
 	}
@@ -161,7 +161,7 @@ func FindCrypto(ctx context.Context, log io.Writer) (string, error) {
 		filepath.Join(home, "src", "arduinolibs", "libraries", "Crypto"),
 		filepath.Join(deps, "libraries", "Crypto"),
 	} {
-		if _, err := os.Stat(c); err == nil { //nolint:gosec // G703: c is an explicit local tool override or a fixed candidate under the user's home/cache.
+		if _, err := os.Stat(c); err == nil {
 			return c, nil
 		}
 	}
@@ -171,7 +171,6 @@ func FindCrypto(ctx context.Context, log io.Writer) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(deps), 0o755); err != nil {
 		return "", err
 	}
-	//nolint:gosec // G204: fixed repository URL; deps is the user cache destination, passed as one argument.
 	cmd := exec.CommandContext(ctx, "git", "clone", "--depth", "1",
 		"https://github.com/rweather/arduinolibs", deps)
 	if log != nil {
