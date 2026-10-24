@@ -223,6 +223,10 @@ func (p *firmwareWindowPanel) stateChip(t *theme.Theme, gtx layout.Context,
 	switch {
 	case !r.OnDisk && r.Unavailable:
 		label, ink = "not published for this machine", t.P.Warn
+	case !r.OnDisk && r.Checking:
+		label, ink = "checking what is published", t.P.Dim
+	case !r.OnDisk && r.CatalogueDown:
+		label, ink = "catalogue unreachable - refresh to ask again", t.P.Warn
 	case !r.OnDisk:
 		label, ink = "not downloaded", t.P.Dim
 	case r.Native:

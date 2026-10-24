@@ -76,7 +76,7 @@ var fwCols = []struct {
 	width int
 }{
 	{"Role", 210}, {"Version", 250}, {"Runs as", 140}, {"Size", 70},
-	{"On disk", 70}, {"Used by", 90}, {"Use for role", 150}, {"Actions", 70},
+	{"On disk", 70}, {"Used by", 90}, {"Use for role", 150}, {"Actions", 96},
 }
 
 func (p *firmwarePanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {

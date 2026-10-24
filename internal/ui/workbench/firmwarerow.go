@@ -37,8 +37,13 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 	}
 	if w.act.Clicked(gtx) {
 		switch {
-		case r.Unavailable:
-			// Nothing to download and nothing to delete.
+		case r.CatalogueDown:
+			// Ask again: the answer was "could not reach it", not "no".
+			if p.OnAction != nil {
+				p.OnAction("firmware.rescan", nil)
+			}
+		case r.Unavailable || r.Checking:
+			// Nothing to download and nothing to delete - yet, for one of them.
 		case !r.OnDisk:
 			if p.OnAction != nil {
 				p.OnAction("firmware.download", map[string]any{
@@ -81,8 +86,13 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 	// nothing published this machine could fetch. Saying so here is the
 	// difference between "the library lost a build" and "these nodes are
 	// pinned to something that was never built for you".
-	if r.Unavailable {
+	switch {
+	case r.Unavailable:
 		runsAs += " - not published for this machine"
+	case r.Checking:
+		runsAs += " - checking what is published"
+	case r.CatalogueDown:
+		runsAs += " - the catalogue could not be reached"
 	}
 	size := "-"
 	if r.OnDisk {
@@ -140,6 +150,10 @@ func (p *firmwarePanel) row(t *theme.Theme, gtx layout.Context, s *state.Snapsho
 								// Nothing to fetch, so no button that implies
 								// there is.
 								label, ink = "unavailable", t.P.Warn
+							} else if r.Checking {
+								label, ink = "checking", t.P.Dim
+							} else if r.CatalogueDown {
+								label, ink = "retry", t.P.Accent
 							} else if !r.OnDisk {
 								label, ink = "get", t.P.Accent
 							} else if p.confirm == key {

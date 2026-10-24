@@ -18,6 +18,7 @@ func libraryRows(rows []state.FirmwareRow) []map[string]any {
 			// What a delete would break, and why a row nobody can honour is
 			// not simply hidden.
 			"in_use": b.InUse, "unavailable": b.Unavailable,
+			"checking": b.Checking, "catalogue_down": b.CatalogueDown,
 		})
 	}
 	return out

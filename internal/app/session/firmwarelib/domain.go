@@ -41,6 +41,9 @@ type catalogue struct {
 	// fetch has answered, empty after a fetch that failed.
 	published []publishedBuild
 	fetching  bool
+	// failed is the last fetch not reaching the catalogue, so an empty
+	// published list means "could not ask" rather than "nothing is there".
+	failed bool
 }
 
 // catalogueOf is the one catalogue a Sim has, made on first use.
