@@ -8,9 +8,9 @@ import (
 
 // Delete removes the selection, and it has to reach the map at all.
 //
-// The map's key filters name no focus target, which is what lets a text field
-// keep the key while it is being typed into - and is also the thing that makes
-// "does this arrive" worth a test rather than an assumption.
+// The map's key filters name no focus target, and it reads them only while no
+// text field holds the keyboard - which is what makes "does this arrive" worth
+// a test rather than an assumption.
 
 func TestDeleteKeyReportsTheSelection(t *testing.T) {
 	h := newMapHarness()

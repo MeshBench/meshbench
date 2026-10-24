@@ -7,13 +7,21 @@ import (
 
 // The keyboard over the map.
 //
-// None of these filters names a focus target, which is how Gio says "only when
-// nothing else wants it". That is the behaviour that matters here: typing a
-// node's name into the search box must not delete the node.
+// None of these filters names a focus target, and in Gio that does not mean
+// "only when nothing else wants it": an unfocused filter matches whatever is
+// focused, and a key goes to the first handler in the frame that asks for it.
+// The map is drawn before the panels and questions that sit over it, so it
+// asked first, and Backspace typed into a question's field arrived here - the
+// text could not be erased, and with a node selected the key asked to delete
+// the node instead. So the map reads its keys only while no text field has the
+// keyboard; a press on the map takes it back (handle, mapinput.go).
 
 // keys handles one frame's key presses. Called from handle, before the
 // pointer, so a gesture and a shortcut cannot both act on the same frame.
 func (m *MapView) keys(gtx layout.Context, pts []projected) {
+	if !gtx.Focused(nil) {
+		return
+	}
 	// Escape abandons the link tool's half-made pick, and tells the
 	// workbench so - a pinned pair is released the same way.
 	for {

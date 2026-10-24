@@ -111,7 +111,7 @@ func importAreaNote(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layou
 	if s == nil || len(s.Areas) == 0 {
 		return comp.OneLine(t, t.Sz.Caption, t.P.Warn,
 			"no study area: every node the deployment publishes will be imported - "+
-				"set one in the Boundary panel first to import a county rather than a country",
+				"type a place and press 1. add area first to import a county rather than a country",
 			false)(gtx)
 	}
 	// Named once each: a fixture that already carried an area and an area

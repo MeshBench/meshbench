@@ -141,6 +141,13 @@ func Register(st *state.Store, s *Sim) {
 			w.Say(fmt.Sprintf("stopping firmware on %d node(s) - they belong to the network being replaced", n))
 		}
 		w.Nodes, w.Areas, w.MarginKm = f.nodes, f.areas, f.margin
+		// The geometry an import filters by, from the same areas the panels
+		// show. Only the world's list was replaced here, so the two came
+		// apart: a network opened with Scotland and Ireland as its study area
+		// said so in the Import panel and then fetched the whole feed, and a
+		// blank network started after Fife had been accepted said "no study
+		// area" and still fetched only Fife.
+		s.areas = boundariesOf(f.areas)
 		w.Sends, w.Assertions = f.sends, f.assertions
 		w.Seed = 9001
 		// Every blank network and every open passes through here, so this is

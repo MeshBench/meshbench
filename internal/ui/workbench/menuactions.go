@@ -143,7 +143,12 @@ func (w menuDeps) onMenu(action string) {
 							return
 						}
 						m, _ := res.(map[string]any)
-						names, _ := m["names"].([]string)
+						// The full labels, so two places sharing a name are two
+						// different rows; the bare names when an older answer has none.
+						names, _ := m["labels"].([]string)
+						if len(names) == 0 {
+							names, _ = m["names"].([]string)
+						}
 						if len(names) == 0 {
 							w.say("nothing with an outline matches " + place)
 							return
