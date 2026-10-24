@@ -1160,7 +1160,7 @@ Recompute every node's counters now rather than at the next tick, and answer wit
 
 **Takes** nothing.
 
-**Answers** `nodes`, `stats`. `nodes` is how many rows there are and `stats` is the rows. A session with no engine built has no counters to report and answers with none, which is not a failure.
+**Answers** `nodes`, `stats`. `nodes` is how many rows there are and `stats` is the rows. Each row carries `airtime_ms`, cumulative over the run, and `duty_cycle_pct` over the run's whole length, the same numbers as the Scores panel; a node the engine has no score for has neither. A session with no engine built has no counters to report and answers with none, which is not a failure.
 
 **Example** - read every node's state and counters
 
