@@ -2,9 +2,13 @@ package boardcheck
 
 import (
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated"
+	"github.com/MeshBench/meshbench/internal/firmware/emulated/renode"
 )
 
 // A board never run reports "untested" in every column, never blank and
@@ -76,9 +80,9 @@ func TestALoadedReportIsStaleWhenTheEmulatorFingerprintDiffers(t *testing.T) {
 	}
 
 	got := Load("RAK_4631", "repeater-v1.17.0")
-	// EmulatorFingerprint() with no MESHBENCH_QEMU/RENODE set resolves to
-	// "unconfigured", which does not equal the saved fingerprint above - so
-	// this must read as stale, not as still current.
+	// Whatever EmulatorFingerprint finds on this machine, it is not the
+	// saved fingerprint above - so this must read as stale, not as still
+	// current.
 	if !got.Stale {
 		t.Error("a report saved under a different emulator fingerprint did not report stale")
 	}
@@ -153,5 +157,72 @@ func TestMatrixAgreesWithEmulatableBoards(t *testing.T) {
 			t.Errorf("%s: matrix reason %q does not match EmulatableBoards' own %q",
 				name, r.Results[Boot].Detail, reason)
 		}
+	}
+}
+
+// The fingerprint names the emulator the board runs under, not whichever
+// variable happens to be set: on a machine with both, an nRF52 row was stamped
+// with QEMU's binary (#551). The chip library is part of it, and for Renode so
+// are the peripherals beside it.
+func TestTheFingerprintFollowsTheBoardsEmulator(t *testing.T) {
+	dir := t.TempDir()
+	file := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	qemu, renodeBin, chip := file("qemu", "q"), file("renode", "r"), file("chip", "c")
+	if err := os.MkdirAll(filepath.Join(dir, "support", "peripherals"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	periph := filepath.Join(dir, "support", "peripherals", "VirtualSX1262.cs")
+	if err := os.WriteFile(periph, []byte("p"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(emulated.EnvQEMU, qemu)
+	t.Setenv(renode.EnvRenode, renodeBin)
+	t.Setenv(emulated.EnvRadioLib, chip)
+	t.Setenv(emulated.EnvRenodeSupport, filepath.Join(dir, "support"))
+
+	nrf := EmulatorFingerprint("RAK_4631")
+	if !strings.Contains(nrf, renodeBin+"@") || strings.Contains(nrf, qemu+"@") {
+		t.Errorf("an nRF52 board's fingerprint is not Renode's: %s", nrf)
+	}
+	esp := EmulatorFingerprint("LilyGo_TDeck")
+	if !strings.Contains(esp, qemu+"@") || strings.Contains(esp, renodeBin+"@") {
+		t.Errorf("an ESP32 board's fingerprint is not QEMU's: %s", esp)
+	}
+	for _, fp := range []string{nrf, esp} {
+		if !strings.Contains(fp, chip+"@") {
+			t.Errorf("the chip library is not in %s", fp)
+		}
+	}
+
+	// Each part moves the rows it should and only those.
+	touch := func(p, body string) {
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	touch(qemu, "qemu, rebuilt")
+	if EmulatorFingerprint("RAK_4631") != nrf {
+		t.Error("a new QEMU retired an nRF52 row")
+	}
+	if EmulatorFingerprint("LilyGo_TDeck") == esp {
+		t.Error("a new QEMU did not retire an ESP32 row")
+	}
+	touch(periph, "peripheral, changed")
+	if EmulatorFingerprint("RAK_4631") == nrf {
+		t.Error("a changed Renode peripheral did not retire an nRF52 row")
+	}
+	esp = EmulatorFingerprint("LilyGo_TDeck")
+	touch(chip, "chip, new release")
+	if EmulatorFingerprint("LilyGo_TDeck") == esp {
+		t.Error("a new chip library did not retire an ESP32 row")
+	}
+	if got := EmulatorFingerprint("No_Such_Board"); got != "unknown board" {
+		t.Errorf("an unknown board: %s", got)
 	}
 }

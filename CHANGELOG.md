@@ -41,6 +41,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **A board's cached capability row names the emulator it ran under.** On a
+  machine with both emulators set up, every nRF52 row was stamped with QEMU's
+  binary, so upgrading Renode retired none of them and upgrading QEMU retired
+  all of them. The fingerprint now follows the board, and also covers the chip
+  library and, for Renode, our peripherals. Rows cached by an earlier build
+  read as stale once.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.
