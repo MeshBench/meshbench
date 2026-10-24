@@ -1369,7 +1369,7 @@
         {
           "name": "arms",
           "type": "array",
-          "what": "one object per arm, carrying `label`, `repeater_version` and `companion_version`; an arm with no label takes its repeater version as one, and an absent or empty list leaves the arms alone"
+          "what": "one object per arm, carrying `label`, `repeater_version` and `companion_version`, and optionally any setting experiment.vary crosses on: `path_hash_mode`, `rep_path_hash`, `loop_detect`, `cad`, `spread_ms` and `set`, a map of firmware settings as the CLI names them; a field an arm does not have, or a value its setting cannot take, is refused and the arms already defined are kept; an arm with no label takes its repeater version as one, and an absent or empty list leaves the arms alone"
         },
         {
           "name": "seeds",
