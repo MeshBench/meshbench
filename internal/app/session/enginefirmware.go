@@ -4,6 +4,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
@@ -117,21 +118,67 @@ func (s *Sim) firmwareNodeCount() int {
 // Close shuts the simulation down, firmware included.
 //
 // Safe on a Sim that never built an engine, because the common shutdown path
-// is a workbench closed before anything was loaded. Called from the
-// workbench's own shutdown goroutine rather than the store's, so the served
-// listeners are taken out under their lock and closed only once it is
-// released - a verb still running on the store's goroutine at the same
-// moment must never see a map mid-edit.
-func (s *Sim) Close() {
-	if s.eng == nil {
-		return
+// is a workbench closed before anything was loaded.
+//
+// Called from the workbench's own shutdown goroutine, not the store's, while
+// the store can still be running a verb or a tick. The engine is therefore
+// taken off the Sim on the store's goroutine, the only one that writes s.eng,
+// and closed out here once it is no longer reachable from there. Reading and
+// clearing s.eng from this side raced a rebuild assigning it: a close could
+// see a half-assigned engine, or see none and leave every node running.
+func (s *Sim) Close() { s.CloseContext(context.Background()) }
+
+// CloseContext is Close for a caller holding a context, which bounds the wait
+// for the store to hand the engine over.
+func (s *Sim) CloseContext(ctx context.Context) {
+	d, ok := s.detachOnStore(ctx)
+	if !ok {
+		// The store has stopped or never ran, so nothing else is touching
+		// the Sim. Or it is wedged in a verb past the wait, and then the
+		// firmware still has to stop: a process left running is worse than
+		// a race with a store that is not moving.
+		d = s.detach()
 	}
-	for _, l := range s.takeAllServed() {
+	for _, l := range d.served {
 		_ = l.Close()
 	}
+	if d.eng != nil {
+		_ = d.eng.Close()
+	}
+}
+
+// detached is what Close takes off the Sim to shut down.
+type detached struct {
+	eng    *engine.Engine
+	served map[string]*engine.CompanionLink
+}
+
+// detach takes the engine and what is served from it off the Sim and runs
+// the teardowns. On the store's goroutine whenever the store is running.
+func (s *Sim) detach() detached {
+	if s.eng == nil {
+		return detached{}
+	}
+	d := detached{eng: s.eng, served: s.takeAllServed()}
 	runTeardowns(s)
-	_ = s.eng.Close()
 	s.eng = nil
+	return d
+}
+
+// detachOnStore runs detach on the store's goroutine, reporting false when
+// there is no running store to run it on.
+func (s *Sim) detachOnStore(ctx context.Context) (detached, bool) {
+	if s.store == nil || !s.store.Running() {
+		return detached{}, false
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	v, err := s.store.Do(ctx, "session.detach", nil)
+	if err != nil {
+		return detached{}, false
+	}
+	d, _ := v.(detached)
+	return d, true
 }
 
 // provisionAll tells every node what it is, as soon as its firmware is up.

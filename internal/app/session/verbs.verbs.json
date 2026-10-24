@@ -73,5 +73,9 @@
       "what": "check what is loaded before driving it",
       "runnable": true
     }
+  },
+  "session.detach": {
+    "what": "take the engine and what is served from it off the session, on the store's own goroutine, so closing the workbench can shut them down from another without racing a rebuild",
+    "answers": "Not for a client: Close calls it, then closes what it was handed outside the store. Nothing is returned that a caller could use."
   }
 }

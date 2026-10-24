@@ -36,6 +36,9 @@ type Sim struct {
 	// tickOwed is simulated time a tick has been given and the engine has not
 	// yet stepped through, because a tick can be shorter than one step.
 	tickOwed uint32
+	// store is the one this Sim was registered with, so Close can take the
+	// engine away on its goroutine.
+	store *state.Store
 	// inputs are verb calls held until the instant their at_ms names.
 	inputs inputQueue
 	// replaying is set while a held call runs, so it does not settle the
