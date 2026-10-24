@@ -23,6 +23,13 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **Run a command on another node over the air.** `companion.cli` sends a
+  command from a connected companion to a node it is logged in to, as
+  MeshCore's remote admin does (`TXT_TYPE_CLI_DATA`). The node's own firmware
+  runs it and answers the same way, and `companion.state` lists the answers as
+  `cli_replies`. The companion command line has it as `cmd <contact>
+  <command>`. A study can now provision a mesh the way an operator does,
+  rather than over every node's serial port.
 - **Script input at an instant of simulated time.** `console.type`,
   `console.cli` and the `companion.*` verbs that write to a node take `at_ms`:
   the call is held and runs when the run reaches that instant, so a script
