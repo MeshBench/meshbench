@@ -126,8 +126,12 @@ func (s *Sim) firmwareNodeCount() int {
 // and closed out here once it is no longer reachable from there. Reading and
 // clearing s.eng from this side raced a rebuild assigning it: a close could
 // see a half-assigned engine, or see none and leave every node running.
-func (s *Sim) Close() {
-	d, ok := s.detachOnStore()
+func (s *Sim) Close() { s.CloseContext(context.Background()) }
+
+// CloseContext is Close for a caller holding a context, which bounds the wait
+// for the store to hand the engine over.
+func (s *Sim) CloseContext(ctx context.Context) {
+	d, ok := s.detachOnStore(ctx)
 	if !ok {
 		// The store has stopped, or never ran, so nothing else can be
 		// touching the Sim and it is safe to do here.
@@ -161,11 +165,11 @@ func (s *Sim) detach() detached {
 
 // detachOnStore runs detach on the store's goroutine, reporting false when
 // there is no running store to run it on.
-func (s *Sim) detachOnStore() (detached, bool) {
+func (s *Sim) detachOnStore(ctx context.Context) (detached, bool) {
 	if s.store == nil {
 		return detached{}, false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	v, err := s.store.Do(ctx, "session.detach", nil)
 	if err != nil {

@@ -35,7 +35,7 @@ func onSignal(ctx context.Context, cancel context.CancelFunc, s *session.Sim) {
 		fmt.Fprintln(os.Stderr, "\nclosing:", got)
 		done := make(chan struct{})
 		go func() {
-			s.Close()
+			s.CloseContext(ctx)
 			close(done)
 		}()
 		select {
