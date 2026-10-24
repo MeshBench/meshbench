@@ -1,20 +1,32 @@
 package gpu
 
 import (
+	"math"
 	"strings"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/rf/propagation"
 )
 
+func TestCompareFoldSlotsRejectsInvalidReadback(t *testing.T) {
+	want := []propagation.FoldSlot{{MinDB: 1, OutDB: 2, InDB: 1, Station: 0}}
+	for _, got := range [][]propagation.FoldSlot{
+		nil,
+		{want[0], want[0]},
+		{{MinDB: float32(math.NaN()), OutDB: 2, InDB: 1, Station: 0}},
+		{{MinDB: 1, OutDB: float32(math.Inf(1)), InDB: 1, Station: 0}},
+		{{MinDB: 1, OutDB: 2, InDB: float32(math.NaN()), Station: 1}},
+	} {
+		if err := compareFoldSlots("fold", got, want); err == nil {
+			t.Errorf("invalid readback passed: %v", got)
+		}
+	}
+}
+
 // A device that answers correctly must pass its own gate - this is what
 // gpuwarm.go trusts before ever handing the device a real coverage map.
 func TestSelfCheckPassesOnARealDevice(t *testing.T) {
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no GPU available: %v", err)
-	}
-	defer d.Close()
+	d := comparisonDevice(t)
 	if err := d.SelfCheck(); err != nil {
 		t.Fatalf("a correct device failed its own self-check: %v", err)
 	}

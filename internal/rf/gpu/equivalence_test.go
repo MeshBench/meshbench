@@ -12,15 +12,11 @@ import (
 // The harness ADR-0004 requires: every GPU kernel has a CPU twin, and a test
 // asserts they agree. Skipped when no GPU is present, which is the normal case
 // in CI and on the dev VM — that is exactly why the CPU path is the oracle.
-func TestDechirpMatchesCPU(t *testing.T) {
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no GPU available: %v", err)
-	}
-	defer d.Close()
+func compareDechirpCPU(t *testing.T) {
+	d := comparisonDevice(t)
 	t.Logf("GPU: %s (%s)", d.Name, d.Backend)
 
-	for _, sf := range []int{7, 9, 10} {
+	for _, sf := range []int{7, 8, 9, 10, 11, 12} {
 		n := dsp.SamplesPerSymbol(sf)
 		// A batch of real modulated symbols, not random noise — the kernel must
 		// be right on the input it will actually see.
@@ -46,6 +42,9 @@ func TestDechirpMatchesCPU(t *testing.T) {
 		var maxErr float64
 		for i := range want {
 			e := cmplx.Abs(complex128(got[i]) - want[i])
+			if math.IsNaN(e) || math.IsInf(e, 0) {
+				t.Fatalf("SF%d sample %d: non-finite result %v", sf, i, got[i])
+			}
 			if e > maxErr {
 				maxErr = e
 			}
@@ -64,11 +63,7 @@ func TestDechirpMatchesCPU(t *testing.T) {
 // The dechirped peak must land on the symbol that was sent — the property the
 // whole demodulator depends on, checked through the GPU path.
 func TestGPUDechirpPreservesSymbol(t *testing.T) {
-	d, err := Open()
-	if err != nil {
-		t.Skipf("no GPU available: %v", err)
-	}
-	defer d.Close()
+	d := comparisonDevice(t)
 
 	const sf = 9
 	n := dsp.SamplesPerSymbol(sf)
