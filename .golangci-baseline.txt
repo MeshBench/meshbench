@@ -1,5 +1,5 @@
 contextcheck 5
 dupl 10
-gosec 31
+gosec 20
 noctx 10
-recvcheck 2
+recvcheck 1

@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        with: { go-version: '1.25', cache: true }
+        with: { go-version: '1.27', cache: true }
 
       - name: What GPU the runner offers
         shell: bash

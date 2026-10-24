@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        # 1.25, matching go.mod and ci.yml. Not cosmetic: the lab runners
+        # 1.27, matching go.mod and ci.yml. Not cosmetic: the lab runners
         # set GOTOOLCHAIN=local, so Go may not fetch the toolchain go.mod
         # asks for - and every go command in this job died on
         # "go.mod requires go >= 1.25.0 (running go 1.24.13)".
@@ -73,7 +73,7 @@ jobs:
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
         # caches already survive between jobs. See ci.yml for the detail.
-        with: { go-version: '1.25', cache: false }
+        with: { go-version: '1.27', cache: false }
 
       # Checked before anything is built, because a missing tool used to
       # surface eight steps later as "no such release" - naming a
@@ -384,12 +384,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        # 1.25, matching go.mod and ci.yml. Not cosmetic: the lab runners
+        # 1.27, matching go.mod and ci.yml. Not cosmetic: the lab runners
         # set GOTOOLCHAIN=local, so Go may not fetch the toolchain go.mod
         # asks for - and every go command in this job died on
         # "go.mod requires go >= 1.25.0 (running go 1.24.13)".
         #
-        with: { go-version: '1.25' }
+        with: { go-version: '1.27' }
 
       - name: Build the bundle
         run: |
@@ -602,7 +602,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
-        # 1.25, matching go.mod and ci.yml. Not cosmetic: the lab runners
+        # 1.27, matching go.mod and ci.yml. Not cosmetic: the lab runners
         # set GOTOOLCHAIN=local, so Go may not fetch the toolchain go.mod
         # asks for - and every go command in this job died on
         # "go.mod requires go >= 1.25.0 (running go 1.24.13)".
@@ -610,7 +610,7 @@ jobs:
         # cache: false - every job in this file runs on a persistent
         # self-hosted runner (lab-2204, or the m4 pool), where the Go
         # caches already survive between jobs. See ci.yml for the detail.
-        with: { go-version: '1.25', cache: false }
+        with: { go-version: '1.27', cache: false }
 
       - name: Dependencies
         run: |

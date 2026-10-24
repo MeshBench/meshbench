@@ -11,7 +11,7 @@ does.
 real GPU, and the Renode and QEMU toolchains for the firmware work.
 
 - The full suite with `-race` runs in about three minutes.
-- `golangci-lint` must match **the version CI runs, v2.12.2** — the pin is in
+- `golangci-lint` must match **the version CI runs, v2.15.0** — the pin is in
   `ci.yml`, which is the authority. Matching it is not pedantry: v2.1.6 and
   v2.12.2 disagree about this tree by 29 findings (34 `gosec` against 17, 12
   `noctx` against 1), so a local run on the wrong version says the tree is

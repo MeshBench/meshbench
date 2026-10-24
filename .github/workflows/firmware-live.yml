@@ -85,7 +85,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25"
+          go-version: "1.27"
           # cache: false, as in ci.yml - a persistent self-hosted runner
           # already has a warm GOMODCACHE, and uploading it over the lab's
           # uplink has stalled a run before.
