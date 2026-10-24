@@ -20,8 +20,8 @@
 #     (docs/development-machines.md), so it would report a missing toolchain
 #     rather than a regression.
 #   - a fixture bigger than MAX_NODES, where that is set. A national fixture is
-#     376 MeshCore processes and minutes of wall clock, which is a nightly's
-#     work rather than something to hold a merge behind.
+#     376 MeshCore processes and minutes of wall clock, which is too much to
+#     hold a merge behind.
 #
 #   tools/fixture-check.sh
 #   MESHBENCH=/tmp/meshbench MAX_NODES=100 tools/fixture-check.sh

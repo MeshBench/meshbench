@@ -98,7 +98,8 @@ asserting on the harness.
     MAX_NODES=100 tools/fixture-check.sh   # the small ones only
 
 That is what CI runs. The capped form is a job on every push; the uncapped form
-is in the nightly, because a national fixture is 376 MeshCore processes.
+is in the Firmware live workflow, run on request, because a national fixture is
+376 MeshCore processes.
 
 ## Who a schedule is talking to
 

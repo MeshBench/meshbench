@@ -9,19 +9,14 @@ name: Firmware live
 # TestNativeAirtimeAgreesWithTheChannel, which checks a rule CLAUDE.md states
 # about itself ("airtime must match the firmware's own getEstAirtimeFor()"),
 # had never run in the pipeline at all. A firmware drift there desynchronises
-# the mesh from the channel silently, which is exactly the failure a nightly
-# is for.
+# the mesh from the channel silently.
 #
 # Not on every push. It starts real processes and takes tens of minutes, and
 # CI's own file makes the argument: a check nobody waits for is a check that
-# gets worked around. Nightly, on request, or on a pull request labelled
-# firmware-live when a change is expected to move any of this.
+# gets worked around. On request, or on a pull request labelled firmware-live
+# when a change is expected to move any of this.
 
 on:
-  schedule:
-    # Small hours, and not on the hour: the lab runners are shared, and every
-    # cron in the world fires at :00.
-    - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
       board:
@@ -50,7 +45,7 @@ permissions:
 # docs/development-machines.md is explicit that emulated boards run one at a
 # time, because several at once take a twelve-core machine down - and a live
 # run also holds one of three shared runners for the whole of its length.
-# cancel-in-progress stays false so a nightly that is already booting a board
+# cancel-in-progress stays false so a run that is already booting a board
 # is not interrupted by somebody's dispatch.
 concurrency:
   group: firmware-live
@@ -64,7 +59,7 @@ jobs:
     # 60 was the gated suite alone, whose own -timeout is 50m. The fixture
     # sweep after it is another ten on a warm machine and more on a cold one,
     # and a job cut off by its own budget names nothing, which is the least
-    # useful way for a nightly to fail.
+    # useful way for a run to fail.
     timeout-minutes: 90
     # The same fork guard ci.yml computes rather than hardcodes: the lab
     # runners sit on a home LAN with a NAS mounted, so a stranger's code must
@@ -75,7 +70,7 @@ jobs:
     # lab-2404, not lab-linux, and this job is the one place that matters.
     # MeshCore's published native builds need glibc 2.38; gha-lab-3 is the
     # 22.04 runner that pins package.yml's own floor at 2.35, and it carries
-    # lab-linux too. So a nightly landed on whichever runner was free and died
+    # lab-linux too. So a run landed on whichever runner was free and died
     # in two seconds on one of the three with a linker error naming a symbol
     # version, which reads as a broken download rather than as the wrong
     # machine. The floor this job needs is the firmware's, not ours.
@@ -200,7 +195,7 @@ jobs:
       # ci.yml runs these on every push but only for the two Fife fixtures: the
       # Scotland and Scotland-Ireland ones are 161 and 376 MeshCore processes
       # and minutes of wall clock apiece, which is too much to hold a merge
-      # behind and exactly what a nightly is for.
+      # behind.
       #
       # And here it answers a second question, because MESHBENCH_NATIVE is
       # still set from the step above: these runs use the builds this job
@@ -217,54 +212,3 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/meshbench" ./cmd/meshbench
           MESHBENCH="$RUNNER_TEMP/meshbench" tools/fixture-check.sh
-
-  # A scheduled run goes red on a page nobody opens.
-  #
-  # Four of the seven shipped fixtures are checked here and nowhere else, so
-  # this workflow is the only thing standing behind them. A scheduled job that
-  # has gone red and stayed red is a failure this repository has had before, and
-  # it stayed for as long as it did because nothing carried the news anywhere a
-  # person looks. An issue is that place, and it is what a red run has to leave
-  # behind if running it is to be worth anything.
-  #
-  # One open issue rather than one a night: a fortnight of red is a thread with
-  # fourteen links in it, not fourteen duplicates somebody has to close.
-  notify:
-    needs: live
-    # The scheduled run only. A dispatch or a labelled pull request has somebody
-    # already watching the run they asked for, and filing at them is noise.
-    if: always() && github.event_name == 'schedule' && needs.live.result == 'failure'
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && fromJSON('["self-hosted","linux","x64","lab-linux"]') || fromJSON('["ubuntu-latest"]') }}
-    # Job-level permissions replace the file's, so contents is restated rather
-    # than inherited.
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - name: Say it where somebody will see it
-        env:
-          GH_TOKEN: ${{ github.token }}
-          # No checkout in this job, so gh is told which repository it is in.
-          GH_REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          TITLE: Nightly firmware-live is failing
-        run: |
-          set -euo pipefail
-          existing=$(gh issue list --state open --limit 200 --json number,title \
-            | jq -r --arg t "$TITLE" 'map(select(.title == $t)) | .[0].number // empty')
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body "Red again: $RUN_URL"
-            exit 0
-          fi
-          gh issue create --title "$TITLE" --body "$(cat <<EOF
-          The nightly live-firmware run failed: $RUN_URL
-
-          It runs the tests that need a real MeshCore process, and every shipped
-          fixture against its own assertions with no node cap. Nothing else runs
-          the four national fixtures, so a failure here can be the only report
-          that a mesh has stopped delivering.
-
-          This issue is reused by later failures rather than duplicated. Close it
-          when the nightly is green again.
-          EOF
-          )"

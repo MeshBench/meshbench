@@ -36,10 +36,8 @@ tools/fixture-check.sh  # every shipped fixture, against its own assertions
 
 `tools/fixture-check.sh` starts real MeshCore, one process per node, so it takes
 minutes rather than seconds. `MAX_NODES=100` runs only the small fixtures, which
-is what the pull-request check does; the national ones run in the nightly. A
-nightly that goes red opens an issue and comments on that same issue every night
-after, because a scheduled run that fails on a page nobody opens is a check that
-is not being made.
+is what the pull-request check does. The national ones run in the Firmware live
+workflow, by dispatch or by labelling a pull request `firmware-live`.
 
 `golangci-lint` must be **the version `ci.yml` pins**. Versions genuinely
 disagree about this tree — v2.1.6 and v2.12.2 differ by 29 findings — so
