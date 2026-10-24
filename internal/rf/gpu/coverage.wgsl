@@ -219,12 +219,76 @@ fn gain_db(bearing: f32, elev: f32) -> f32 {
   return g0 * (1.0 - te) + g1 * te;
 }
 
+// psin is sin from its series, for |x| up to pi/4, and pcos and psin_lat
+// build on it for any latitude. The bearing uses no other trig.
+//
+// Vulkan asks a driver's sin and cos for an absolute error of 2^-11 and no
+// better, and some meet exactly that. On an angle of a few thousandths of a
+// radian that is most of the answer, and on a latitude it is still a tenth of
+// a percent - several hundredths of a degree of bearing. The series is good to
+// float32 across its range on every device.
+fn psin(x: f32) -> f32 {
+  if (abs(x) > PI / 4.0) {
+    return sin(x);
+  }
+  let x2 = x * x;
+  return x * (1.0 - x2 / 6.0 * (1.0 - x2 / 20.0 * (1.0 - x2 / 42.0 * (1.0 - x2 / 72.0 * (1.0 - x2 / 110.0)))));
+}
+
+// pcos is cos for |x| up to pi/2, by the half angle.
+fn pcos(x: f32) -> f32 {
+  let s = psin(x * 0.5);
+  return 1.0 - 2.0 * s * s;
+}
+
+// psin_lat is sin for |x| up to pi/2, by the half angle.
+fn psin_lat(x: f32) -> f32 {
+  return 2.0 * psin(x * 0.5) * pcos(x * 0.5);
+}
+
+// atan2p is atan2 to about 1e-5 rad on every device (Abramowitz and Stegun
+// 4.4.49 on [0, 1], then the octants), for the same reason: the driver's own
+// is only promised to a few thousand ulp.
+fn atan2p(y: f32, x: f32) -> f32 {
+  let ax = abs(x);
+  let ay = abs(y);
+  let mx = max(ax, ay);
+  if (mx == 0.0) {
+    return 0.0;
+  }
+  let z = min(ax, ay) / mx;
+  let z2 = z * z;
+  var a = z * (0.9998660 + z2 * (-0.3302995 + z2 * (0.1801410 + z2 * (-0.0851330 + z2 * 0.0208351))));
+  if (ay > ax) {
+    a = PI / 2.0 - a;
+  }
+  if (x < 0.0) {
+    a = PI - a;
+  }
+  if (y < 0.0) {
+    a = -a;
+  }
+  return a;
+}
+
+// bearing_deg is the initial great-circle bearing, as geo.BearingDeg.
+//
+// Not in the textbook form. Its x term, cos(lat1)sin(lat2) -
+// sin(lat1)cos(lat2)cos(dlon), is two numbers near 0.46 that differ by about
+// a thousandth for a cell a few kilometres away, so the driver's trig error
+// lands on the difference whole. On an Intel UHD 620 that put a beam's
+// bearing nearly nine degrees out and its gain 0.9 dB wrong. The same
+// quantity is sin(dlat) + 2 sin(lat1) cos(lat2) sin^2(dlon/2): nothing
+// cancels, and every sine is the series above.
 fn bearing_deg(lat1: f32, lon1: f32, lat2: f32, lon2: f32) -> f32 {
   let rad = PI / 180.0;
-  let y = sin((lon2 - lon1) * rad) * cos(lat2 * rad);
-  let x = cos(lat1 * rad) * sin(lat2 * rad) -
-    sin(lat1 * rad) * cos(lat2 * rad) * cos((lon2 - lon1) * rad);
-  var bg = atan2(y, x) / rad;
+  let d_lat = (lat2 - lat1) * rad;
+  let d_lon = (lon2 - lon1) * rad;
+  let c2 = pcos(lat2 * rad);
+  let h = psin(d_lon * 0.5);
+  let y = psin(d_lon) * c2;
+  let x = psin(d_lat) + 2.0 * psin_lat(lat1 * rad) * c2 * h * h;
+  var bg = atan2p(y, x) / rad;
   if (bg < 0.0) {
     bg += 360.0;
   }
@@ -271,7 +335,7 @@ fn fold(@builtin(global_invocation_id) gid: vec3<u32>) {
     m_in = b.rem_tx + b.rem_gain - self_loss + self_gain - b.st_sens;
   } else {
     let bearing = bearing_deg(p.st_lat, p.st_lon, ll.x, ll.y);
-    let elev = atan2(rx_alt - p.st_alt, dist_km * 1000.0) * 180.0 / PI;
+    let elev = atan2p(rx_alt - p.st_alt, dist_km * 1000.0) * 180.0 / PI;
     let g = gain_db(bearing, elev);
     m_out = b.st_tx + g - loss + b.rem_gain - b.rem_sens;
     m_in = b.rem_tx + b.rem_gain - loss + g - b.st_sens;

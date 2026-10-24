@@ -75,6 +75,7 @@ func compareCoverageFoldCPU(t *testing.T) {
 			t.Fatalf("%s: GPU returned %d slots, CPU %d", name, len(got), len(want))
 		}
 		wrong := 0
+		worst := 0.0
 		for i := range want {
 			for _, v := range []float32{got[i].MinDB, got[i].OutDB, got[i].InDB} {
 				if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
@@ -89,12 +90,16 @@ func compareCoverageFoldCPU(t *testing.T) {
 				}
 				continue
 			}
+			worst = math.Max(worst, math.Abs(float64(got[i].MinDB-want[i].MinDB)))
 			if math.Abs(float64(got[i].MinDB-want[i].MinDB)) > 0.05 ||
 				math.Abs(float64(got[i].OutDB-want[i].OutDB)) > 0.05 ||
 				math.Abs(float64(got[i].InDB-want[i].InDB)) > 0.05 {
 				wrong++
 			}
 		}
+		// Said on a pass too: a device that agrees with 0.049 dB to spare of
+		// a 0.05 dB tolerance is one driver update from failing.
+		t.Logf("%s: worst margin disagreement %.4f dB over %d cells", name, worst, len(want))
 		if wrong > 0 {
 			t.Fatalf("%s: %d of %d cells disagree with the CPU twin", name, wrong, len(want))
 		}
