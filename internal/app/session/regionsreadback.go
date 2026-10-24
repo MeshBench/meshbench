@@ -1,7 +1,6 @@
 package session
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
@@ -41,12 +40,7 @@ func registerRegionsReadback(st *state.Store, s *Sim) {
 		// The replies arrive when the engine steps. Playing, the ticker does
 		// it; paused, step here as console.type does, or the read returns the
 		// console as it was before the questions were asked.
-		if !w.Playing {
-			for i := 0; i < 60; i++ {
-				_ = s.eng.Step(context.Background())
-			}
-			w.NowMs = s.eng.NowMs()
-		}
+		s.settleForReply(w)
 		regions, scope, readErr := parseRegionReadback(buf.LinesSince(mark))
 		if readErr != nil {
 			return nil, fmt.Errorf("reading %s's regions: %w", name, readErr)

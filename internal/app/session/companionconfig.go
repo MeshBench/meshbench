@@ -43,7 +43,7 @@ func registerCompanionConfig(st *state.Store, s *Sim) {
 	// Everything is optional and nothing is defaulted. A configure that sent
 	// every field every time would rewrite settings the operator never
 	// touched, and on a modem setting that is how a node leaves the mesh.
-	st.Handle("companion.configure", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "companion.configure", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, en, err := s.companionFor(node)
 		if err != nil {

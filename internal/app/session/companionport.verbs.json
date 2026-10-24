@@ -14,10 +14,18 @@
         "type": "array",
         "required": true,
         "what": "the payload, one number per byte; anything in the array that is not a number is dropped, and an empty or absent array is refused"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
-      "sent_bytes"
+      "sent_bytes",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "answers": "`sent_bytes` counts what was framed and written, which is the numbers that survived, not the length of the array as it was passed.",
     "example": {

@@ -14,6 +14,7 @@ import (
 // unaltered, which is the entire fix for a companion link that no real client
 // could parse.
 type nodeSerial struct {
+	eng     *Engine
 	node    *Node
 	release func()
 }
@@ -22,8 +23,16 @@ func (s *nodeSerial) Write(b []byte) error {
 	if s.node.Firmware == nil {
 		return fmt.Errorf("engine: %s runs no firmware", s.node.specRef().Name)
 	}
+	// A client outside the simulation writes when it likes, on the wall
+	// clock, so the step this lands before is the host's choice. Counted so
+	// the run can say it.
+	s.eng.externalInputs.Add(1)
 	return s.node.Firmware.Bridge.Type(b)
 }
+
+// ExternalInputs is how many writes have reached a served companion from a
+// client outside the simulation since the engine was built.
+func (e *Engine) ExternalInputs() int64 { return e.externalInputs.Load() }
 
 func (s *nodeSerial) Attach(w io.Writer) {
 	if s.node.Firmware == nil {
@@ -77,7 +86,7 @@ func (e *Engine) ServeCompanionTCP(name, addr string) (*CompanionLink, error) {
 	if err != nil {
 		return nil, err
 	}
-	l, err := companion.ListenTCP(addr, &nodeSerial{node: n})
+	l, err := companion.ListenTCP(addr, &nodeSerial{eng: e, node: n})
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +103,7 @@ func (e *Engine) ServeCompanionSerial(name string) (*CompanionLink, error) {
 	if err != nil {
 		return nil, err
 	}
-	l, err := companion.OpenSerial(&nodeSerial{node: n})
+	l, err := companion.OpenSerial(&nodeSerial{eng: e, node: n})
 	if err != nil {
 		return nil, err
 	}

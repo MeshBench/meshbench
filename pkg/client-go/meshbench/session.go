@@ -164,6 +164,14 @@ func (c Console) Send(ctx context.Context, line string) error {
 		map[string]any{"node": c.node, "command": line})
 }
 
+// SendAt types a line at an instant of simulated time rather than now. Now,
+// on a playing clock, is whenever the call arrives, so the same program lands
+// its lines at different instants on a busy machine; atMs does not.
+func (c Console) SendAt(ctx context.Context, line string, atMs uint32) error {
+	return c.w.Do(ctx, c.verb(ctx),
+		map[string]any{"node": c.node, "command": line, "at_ms": atMs})
+}
+
 // verb is console.cli for a framed console and console.type for a typed one.
 //
 // A node this client cannot see is not one to guess about, so the typed verb

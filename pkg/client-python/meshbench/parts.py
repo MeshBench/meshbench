@@ -581,9 +581,18 @@ class Console:
             # verb below say so in its own words.
             return False
 
-    def send(self, line: str) -> None:
+    def send(self, line: str, at_ms: int | None = None) -> None:
+        """Type a line at it, now or at ``at_ms`` of simulated time.
+
+        Now, on a playing clock, is whenever this call happens to arrive, so
+        the same script lands its lines at different instants on a busy
+        machine. ``at_ms`` holds the line until the run reaches that instant.
+        """
         verb = "console.cli" if self._framed else "console.type"
-        self._wb.call(verb, {"node": self.node, "command": line})
+        params: dict = {"node": self.node, "command": line}
+        if at_ms is not None:
+            params["at_ms"] = at_ms
+        self._wb.call(verb, params)
 
     def read(self) -> list[str]:
         """The scrollback, newest last.

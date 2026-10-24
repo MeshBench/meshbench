@@ -108,10 +108,13 @@ export class Console {
     }
   }
 
-  /** Type a line at it. */
-  async send(line) {
+  /** Type a line at it - now, or at `atMs` of simulated time, which lands at
+   *  the same instant however busy the machine is. */
+  async send(line, atMs) {
     const verb = (await this._framed()) ? "console.cli" : "console.type";
-    await this._wb.call(verb, { node: this.node, command: line });
+    const params = { node: this.node, command: line };
+    if (atMs !== undefined) params.at_ms = atMs;
+    await this._wb.call(verb, params);
   }
 
   /** The scrollback, newest last - the lines themselves.

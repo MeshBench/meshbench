@@ -82,6 +82,10 @@ type Config struct {
 
 // Engine owns the run.
 type Engine struct {
+	// externalInputs counts writes from a served companion's client; see
+	// ExternalInputs.
+	externalInputs atomic.Int64
+
 	Terrain propagation.Terrain
 	Config  Config
 	Ledger  capture.Ledger

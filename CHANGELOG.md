@@ -21,6 +21,37 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+### Added
+
+- **Script input at an instant of simulated time.** `console.type`,
+  `console.cli` and the `companion.*` verbs that write to a node take `at_ms`:
+  the call is held and runs when the run reaches that instant, so a script
+  configuring a mesh while it plays lands every line at the same moment on
+  any machine. Without it, a line typed at a playing clock lands wherever the
+  clock happens to be when the call arrives, which is how a loaded host
+  changed a native run's results. The Python, Go and JavaScript clients' console
+  `send` take it too.
+
+### Changed
+
+- **`sim.state` says when the wall clock decided something.** `reproducible`
+  is false, with the reason, once a node-writing verb ran at a playing clock
+  without `at_ms`, a client outside the simulation wrote to a served
+  companion, or a node was dropped for missing a tick's deadline.
+
+### Fixed
+
+- **Adding a scheduled send no longer repeats the ones already said.** Any
+  `schedule.add` made every one-shot send whose moment had passed go out
+  again.
+- **A reset or new seed runs the schedule again.** The schedule remembered
+  what it had fired across a rebuild, so the second run of a fixture was
+  silent.
+- **Scheduled sends fire during `sim.step`, `sim.settle` and a console
+  reply's settle**, not only while playing, so one that falls due there is
+  not held until the clock next plays.
+- **One step moves the clock one step.** It moved nothing.
+
 ## [0.3.0] - 2026-10-24
 
 What a companion does beside flooding, and what a radio is told when a frame

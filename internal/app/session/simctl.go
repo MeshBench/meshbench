@@ -9,11 +9,9 @@
 package session
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
-	"github.com/MeshBench/meshbench/internal/world/scenario"
 )
 
 // registerSimControl adds the run-from-a-script verbs.
@@ -53,7 +51,7 @@ func registerSimControl(st *state.Store, s *Sim) {
 		// and diff the two. That promise does not survive an emulated node, and
 		// the place to say so is the verb everything polls rather than a
 		// document nobody reaches from inside a script.
-		why := scenario.NotReproducible(s.nodes)
+		why := s.notReproducible()
 		return map[string]any{
 			"playing":              w.Playing,
 			"now_ms":               w.NowMs,
@@ -103,7 +101,7 @@ func registerSimControl(st *state.Store, s *Sim) {
 			n = int(v)
 		}
 		for i := 0; i < n; i++ {
-			_ = s.eng.Step(context.Background())
+			s.step(w)
 		}
 		w.NowMs = s.eng.NowMs()
 		return map[string]any{"now_ms": w.NowMs, "steps": n}, nil
