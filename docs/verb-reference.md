@@ -1604,7 +1604,7 @@ Report where the run has got to, cheaply enough to poll and safely enough to cal
 
 **Takes** nothing.
 
-**Answers** `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`, `warming`, `links_measured`, `ground`, `reproducible`, `not_reproducible_why`. `until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call. The link measurement has two states: `warming` while it runs, and `links_measured` once every pair has been walked. Neither true is a warm that failed or was cancelled, which finishes its own job row - so a wait for the workbench to go idle returns having waited for nothing, and reading that as a measurement is how a study came to be believed over ground nobody walked. `ground` is what the studies here are standing on, in the shape `terrain.ground` returns. `reproducible` says whether running this scenario again on the same seed would put the same traffic at the same instants: false wherever a node runs in an emulator, because that node's firmware is stepped by the emulator's clock rather than by the run's, and `not_reproducible_why` is the sentence saying which node and what follows from it. A script comparing two runs, or quoting a timing against another run's, has to read it.
+**Answers** `playing`, `now_ms`, `until_ms`, `events`, `step_ms`, `seed`, `warming`, `links_measured`, `ground`, `reproducible`, `not_reproducible_why`. `until_ms` is zero unless `sim.run` set a limit. `events` is the count since the engine was built, not since the last call. The link measurement has two states: `warming` while it runs, and `links_measured` once every pair has been walked. Neither true is a warm that failed or was cancelled, which finishes its own job row - so a wait for the workbench to go idle returns having waited for nothing, and reading that as a measurement is how a study came to be believed over ground nobody walked. `ground` is what the studies here are standing on, in the shape `terrain.ground` returns. `reproducible` says whether running this scenario again on the same seed would put the same traffic at the same instants: false wherever a node runs in an emulator, because that node's firmware is stepped by the emulator's clock rather than by the run's, and `not_reproducible_why` is the sentence saying which node and what follows from it. A script comparing two runs, or quoting a timing against another run's, has to read it. It is also false once something in this run was decided by the wall clock rather than by the run: a console or companion verb called while the clock was playing without `at_ms`, a client outside the simulation writing to a served companion, or a node dropped for missing a tick's deadline on a loaded machine. A reset or a new seed clears that.
 
 **Example** - ask whether the run has finished
 
@@ -2064,8 +2064,9 @@ Run one meshcore-cli line at a companion node, which has no text console of its 
 |---|---|---|---|
 | `node` | string | required, primary | the node to run the line at; refused when absent |
 | `command` | string | required | the line, in meshcore-cli's own vocabulary; refused when absent or blank, and `?` lists what this build answers |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `node`, `reply`, `failed`. `failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback.
+**Answers** `node`, `reply`, `failed`, `queued`, `at_ms`, `now_ms`. `failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback.
 
 **Example** - list the meshcore-cli commands this build answers
 
@@ -2107,8 +2108,9 @@ Run a line at a node's own firmware console, which answers what the node says ra
 |---|---|---|---|
 | `node` | string | required | the node whose console to type at; refused when it is absent, unknown, or runs no firmware |
 | `command` | string | required | the line to type, sent with a carriage return and newline after it; refused when it is absent or empty |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `node`, `sent`, `note`. The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.
+**Answers** `node`, `sent`, `note`, `queued`, `at_ms`, `now_ms`. The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.
 
 **Example** - ask a node what it believes it is called
 
@@ -2170,8 +2172,9 @@ Ask a node what one of its channel slots holds, despite the name: nothing is add
 |---|---|---|---|
 | `node` | string | required, primary | the connected node; refused when nothing is connected to it |
 | `index` | number | optional | which channel slot to ask about; absent asks about slot 0 |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `asked_for_channel`. It answers as soon as the question is queued. What the slot holds lands in the node's decoded state, which `companion.state` counts.
+**Answers** `asked_for_channel`, `queued`, `at_ms`, `now_ms`. It answers as soon as the question is queued. What the slot holds lands in the node's decoded state, which `companion.state` counts.
 
 **Example** - ask what is in the second channel slot
 
@@ -2193,8 +2196,9 @@ Make a node announce itself, which is how the rest of the mesh comes to hold it 
 |---|---|---|---|
 | `node` | string | required, primary | the connected node; refused when nothing is connected to it, or when it has not answered anything since it was connected |
 | `flood` | bool | optional | true sends a flood advert, which repeaters carry onward; false sends one that is not flooded; absent floods |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `advert`, `flood`
+**Answers** `advert`, `flood`, `queued`, `at_ms`, `now_ms`
 
 **Example** - announce to the neighbours only
 
@@ -2224,8 +2228,9 @@ Change a node's own settings the way a phone would, sending only the fields that
 | `sf` | number | optional | spreading factor, refused outside 5 to 12; absent with another modem field given keeps what the node last said it holds |
 | `cr` | number | optional | coding rate denominator, refused outside 5 to 8; absent with another modem field given keeps what the node last said it holds |
 | `path_hash` | number | optional | bytes of path hash each hop adds, 1 to 3, refused outside that; absent leaves it alone |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `set`. `set` names what was sent, in the order it went. A call that asks for nothing at all is refused rather than answered with an empty list. The four modem fields go as one command, so any one of them is refused until the node has said what its radio is.
+**Answers** `set`, `queued`, `at_ms`, `now_ms`. `set` names what was sent, in the order it went. A call that asks for nothing at all is refused rather than answered with an empty list. The four modem fields go as one command, so any one of them is refused until the node has said what its radio is.
 
 **Example** - turn a node's transmit power down
 
@@ -2246,8 +2251,9 @@ Claim a node's serial port for the companion protocol and make the same opening 
 | parameter | type | | what |
 |---|---|---|---|
 | `node` | string | required, primary | the node to attach to; refused when it is absent, runs no firmware, is already connected, or its port is being served to an attached outside client |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `connected`, `took_port`, `note`. A listener that is serving the port but has nobody on it is taken back rather than refused. Everything the node says in reply arrives later as frames, so read it with `companion.state`.
+**Answers** `connected`, `took_port`, `note`, `queued`, `at_ms`, `now_ms`. A listener that is serving the port but has nobody on it is taken back rather than refused. Everything the node says in reply arrives later as frames, so read it with `companion.state`.
 
 **Example** - attach to a node the way a phone would
 
@@ -2291,8 +2297,9 @@ Put bytes of the caller's own choosing on a node's companion port, for when what
 |---|---|---|---|
 | `node` | string | required, primary | the connected node; refused when nothing is connected to it |
 | `bytes` | array | required | the payload, one number per byte; anything in the array that is not a number is dropped, and an empty or absent array is refused |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `sent_bytes`. `sent_bytes` counts what was framed and written, which is the numbers that survived, not the length of the array as it was passed.
+**Answers** `sent_bytes`, `queued`, `at_ms`, `now_ms`. `sent_bytes` counts what was framed and written, which is the numbers that survived, not the length of the array as it was passed.
 
 **Example** - hand the firmware three bytes and see what it makes of them
 
@@ -2336,8 +2343,9 @@ Ask a node again for everything a client draws, emptying the held contact list f
 | parameter | type | | what |
 |---|---|---|---|
 | `node` | string | required, primary | the connected node; refused when nothing is connected to it |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `node`. It answers as soon as the questions are queued, so the contact count read straight after is zero. The answers arrive later as frames.
+**Answers** `node`, `queued`, `at_ms`, `now_ms`. It answers as soon as the questions are queued, so the contact count read straight after is zero. The answers arrive later as frames.
 
 **Example** - rebuild the view from what the node says now
 
@@ -2359,8 +2367,9 @@ Set the region a node sends under, by the one route a companion build has for it
 |---|---|---|---|
 | `node` | string | required, primary | the connected node; refused when nothing is connected to it |
 | `scope` | string | optional | the region name, canonicalised before it is sent and paired with the key derived from it; absent or empty clears the scope, so the node sends unscoped |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `node`, `scope`. `scope` is the name as it was asked for, canonicalised, not what the node now holds: the node's own answer arrives later as a frame.
+**Answers** `node`, `scope`, `queued`, `at_ms`, `now_ms`. `scope` is the name as it was asked for, canonicalised, not what the node now holds: the node's own answer arrives later as a frame.
 
 **Example** - put a node on a named region
 
@@ -2384,8 +2393,9 @@ Send a channel message from a node as a phone's composer would, and keep a copy 
 | `text` | string | required | the message; refused when it is absent or only whitespace |
 | `channel` | number | optional | which channel slot to send on; absent sends on slot 0 |
 | `path_hash` | number | optional | bytes of path hash each hop adds, 1 to 3, written to the node before the message goes and refused outside that range; absent leaves the node's own setting alone |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `sent`, `channel`
+**Answers** `sent`, `channel`, `queued`, `at_ms`, `now_ms`
 
 **Example** - put a message on the public channel
 

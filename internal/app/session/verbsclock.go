@@ -60,9 +60,11 @@ func registerClockVerbs(st *state.Store, s *Sim) {
 
 	st.Handle("sim.step", func(w *state.World, _ any) (any, error) {
 		// One step whether or not it is playing: stepping a paused simulation
-		// is the whole point of a step control.
+		// is the whole point of a step control. A step's worth of tick, not
+		// nought: a tick pays what it is owed in whole steps, so a tick of
+		// nought owed nothing and the button moved no time at all.
 		if w.Tick != nil {
-			w.Tick(0)
+			w.Tick(s.engineStepMs())
 		}
 		w.Say(fmt.Sprintf("stepped to %.2f s", float64(w.NowMs)/1000))
 		return map[string]any{"now_ms": w.NowMs}, nil

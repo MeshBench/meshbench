@@ -23,7 +23,7 @@ import (
 )
 
 func registerCompanion(st *state.Store, s *Sim) {
-	st.Handle("companion.connect", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "companion.connect", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		if node == "" {
 			return nil, fmt.Errorf("companion.connect needs a node")
@@ -144,7 +144,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return out, nil
 	})
 
-	st.Handle("companion.send", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "companion.send", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		text, _ := namedField(p, "text")
 		if strings.TrimSpace(text) == "" {
@@ -198,7 +198,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"sent": text, "channel": idx}, nil
 	})
 
-	st.Handle("companion.advert", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "companion.advert", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, en, err := s.companionFor(node)
 		if err != nil {
@@ -218,7 +218,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"advert": node, "flood": flood}, nil
 	})
 
-	st.Handle("companion.add_channel", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "companion.add_channel", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		_, en, err := s.companionFor(node)
 		if err != nil {
@@ -264,7 +264,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 	// set scope that way and every message went out unscoped while the
 	// interface reported the scope applied, which on a mesh that is entirely
 	// transport-scoped measures a different network from the one asked for.
-	st.Handle("companion.scope", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "companion.scope", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		name, _ := namedField(p, "scope")
 		c, en, err := s.companionFor(node)
@@ -293,7 +293,7 @@ func registerCompanion(st *state.Store, s *Sim) {
 		return map[string]any{"node": node, "scope": name}, nil
 	})
 
-	st.Handle("companion.refresh", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "companion.refresh", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, en, err := s.companionFor(node)
 		if err != nil {

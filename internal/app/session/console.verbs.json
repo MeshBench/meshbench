@@ -35,12 +35,20 @@
         "type": "string",
         "required": true,
         "what": "the line to type, sent with a carriage return and newline after it; refused when it is absent or empty"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
       "node",
       "sent",
-      "note"
+      "note",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "answers": "The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.",
     "example": {

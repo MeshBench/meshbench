@@ -220,7 +220,12 @@ func Register(st *state.Store, s *Sim) {
 				// goroutine and every verb and frame behind it. Both end the
 				// tick now; this is where that gets said, so "why has it gone
 				// quiet" has an answer.
-				sayFirmwareFailures(w, eng.FirmwareFailures())
+				down := eng.FirmwareFailures()
+				if len(down) > 0 {
+					s.taint(fmt.Sprintf("%s missed a tick's deadline and was dropped, so which nodes "+
+						"took part depended on how loaded this machine was", down[0].Name))
+				}
+				sayFirmwareFailures(w, down)
 			}
 			// The same question again: with the engine gone the clock does
 			// not advance, and the last time it reached is the truthful

@@ -71,8 +71,9 @@ GROUPS = [(g["title"], g["prefixes"]) for g in _map["groups"]]
 # Both spellings: HandleInternal is the workbench's own callbacks, which are
 # documented here as the verbs no client may call rather than left out of the
 # table entirely. Missing a spelling drops a registered verb out of the
-# document silently.
-HANDLE = re.compile(r'st\.Handle(?:Internal)?\(\s*"([a-z0-9_.]+)"\s*,')
+# document silently. handleInput is st.Handle for the verbs that write to a
+# node, which take at_ms.
+HANDLE = re.compile(r'(?:st\.Handle(?:Internal)?\(|s\.handleInput\(\s*st\s*,)\s*"([a-z0-9_.]+)"\s*,')
 
 # The subset of HANDLE registered with HandleInternal specifically: the
 # workbench's own callbacks, which the socket refuses. Kept separate from

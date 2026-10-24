@@ -17,7 +17,7 @@ import (
 )
 
 func registerCompanionRaw(st *state.Store, s *Sim) {
-	st.Handle("companion.raw", func(_ *state.World, p any) (any, error) {
+	s.handleInput(st, "companion.raw", func(_ *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		c, en, err := s.companionFor(node)
 		if err != nil {

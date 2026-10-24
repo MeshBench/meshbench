@@ -13,10 +13,18 @@
         "name": "index",
         "type": "number",
         "what": "which channel slot to ask about; absent asks about slot 0"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
-      "asked_for_channel"
+      "asked_for_channel",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "answers": "It answers as soon as the question is queued. What the slot holds lands in the node's decoded state, which `companion.state` counts.",
     "example": {
@@ -41,11 +49,19 @@
         "name": "flood",
         "type": "bool",
         "what": "true sends a flood advert, which repeaters carry onward; false sends one that is not flooded; absent floods"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
       "advert",
-      "flood"
+      "flood",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "example": {
       "params": {
@@ -64,12 +80,20 @@
         "required": true,
         "primary": true,
         "what": "the node to attach to; refused when it is absent, runs no firmware, is already connected, or its port is being served to an attached outside client"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
       "connected",
       "took_port",
-      "note"
+      "note",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "answers": "A listener that is serving the port but has nobody on it is taken back rather than refused. Everything the node says in reply arrives later as frames, so read it with `companion.state`.",
     "example": {
@@ -137,10 +161,18 @@
         "required": true,
         "primary": true,
         "what": "the connected node; refused when nothing is connected to it"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
-      "node"
+      "node",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "answers": "It answers as soon as the questions are queued, so the contact count read straight after is zero. The answers arrive later as frames.",
     "example": {
@@ -164,11 +196,19 @@
         "name": "scope",
         "type": "string",
         "what": "the region name, canonicalised before it is sent and paired with the key derived from it; absent or empty clears the scope, so the node sends unscoped"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
       "node",
-      "scope"
+      "scope",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "answers": "`scope` is the name as it was asked for, canonicalised, not what the node now holds: the node's own answer arrives later as a frame.",
     "example": {
@@ -204,11 +244,19 @@
         "name": "path_hash",
         "type": "number",
         "what": "bytes of path hash each hop adds, 1 to 3, written to the node before the message goes and refused outside that range; absent leaves the node's own setting alone"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
       "sent",
-      "channel"
+      "channel",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "example": {
       "params": {

@@ -227,9 +227,9 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `console.cli` | *a bare string*, `node` string, `command` string | `node`, `reply`, `failed` | `node.companion.cli(line)` |
+| `console.cli` | *a bare string*, `node` string, `command` string, `at_ms` number | `node`, `reply`, `failed`, `queued`, `at_ms`, `now_ms` | `node.companion.cli(line)` |
 | `console.read` | *a bare string*, `node` string | `node`, `lines`, `tail` | `node.console.read()  /  node.console.tail` |
-| `console.type` | `node` string, `command` string | `node`, `sent`, `note` | `node.console.send(line)` |
+| `console.type` | `node` string, `command` string, `at_ms` number | `node`, `sent`, `note`, `queued`, `at_ms`, `now_ms` | `node.console.send(line)` |
 | `fleet.replies` | — | `replies` | *none* — the reply collector, called only by its own goroutine |
 | `fleet.send` | *a bare string*, `command` string, `node` string, `kind` string | `command`, `sent_to`, `replies`, `warning` | `wb.fleet.send(command, kind=\|node=)` - *planned*, no client defines `wb.fleet` yet; call the verb |
 
@@ -237,16 +237,16 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `companion.add_channel` | *a bare string*, `node` string, `index` number | `asked_for_channel` | `node.companion.add_channel(index)` |
-| `companion.advert` | *a bare string*, `node` string, `flood` bool | `advert`, `flood` | `node.companion.advert(flood=False)` |
-| `companion.configure` | *a bare string*, `node` string, `name` string, `lat` number, `lon` number, `tx_dbm` number, `freq_khz` number, `bw_khz` number, `sf` number, `cr` number, `path_hash` number | `set` | `node.companion.configure(...)` |
-| `companion.connect` | *a bare string*, `node` string | `connected`, `took_port`, `note` | `node.companion.connect()` |
+| `companion.add_channel` | *a bare string*, `node` string, `index` number, `at_ms` number | `asked_for_channel`, `queued`, `at_ms`, `now_ms` | `node.companion.add_channel(index)` |
+| `companion.advert` | *a bare string*, `node` string, `flood` bool, `at_ms` number | `advert`, `flood`, `queued`, `at_ms`, `now_ms` | `node.companion.advert(flood=False)` |
+| `companion.configure` | *a bare string*, `node` string, `name` string, `lat` number, `lon` number, `tx_dbm` number, `freq_khz` number, `bw_khz` number, `sf` number, `cr` number, `path_hash` number, `at_ms` number | `set`, `queued`, `at_ms`, `now_ms` | `node.companion.configure(...)` |
+| `companion.connect` | *a bare string*, `node` string, `at_ms` number | `connected`, `took_port`, `note`, `queued`, `at_ms`, `now_ms` | `node.companion.connect()` |
 | `companion.disconnect` | *a bare string*, `node` string | `disconnected` | `node.companion.disconnect()` |
-| `companion.raw` | *a bare string*, `node` string, `bytes` array | `sent_bytes` | `node.companion.raw(bytes)` |
+| `companion.raw` | *a bare string*, `node` string, `bytes` array, `at_ms` number | `sent_bytes`, `queued`, `at_ms`, `now_ms` | `node.companion.raw(bytes)` |
 | `companion.read` | *a bare string*, `node` string, `channel` number | `node`, `channel` | `node.companion.messages(channel=)` |
-| `companion.refresh` | *a bare string*, `node` string | `node` | `node.companion.refresh()` |
-| `companion.scope` | *a bare string*, `node` string, `scope` string | `node`, `scope` | `node.companion.scope = name` |
-| `companion.send` | *a bare string*, `node` string, `text` string, `channel` number, `path_hash` number | `sent`, `channel` | `node.companion.send(text, channel=, path_hash=)` |
+| `companion.refresh` | *a bare string*, `node` string, `at_ms` number | `node`, `queued`, `at_ms`, `now_ms` | `node.companion.refresh()` |
+| `companion.scope` | *a bare string*, `node` string, `scope` string, `at_ms` number | `node`, `scope`, `queued`, `at_ms`, `now_ms` | `node.companion.scope = name` |
+| `companion.send` | *a bare string*, `node` string, `text` string, `channel` number, `path_hash` number, `at_ms` number | `sent`, `channel`, `queued`, `at_ms`, `now_ms` | `node.companion.send(text, channel=, path_hash=)` |
 | `companion.state` | *a bare string*, `node` string | `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz` | `node.companion  (properties)` |
 
 ### Serving to real clients

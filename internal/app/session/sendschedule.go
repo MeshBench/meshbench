@@ -28,6 +28,9 @@ import (
 // one.
 type sendClock struct {
 	lastMs []int64
+	// seen is the list lastMs was kept for, so an append can be told from a
+	// replacement.
+	seen []state.Send
 }
 
 // fireDueSends says whatever is due at this moment of simulated time.
@@ -41,13 +44,25 @@ func (s *Sim) fireDueSends(w *state.World) {
 		return
 	}
 	now := int64(s.eng.NowMs())
-	if len(s.sendClock.lastMs) != len(w.Sends) {
-		// The list changed - a fixture opened, or schedule.add called - so
-		// start again rather than carry stale positions across it.
-		s.sendClock.lastMs = make([]int64, len(w.Sends))
-		for i := range s.sendClock.lastMs {
-			s.sendClock.lastMs[i] = -1
+	if !sameSends(s.sendClock.seen, w.Sends) {
+		// The list changed. schedule.add appends, and what was already
+		// there keeps what it has said: starting every position again made
+		// each one-shot send whose moment had passed go out a second time,
+		// on the next step after any add - which is a script adding its
+		// traffic in the middle of a run. A list that is not the old one
+		// with more on the end - a fixture opened, schedule.clear - starts
+		// again.
+		keep := 0
+		if len(w.Sends) >= len(s.sendClock.seen) && sameSends(s.sendClock.seen, w.Sends[:len(s.sendClock.seen)]) {
+			keep = len(s.sendClock.seen)
 		}
+		last := make([]int64, len(w.Sends))
+		copy(last, s.sendClock.lastMs[:keep])
+		for i := keep; i < len(last); i++ {
+			last[i] = -1
+		}
+		s.sendClock.lastMs = last
+		s.sendClock.seen = append([]state.Send(nil), w.Sends...)
 	}
 	for i, snd := range w.Sends {
 		at := int64(snd.AtMs)
@@ -127,3 +142,15 @@ func (s *Sim) runCompanionLine(node, line string) error {
 
 // resetSendClock forgets what has been said, for a run starting over.
 func (s *Sim) resetSendClock() { s.sendClock.lastMs = nil }
+
+func sameSends(a, b []state.Send) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

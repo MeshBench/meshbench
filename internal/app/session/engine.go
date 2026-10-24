@@ -36,6 +36,15 @@ type Sim struct {
 	// tickOwed is simulated time a tick has been given and the engine has not
 	// yet stepped through, because a tick can be shorter than one step.
 	tickOwed uint32
+	// inputs are verb calls held until the instant their at_ms names.
+	inputs inputQueue
+	// replaying is set while a held call runs, so it does not settle the
+	// clock from inside a step.
+	replaying bool
+	// tainted is the first reason this run stopped being reproducible that
+	// the scenario alone does not show: input that arrived on the wall
+	// clock, or a node dropped for missing a tick. Empty while it is.
+	tainted string
 	// statesMu guards states, which Reflash writes from its own goroutine and
 	// the store goroutine reads to answer nodes.stats.
 	statesMu sync.Mutex
@@ -332,6 +341,13 @@ func (s *Sim) SetLogPath(path string) { s.logPath = path }
 func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
 	// A new engine owes nothing: time a tick gave the last one belongs to it.
 	s.tickOwed = 0
+	// Nor does it inherit held input, what the schedule has already said, or
+	// a reason the last one could not be reproduced: all three were about a
+	// run that has gone. A schedule that remembered it had fired never fired
+	// again after a reset, so the second run of a fixture ran silent.
+	s.inputs.clear()
+	s.sendClock = sendClock{}
+	s.tainted = ""
 	// A rebuild that changes nothing geometric keeps the measured matrix.
 	//
 	// Reset, a new seed, and switching run kinds all remake the engine, and

@@ -7,7 +7,6 @@
 package session
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -48,7 +47,7 @@ func (s *Sim) consoleFor(name string) (*console.Buf, error) {
 }
 
 func registerConsole(st *state.Store, s *Sim) {
-	st.Handle("console.type", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "console.type", func(w *state.World, p any) (any, error) {
 		var name, cmd string
 		if m, ok := p.(map[string]any); ok {
 			name, _ = m["node"].(string)
@@ -75,12 +74,7 @@ func registerConsole(st *state.Store, s *Sim) {
 		// same here, but only when paused: waiting for the ticker from the
 		// ticker's own goroutine is waiting for yourself, and with
 		// fifty-eight firmware processes it blocked every verb for seconds.
-		if !w.Playing {
-			for i := 0; i < 60; i++ {
-				_ = s.eng.Step(context.Background())
-			}
-			w.NowMs = s.eng.NowMs()
-		}
+		s.settleForReply(w)
 		w.Console, w.ConsoleNode = buf.Snapshot(), name
 		_ = mark
 		return map[string]any{

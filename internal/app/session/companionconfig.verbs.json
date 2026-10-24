@@ -53,10 +53,18 @@
         "name": "path_hash",
         "type": "number",
         "what": "bytes of path hash each hop adds, 1 to 3, refused outside that; absent leaves it alone"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
       }
     ],
     "returns": [
-      "set"
+      "set",
+      "queued",
+      "at_ms",
+      "now_ms"
     ],
     "answers": "`set` names what was sent, in the order it went. A call that asks for nothing at all is refused rather than answered with an empty list. The four modem fields go as one command, so any one of them is refused until the node has said what its radio is.",
     "example": {

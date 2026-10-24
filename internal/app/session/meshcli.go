@@ -13,7 +13,6 @@
 package session
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -185,7 +184,7 @@ func meshcliHelp() string {
 }
 
 func registerMeshCLI(st *state.Store, s *Sim) {
-	st.Handle("console.cli", func(w *state.World, p any) (any, error) {
+	s.handleInput(st, "console.cli", func(w *state.World, p any) (any, error) {
 		node, _ := stringField(p, "node")
 		line, _ := namedField(p, "command")
 		if m, ok := p.(map[string]any); ok {
@@ -277,12 +276,7 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 			// since it draws its own decoded state) got no answer until play
 			// was pressed, and read as the command line having stopped
 			// working rather than the clock having stopped.
-			if !w.Playing {
-				for i := 0; i < 60; i++ {
-					_ = s.eng.Step(context.Background())
-				}
-				w.NowMs = s.eng.NowMs()
-			}
+			s.settleForReply(w)
 			say(out)
 			return map[string]any{"node": node, "reply": out}, nil
 		}

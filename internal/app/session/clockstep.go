@@ -50,11 +50,10 @@ func (s *Sim) stepTick(w *state.World, tickMs uint32) {
 			s.tickOwed = 0
 			return
 		}
-		_ = eng.Step(context.Background())
+		// Sends and held input after the step, so they land on a mesh whose
+		// clock has already reached their moment.
+		s.step(w)
 		s.tickOwed -= step
-		// After the step, so a send lands on a mesh whose clock has already
-		// reached its moment.
-		s.fireDueSends(w)
 		if time.Since(began) > tickWallBudget {
 			s.tickOwed = 0
 			return
@@ -65,3 +64,27 @@ func (s *Sim) stepTick(w *state.World, tickMs uint32) {
 // tickWallBudget is how long one tick may hold the store's goroutine. A
 // variable so a test can make every step overrun it.
 var tickWallBudget = 50 * time.Millisecond
+
+// step advances the engine one step and then says whatever came due at the
+// instant it reached: scheduled sends, then calls held with at_ms.
+//
+// Every step a session takes goes through here, playing or not. sim.step,
+// sim.settle and a console reply's settle used to step the engine directly,
+// so a send that fell due inside one of them went out on the next playing
+// tick instead - late by however long the clock had stood still.
+func (s *Sim) step(w *state.World) {
+	if s.eng == nil {
+		return
+	}
+	_ = s.eng.Step(context.Background())
+	s.fireDueSends(w)
+	s.fireDueInputs(w)
+}
+
+// engineStepMs is the simulated time one engine step covers.
+func (s *Sim) engineStepMs() uint32 {
+	if s.eng == nil || s.eng.Config.StepMs == 0 {
+		return 10
+	}
+	return s.eng.Config.StepMs
+}
