@@ -307,6 +307,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 		fmt.Sprintf("%s=%d", EnvNoiseSeed, noiseSeedFor(e.RunSeed, e.NodeName, e.BoardName, e.Position)))
 
 	if e.Emulator == Renode {
+		e.radioEnv = append(e.radioEnv, "MESHBENCH_FLASH_KEEP="+e.keptStorage())
 		if err := e.startRenode(ctx, bridge); err != nil {
 			return err
 		}

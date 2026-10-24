@@ -41,6 +41,14 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **Emulated nRF52 boards keep what they store.** The factory registers never
+  said how big the flash was, so the SoftDevice refused every erase and write
+  with `NRF_ERROR_FORBIDDEN`: the filesystem could not be formatted, and
+  `IdentityStore::save()` failed on every boot. And Renode rebuilt flash from
+  the image at every start, so nothing would have survived a restart anyway.
+  The filesystem's pages are now kept in the node's directory and loaded back
+  when the same build starts again. A preference set over the console
+  survives a restart.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.

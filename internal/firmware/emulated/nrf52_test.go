@@ -110,3 +110,41 @@ func TestFlashLaysTheSoftDeviceUnderTheApplication(t *testing.T) {
 		t.Errorf("the byte at 0x10 is 0x%02X, want 0x42", got[16])
 	}
 }
+
+// The SoftDevice checks every flash operation against the flash's geometry,
+// and with CODEPAGESIZE and CODESIZE reading zero it forbade every one (#565).
+func TestFICRSaysHowBigTheFlashIs(t *testing.T) {
+	w := (&EmulatedNode{NodeName: "n1"}).ficrWrites()
+	for _, want := range []string{"0x10000010 0x00001000", "0x10000014 0x00000100"} {
+		if !strings.Contains(w, "sysbus WriteDoubleWord "+want) {
+			t.Errorf("FICR does not write %s:\n%s", want, w)
+		}
+	}
+}
+
+// What the firmware stored goes back into flash at the next start of the same
+// build, and a different build starts with nothing (#565).
+func TestKeptStorageComesBackForTheSameBuild(t *testing.T) {
+	dir := t.TempDir()
+	e := &EmulatedNode{Image: writeUF2(t, 0), Dir: dir}
+	script, err := e.renodeFlash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(script, "0xED000") {
+		t.Fatalf("nothing was kept, yet storage is loaded:\n%s", script)
+	}
+	if err := os.WriteFile(e.keptStorage(), []byte{1}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if script, _ = e.renodeFlash(); !strings.Contains(script, e.keptStorage()+" 0xED000") {
+		t.Errorf("the kept storage is not loaded:\n%s", script)
+	}
+	other := &EmulatedNode{Image: writeUF2(t, 0x0), Dir: dir}
+	if err := os.WriteFile(other.Image, uf2blk(0, []byte{9, 9, 9, 9}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if other.keptStorage() == e.keptStorage() {
+		t.Error("another build would inherit this one's storage")
+	}
+}
