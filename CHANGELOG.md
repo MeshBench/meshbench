@@ -41,6 +41,9 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **Menus close on Escape or a click outside them.** A dropdown stayed open
+  until its title was clicked again or an item picked. A click outside now
+  closes it without acting on whatever was underneath.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.
