@@ -41,6 +41,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **Renode's chip binding is safe with a newer chip library.** Its
+  `VsxState` and `VsxCounters` were laid out for virtual-sx1262 ABI 1.3 while
+  the version check accepted any later minor, so a 1.4+ library wrote past
+  the end of both. They now follow the 1.7 header, a library newer than that
+  is refused, and the sizes are checked against C's on load. Renode nodes also
+  report `irq_suppressed` from a chip that counts it.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.
