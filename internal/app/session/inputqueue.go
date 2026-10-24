@@ -152,6 +152,22 @@ func (s *Sim) settleForReply(w *state.World) {
 	w.NowMs = s.eng.NowMs()
 }
 
+// pausedNote is what a console adds under a command accepted while the clock
+// is stopped (#521). The firmware's own "OK - Advert sent" is true from its
+// side: it queued the packet. Nothing goes on the air until the engine steps,
+// and only MeshBench knows the run is paused, so the note is ours.
+const pausedNote = "the run is paused: anything this sends is queued and goes on the air when it plays"
+
+// pausedFor is pausedNote when it applies to a command running now, or "". A
+// call replayed from the input queue runs inside a step, so it is not waiting
+// for one.
+func (s *Sim) pausedFor(w *state.World) string {
+	if w.Playing || s.replaying {
+		return ""
+	}
+	return pausedNote
+}
+
 func withoutAtMs(p any) any {
 	m, ok := p.(map[string]any)
 	if !ok {

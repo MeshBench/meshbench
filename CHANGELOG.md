@@ -34,6 +34,11 @@ had changed in them - which is the gap this file exists to close.
 
 ### Changed
 
+- **A console command on a paused run says it is waiting for play.** The
+  firmware answers `OK - Advert sent` whether or not the clock is running, and
+  on a paused run nothing goes on the air until it plays. `console.type` and
+  `console.cli` now add a line under the reply saying so, and return it as
+  `paused`.
 - **`sim.state` says when the wall clock decided something.** `reproducible`
   is false, with the reason, once a node-writing verb ran at a playing clock
   without `at_ms`, a client outside the simulation wrote to a served
