@@ -303,8 +303,8 @@ jobs:
   # nothing.
   #
   # The two Fife fixtures only, at 58 nodes each. The national ones are 161 and
-  # 378 MeshCore processes and minutes of wall clock apiece, which is a
-  # nightly's work - firmware-live.yml runs the whole set with no cap.
+  # 378 MeshCore processes and minutes of wall clock apiece - firmware-live.yml
+  # runs the whole set with no cap, on request.
   fixtures:
     timeout-minutes: 25
     # lab-2404, not lab-linux. This job starts real MeshCore firmware, and the
