@@ -2,6 +2,7 @@ package workbench
 
 import (
 	"fmt"
+	"image"
 	"testing"
 
 	"github.com/MeshBench/meshbench/internal/app/state"
@@ -101,5 +102,26 @@ func TestALongRunStillFollowsTheNewestRow(t *testing.T) {
 	if !p.list.ScrollToEnd {
 		t.Error("more rows than fit, so the panel should still be following " +
 			"the newest one")
+	}
+}
+
+// Docked in the right rail, the full panel shows rows, not one row under a
+// band of nothing.
+//
+// The rail is the Inspector's width, and the full row's fixed columns came to
+// more than that. The header's last label was laid out in no width and wrapped
+// a letter to a line, which took almost all the height the table had: the
+// panel said "showing 2000 of 4610 events" over one row pinned to its floor.
+func TestTheDockedPanelShowsItsRows(t *testing.T) {
+	p := &eventsPanel{}
+	snap := &state.Snapshot{Events: eventTail(0, 2000), EventTotal: 2000}
+	snap.Counts = state.EventCounts{Received: 2000}
+	h := uitest.New(p.Draw, snap)
+	h.Size = image.Pt(340, 430)
+	for range 3 {
+		h.Frame()
+	}
+	if got := p.list.Position.Count; got < 5 {
+		t.Errorf("a 340x430 rail laid out %d rows", got)
 	}
 }

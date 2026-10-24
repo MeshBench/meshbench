@@ -42,6 +42,9 @@ type eventsPanel struct {
 	built    bool
 	compact  bool
 	forNode  bool
+	// narrow is this frame's pane being too slim for the full row; see
+	// narrowRows.
+	narrow bool
 	// scopedTo is the node the view is filtered to this frame, for the
 	// empty state to name.
 	scopedTo string
@@ -98,6 +101,7 @@ func (p *eventsPanel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot
 	if !p.built {
 		p.build()
 	}
+	p.narrow = gtx.Constraints.Max.X < gtx.Dp(fullRowDp)
 	if s == nil {
 		return layout.Dimensions{}
 	}
@@ -271,7 +275,7 @@ func (p *eventsPanel) chipRow(t *theme.Theme, gtx layout.Context, s *state.Snaps
 // past a point the names are complete and the rest is white space.
 func (p *eventsPanel) colWidths(gtx layout.Context) (tw, fw, snr, pill int) {
 	tw, fw, snr, pill = gtx.Dp(64), gtx.Dp(130), gtx.Dp(56), gtx.Dp(96)
-	if p.compact {
+	if p.narrowRows() {
 		pill = gtx.Dp(24)
 		fw = (gtx.Constraints.Max.X - tw - snr - pill) / 2
 		if lo := gtx.Dp(96); fw < lo {
@@ -297,12 +301,12 @@ func (p *eventsPanel) headerRow(t *theme.Theme, gtx layout.Context) layout.Dimen
 	kids := []layout.FlexChild{
 		cell(tw, "Time"), cell(fw, "From"), cell(fw, "To"), cell(snr, "SNR (dB)"),
 	}
-	if !p.compact {
+	if !p.narrowRows() {
 		// The compact view's type column is a dot; a header wider than the
 		// column wraps at the panel edge, so it goes unlabelled there.
 		kids = append(kids,
 			cell(pill, "Type"),
-			layout.Rigid(comp.Text(t, t.Sz.Caption, t.P.Faint, "What happened")))
+			layout.Flexed(1, comp.OneLine(t, t.Sz.Caption, t.P.Faint, "What happened", false)))
 	}
 	return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.XS}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
@@ -412,7 +416,7 @@ func (p *eventsPanel) table(t *theme.Theme, gtx layout.Context, shown []*state.E
 					cell(fw, comp.OneLine(t, t.Sz.Caption, t.P.Ink, e.To, false)),
 					cell(snr, comp.Mono(t, t.Sz.Caption, t.P.Dim, snrOf(e))),
 				}
-				if p.compact {
+				if p.narrowRows() {
 					kids = append(kids, cell(pill, func(gtx layout.Context) layout.Dimensions {
 						return classDot(t, gtx, e.Class)
 					}))
@@ -458,3 +462,18 @@ func (p *eventsPanel) footer(t *theme.Theme, gtx layout.Context, shown int, s *s
 func classDot(t *theme.Theme, gtx layout.Context, class string) layout.Dimensions {
 	return comp.Dot(comp.ClassColour(t, class), gtx.Dp(4))(gtx)
 }
+
+// fullRowDp is the narrowest pane the full row fits: time, two names at their
+// floor, SNR, the type pill and some of what happened.
+const fullRowDp unit.Dp = 64 + 96 + 96 + 56 + 96 + 120
+
+// narrowRows is whether rows are drawn the way the Inspector draws them: names
+// sharing what is left, a dot for the type, and no detail.
+//
+// The full panel docked in a rail is no wider than the Inspector, and the
+// fixed columns it asked for came to more than the rail had. The header's
+// last label was then laid out in no width at all and wrapped a letter to a
+// line, a header nearly two hundred pixels tall, which left the rows a strip
+// one row high - "showing 2000 of 4610 events" above a table with nothing in
+// it.
+func (p *eventsPanel) narrowRows() bool { return p.compact || p.narrow }
