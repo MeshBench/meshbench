@@ -61,12 +61,16 @@ fn height_at(lat: f32, lon: f32) -> vec2<f32> {
   return vec2<f32>(top * (1.0 - ty) + bot * ty, 1.0);
 }
 
+// haversine_km uses psin and pcos (below) for the reason bearing_deg does:
+// half a cell's latitude difference is a few ten-thousandths of a radian, no
+// bigger than the error Vulkan lets a driver's sin have.
 fn haversine_km(lat1: f32, lon1: f32, lat2: f32, lon2: f32) -> f32 {
   let rad = PI / 180.0;
   let d_lat = (lat2 - lat1) * rad;
   let d_lon = (lon2 - lon1) * rad;
-  let a = sin(d_lat / 2.0) * sin(d_lat / 2.0) +
-    cos(lat1 * rad) * cos(lat2 * rad) * sin(d_lon / 2.0) * sin(d_lon / 2.0);
+  let s_lat = psin(d_lat / 2.0);
+  let s_lon = psin(d_lon / 2.0);
+  let a = s_lat * s_lat + pcos(lat1 * rad) * pcos(lat2 * rad) * s_lon * s_lon;
   return 2.0 * 6371.0 * asin(min(1.0, sqrt(a)));
 }
 
