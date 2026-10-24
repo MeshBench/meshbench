@@ -1863,7 +1863,7 @@ List every build there is, on disk and published together, so a build nobody has
 
 **Takes** nothing.
 
-**Answers** `builds`, `count`. The catalogue is asked over the network in the background and its answer lands seconds later, so the first call in a session answers from disk alone and is worth making again. Each row in `builds` carries `role`, `version`, `board`, `bytes`, `on_disk`, `path`, `in_use` and `unavailable`.
+**Answers** `builds`, `count`. The catalogue is asked over the network in the background and its answer lands seconds later, so the first call in a session answers from disk alone and is worth making again. Each row in `builds` carries `role`, `version`, `board`, `bytes`, `on_disk`, `path`, `in_use`, `unavailable`, `checking` and `catalogue_down`. A build that is not on disk is `checking` until the catalogue answers, `catalogue_down` if it could not be reached, and `unavailable` only once it answered without it.
 
 **Example** - list what could be run, fetched or not
 

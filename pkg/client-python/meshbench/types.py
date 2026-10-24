@@ -217,6 +217,11 @@ class Build:
     #: published. Pinning to one succeeds and then fails at start, which reads
     #: as the library losing builds rather than as a pin nobody can honour.
     unavailable: bool = False
+    #: Not on disk while the catalogue has not answered yet (``checking``),
+    #: or could not be reached (``catalogue_down``): in both it may well be
+    #: published, and nobody can yet say it is not.
+    checking: bool = False
+    catalogue_down: bool = False
 
     def __str__(self) -> str:
         if not self.board:

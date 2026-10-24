@@ -145,6 +145,11 @@ type Build struct {
 	// fails at start, which reads as the library losing builds rather than as
 	// a pin nobody can honour.
 	Unavailable bool `json:"unavailable"`
+	// Checking marks a build not on disk while the catalogue has not answered
+	// yet, and CatalogueDown one whose catalogue could not be reached: in both
+	// it may well be published, and nobody can yet say it is not.
+	Checking      bool `json:"checking"`
+	CatalogueDown bool `json:"catalogue_down"`
 }
 
 // BuildDetails is one build in full: what a library row cannot hold.

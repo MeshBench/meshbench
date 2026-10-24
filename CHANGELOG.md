@@ -59,6 +59,12 @@ had changed in them - which is the gap this file exists to close.
   columns were wider than the rail, so the header wrapped a letter to a line
   and left room for one row. A panel too narrow for the full row now lays
   rows out the way the Inspector does.
+- **The firmware library says "checking" until the catalogue answers.** A
+  build not yet downloaded was marked unavailable while the catalogue was
+  still being asked, and for good if it could not be reached, so a first run
+  opened on a library of builds that looked unpublished. A row whose half of
+  the catalogue is unreachable now offers a retry. `firmware.library` rows
+  carry `checking` and `catalogue_down`.
 
 ## [0.3.0] - 2026-10-24
 

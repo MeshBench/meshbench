@@ -85,7 +85,7 @@ func fillLibrary(s *session.Sim, w *state.World) {
 				// download a build for each role, and the library told them
 				// none was published, because it had not heard back yet.
 				r.Checking = true
-			case cat.failed:
+			case r.Board == "" && cat.nativeDown, r.Board != "" && cat.boardsDown:
 				r.CatalogueDown = true
 			default:
 				// Nothing on disk and nothing published for this machine,
@@ -126,11 +126,11 @@ func fillLibrary(s *session.Sim, w *state.World) {
 // library, so this keeps the boards MeshBench can actually run and, for each
 // board and role, the newest version. Older ones stay one click away in the
 // firmware picker, which reads the catalogue directly.
-func publishedBoards(ctx context.Context) []publishedBuild {
+func publishedBoards(ctx context.Context) ([]publishedBuild, error) {
 	cat := &emulated.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
 	imgs, err := cat.ListAll(ctx)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	known := map[string]bool{}
 	for _, b := range hw.Boards() {
@@ -171,7 +171,7 @@ func publishedBoards(ctx context.Context) []publishedBuild {
 		}
 		return out[i].role < out[j].role
 	})
-	return out
+	return out, nil
 }
 
 // newerVersion compares vX.Y.Z by number, so v1.9.0 sorts below v1.17.0 -

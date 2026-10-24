@@ -22,6 +22,8 @@ func TestTheLibrarySaysCheckingUntilTheCatalogueAnswers(t *testing.T) {
 
 	nodes := []scenario.Node{
 		{Name: "hill", Kind: scenario.SimpleRepeater, Firmware: scenario.FirmwareRef{Version: "repeater-v1.17.1"}},
+		{Name: "deck", Kind: scenario.SimpleRepeater, Firmware: scenario.FirmwareRef{
+			Version: "v1.17.1", Board: "LilyGo_TDeck"}},
 	}
 	store := state.New(10)
 	sim := &session.Sim{}
@@ -33,37 +35,58 @@ func TestTheLibrarySaysCheckingUntilTheCatalogueAnswers(t *testing.T) {
 
 	// A fetch in flight, held there so the test does not reach the network.
 	catalogueOf(sim).fetching = true
-	row := func() state.FirmwareRow {
+	row := func(version string) state.FirmwareRow {
 		t.Helper()
 		if _, err := store.Do(ctx, "firmware.library", nil); err != nil {
 			t.Fatal(err)
 		}
 		for _, r := range store.Snapshot().Library {
-			if r.Version == "repeater-v1.17.1" {
+			if r.Version == version {
 				return r
 			}
 		}
-		t.Fatal("the pinned build has no row")
+		t.Fatalf("the pinned build %s has no row", version)
 		return state.FirmwareRow{}
 	}
+	native, board := func() state.FirmwareRow { return row("repeater-v1.17.1") },
+		func() state.FirmwareRow { return row("v1.17.1") }
 
-	if r := row(); !r.Checking || r.Unavailable || r.CatalogueDown {
-		t.Errorf("while the catalogue is asked: %+v, want checking only", r)
+	for name, r := range map[string]state.FirmwareRow{"native": native(), "board": board()} {
+		if !r.Checking || r.Unavailable || r.CatalogueDown {
+			t.Errorf("%s, while the catalogue is asked: %+v, want checking only", name, r)
+		}
 	}
 
-	// The catalogue could not be reached: not known, rather than not there.
-	if _, err := store.Do(ctx, "firmware.published", publishedAnswer{failed: true}); err != nil {
+	// The native half could not be reached: not known, rather than not
+	// there. The board half answered, and the image is not in it.
+	if _, err := store.Do(ctx, "firmware.published", publishedAnswer{nativeDown: true}); err != nil {
 		t.Fatal(err)
 	}
-	if r := row(); !r.CatalogueDown || r.Unavailable || r.Checking {
-		t.Errorf("after a failed fetch: %+v, want catalogue down only", r)
+	if r := native(); !r.CatalogueDown || r.Unavailable || r.Checking {
+		t.Errorf("native, after its catalogue failed: %+v, want catalogue down only", r)
+	}
+	if r := board(); !r.Unavailable || r.CatalogueDown || r.Checking {
+		t.Errorf("board, after its catalogue answered: %+v, want unavailable only", r)
 	}
 
-	// Reached, and it is not there: now it is unavailable.
+	// And the other way about.
+	if _, err := store.Do(ctx, "firmware.published", publishedAnswer{boardsDown: true}); err != nil {
+		t.Fatal(err)
+	}
+	if r := native(); !r.Unavailable || r.CatalogueDown || r.Checking {
+		t.Errorf("native, after its catalogue answered: %+v, want unavailable only", r)
+	}
+	if r := board(); !r.CatalogueDown || r.Unavailable || r.Checking {
+		t.Errorf("board, after its catalogue failed: %+v, want catalogue down only", r)
+	}
+
+	// Both reached, neither has it: now both are unavailable.
 	if _, err := store.Do(ctx, "firmware.published", []publishedBuild{}); err != nil {
 		t.Fatal(err)
 	}
-	if r := row(); !r.Unavailable || r.Checking || r.CatalogueDown {
-		t.Errorf("after the catalogue answered without it: %+v, want unavailable only", r)
+	for name, r := range map[string]state.FirmwareRow{"native": native(), "board": board()} {
+		if !r.Unavailable || r.Checking || r.CatalogueDown {
+			t.Errorf("%s, after the catalogue answered without it: %+v, want unavailable only", name, r)
+		}
 	}
 }
