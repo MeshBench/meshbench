@@ -41,6 +41,11 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **The compact macOS build carries the chip model and Renode's support
+  files.** Both were added after the compact image was cut, so a compact Mac
+  build could start no emulated board at all, and after fetching Renode still
+  no nRF52 one. They now go in first, and the compact tree is checked by
+  `verify-bundle.sh` like the other platforms' are.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.
