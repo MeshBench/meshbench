@@ -133,8 +133,10 @@ func (s *Sim) Close() { s.CloseContext(context.Background()) }
 func (s *Sim) CloseContext(ctx context.Context) {
 	d, ok := s.detachOnStore(ctx)
 	if !ok {
-		// The store has stopped, or never ran, so nothing else can be
-		// touching the Sim and it is safe to do here.
+		// The store has stopped or never ran, so nothing else is touching
+		// the Sim. Or it is wedged in a verb past the wait, and then the
+		// firmware still has to stop: a process left running is worse than
+		// a race with a store that is not moving.
 		d = s.detach()
 	}
 	for _, l := range d.served {
@@ -166,7 +168,7 @@ func (s *Sim) detach() detached {
 // detachOnStore runs detach on the store's goroutine, reporting false when
 // there is no running store to run it on.
 func (s *Sim) detachOnStore(ctx context.Context) (detached, bool) {
-	if s.store == nil {
+	if s.store == nil || !s.store.Running() {
 		return detached{}, false
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

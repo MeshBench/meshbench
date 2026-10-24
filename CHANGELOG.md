@@ -51,6 +51,10 @@ had changed in them - which is the gap this file exists to close.
   reply's settle**, not only while playing, so one that falls due there is
   not held until the clock next plays.
 - **One step moves the clock one step.** It moved nothing.
+- **Closing the workbench no longer races a rebuild.** A signal or quit read
+  and cleared the engine off the store's goroutine, so a close landing during
+  a rebuild could miss the new engine and leave its firmware running. The
+  engine is now handed over by the store before it is closed.
 
 ## [0.3.0] - 2026-10-24
 

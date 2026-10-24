@@ -1,10 +1,14 @@
 package session
 
 import (
+	"context"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/rf/antenna"
 	"github.com/MeshBench/meshbench/internal/sim/engine"
 	"github.com/MeshBench/meshbench/internal/world/scenario"
@@ -60,5 +64,35 @@ func TestCloseDoesNotRaceServedCompanions(t *testing.T) {
 
 	if !torndown.Load() {
 		t.Error("Close returned without running teardown - firmware was never stopped")
+	}
+}
+
+// Close on a running store takes the engine away on the store's goroutine,
+// and on a store that never ran it does not wait for one.
+func TestCloseDetachesThroughTheStoreOnlyWhenItRuns(t *testing.T) {
+	for _, run := range []bool{true, false} {
+		st := state.New(10)
+		s := &Sim{gpuAsked: true}
+		Register(st, s)
+		if run {
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			go st.Run(ctx)
+			for !st.Running() {
+				runtime.Gosched()
+			}
+		}
+		s.build(nil, 869.618)
+		if s.eng == nil {
+			t.Fatal("no engine to close")
+		}
+		start := time.Now()
+		s.Close()
+		if took := time.Since(start); took > 2*time.Second {
+			t.Errorf("run=%v: Close took %v", run, took)
+		}
+		if s.eng != nil {
+			t.Errorf("run=%v: the engine is still on the Sim after Close", run)
+		}
 	}
 }

@@ -55,6 +55,9 @@ type Store struct {
 	journal      []JournalEntry
 	journalStart time.Time
 	journalSkip  map[string]bool
+	// running is Run being under way, for a caller deciding whether a verb
+	// would be answered or sit in cmds waiting for a Run that never comes.
+	running atomic.Bool
 }
 
 type cmd struct {
@@ -133,10 +136,16 @@ func (s *Store) Verbs() []string {
 	return out
 }
 
+// Running is whether Run is under way. A verb sent to a store that is not
+// running is queued and never answered until its context gives up.
+func (s *Store) Running() bool { return s.running.Load() }
+
 // Run owns the state until the context ends. Everything below this line runs
 // on this goroutine and nowhere else.
 func (s *Store) Run(ctx context.Context) {
+	s.running.Store(true)
 	defer close(s.done)
+	defer s.running.Store(false)
 	tick := time.NewTicker(time.Duration(s.stepMs) * time.Millisecond)
 	defer tick.Stop()
 	for {
