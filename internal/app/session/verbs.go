@@ -17,6 +17,10 @@ import (
 // UI needs so far; the rest arrive as their panels do, and the parity test in
 // 12.9 is generated from what is registered here.
 func Register(st *state.Store, s *Sim) {
+	s.store = st
+	st.HandleInternal("session.detach", func(_ *state.World, _ any) (any, error) {
+		return s.detach(), nil
+	})
 	registerSimControl(st, s)
 	registerJournal(st, s)
 	registerUI(st, s)

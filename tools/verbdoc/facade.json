@@ -277,7 +277,8 @@
     "node.boardview": "wb.board_view(node)",
     "board.reset": "node.device.reset()",
     "link.result": "wb.links.result()",
-    "update.channel": "wb.update.channel(channel)"
+    "update.channel": "wb.update.channel(channel)",
+    "session.detach": ""
   },
   "no_facade": {
     "node.reflashed": "the store telling itself a reflash finished",
@@ -317,7 +318,8 @@
     "validate.compare": "the observation fetch handing back what was heard",
     "coverage.combined": "the raster worker publishing the network-wide answer",
     "update.checked": "the release check reporting back from its own worker",
-    "update.staged": "the update download reporting back from its own worker"
+    "update.staged": "the update download reporting back from its own worker",
+    "session.detach": "the store taking the engine off the Sim so Close can shut it down off its goroutine"
   },
   "planned": {
     "boards": "the board-probe verbs; node.device covers a board that is already placed",

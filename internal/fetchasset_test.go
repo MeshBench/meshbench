@@ -47,7 +47,11 @@ func releaseJSON(base string, assets ...string) string {
 // stubAPI answers the three ways a release can be, at three repository names.
 func stubAPI(t *testing.T) *httptest.Server {
 	t.Helper()
-	srv := httptest.NewServer(nil)
+	// Unstarted, so the handler is in place before anything can be served:
+	// a started server reads Handler on its own goroutine while this one
+	// assigns it. The handlers read srv.URL when a request arrives, by which
+	// time Start has set it.
+	srv := httptest.NewUnstartedServer(nil)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/o/present/releases/tags/pinned", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = fmt.Fprint(w, releaseJSON(srv.URL, "tool-linux-amd64.tar.gz", "tool-src.tar.gz"))
@@ -67,6 +71,7 @@ func stubAPI(t *testing.T) *httptest.Server {
 		_, _ = fmt.Fprintf(w, "the bytes of %s", filepath.Base(r.URL.Path))
 	})
 	srv.Config.Handler = mux
+	srv.Start()
 	t.Cleanup(srv.Close)
 	return srv
 }

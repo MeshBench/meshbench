@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 259 verbs: 222 a script may call and
-37 the workbench calls on itself, which the socket refuses. Of those,
-259 say what they are for and 0 do not yet; the ones that
+The store registers 260 verbs: 222 a script may call and
+38 the workbench calls on itself, which the socket refuses. Of those,
+260 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -139,6 +139,18 @@ The cheapest question a client can ask, and the one worth asking first: whether 
 ```
 
 **Client** `wb.describe()`
+
+### `session.detach`
+
+**The workbench's own callback. The socket refuses it.**
+
+Take the engine and what is served from it off the session, on the store's own goroutine, so closing the workbench can shut them down from another without racing a rebuild.
+
+**Takes** nothing.
+
+**Answers** Not for a client: Close calls it, then closes what it was handed outside the store. Nothing is returned that a caller could use.
+
+**Client** none: the store taking the engine off the Sim so Close can shut it down off its goroutine
 
 ### `session.journal`
 
