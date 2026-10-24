@@ -14,6 +14,7 @@ package session
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -63,7 +64,9 @@ func (s *Sim) serveBLE(name, local string) (state.Endpoint, string, error) {
 	if err := os.WriteFile(script, ble.Peripheral, 0o644); err != nil {
 		return state.Endpoint{}, "", err
 	}
-	cmd := exec.Command(python, script, "--name", local, "--bridge", "127.0.0.1:"+port) //nolint:gosec // G204: our own embedded script, and a name reduced to safe characters
+	// Not tied to a request's context: it lives as long as the endpoint, and
+	// ends itself when the endpoint's port closes.
+	cmd := exec.CommandContext(context.Background(), python, script, "--name", local, "--bridge", "127.0.0.1:"+port) //nolint:gosec // G204: our own embedded script, and a name reduced to safe characters
 	cmd.SysProcAttr = firmware.ChildProcAttr()
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
