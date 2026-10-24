@@ -57,6 +57,43 @@ const (
 	// it - only the engine has every waveform in flight and how strongly each
 	// one arrives at a given antenna.
 	kindChannelBusy = 0x08
+
+	// kindFrameFailed is host → node: a frame this receiver locked onto and
+	// could not trust. The first payload byte says where it failed, the rest is
+	// the frame as it arrived. A real SX1262 says so - HeaderErr for a header
+	// it could not read, RxDone beside CrcErr for a payload it could not - and
+	// a firmware that never hears either has error paths nothing exercises.
+	// Sent only to a node whose radio stats record carries capFrameFailed: a
+	// native bridge built before this kind ends its connection on a kind it
+	// does not know, so a node that never says it understands is never sent it
+	// and sees what it always saw - nothing.
+	kindFrameFailed = 0x0A
+
+	// capFrameFailed is the bit in byte 47 of the radio stats record by which a
+	// node says it takes kindFrameFailed.
+	capFrameFailed = 0x01
+	// capNoLock is the bit by which it says its chip reads FailedNoLock. A chip
+	// older than that reads the code as a CRC error and would raise RxDone for
+	// a frame it never locked onto, so the code goes only where this is set.
+	capNoLock = 0x02
+)
+
+// FrameFailure is where a frame the receiver locked onto went wrong, numbered
+// as virtual-sx1262's vsx_deliver_frame_failed numbers it.
+type FrameFailure byte
+
+const (
+	// FailedCRC is a header that decoded and a payload that did not: the chip
+	// raises RxDone beside CrcErr and the corrupt bytes are in its buffer.
+	FailedCRC FrameFailure = 1
+	// FailedHeader is a header the receiver could not read: the chip raises
+	// HeaderErr, and no RxDone follows.
+	FailedHeader FrameFailure = 2
+	// FailedNoLock is a frame the receiver could detect and never locked onto.
+	// The part raises nothing for it and leaves PreambleDetected latched; the
+	// chip model withdraws the HeaderValid it raised from the carrier's length,
+	// because that was its stand-in for a header it cannot decode.
+	FailedNoLock FrameFailure = 3
 )
 
 // ErrClosed is returned once a bridge has been shut down.
@@ -100,6 +137,12 @@ type Bridge struct {
 
 	// stats is the radio's own account of what it was asked.
 	stats RadioStats
+
+	// takesFailed is whether the node has said it understands kindFrameFailed.
+	// A native bridge built before that kind closes its connection on any kind
+	// it does not know, so it is sent only to a node that has asked for it.
+	takesFailed bool
+	takesNoLock bool
 
 	// done is closed when the bridge is. Anything waiting on the node must
 	// select on it: a node whose process has gone will never ack, and a wait
@@ -265,6 +308,8 @@ func (b *Bridge) read(c net.Conn) {
 				}
 				b.mu.Lock()
 				b.stats = st
+				b.takesFailed = n >= 48 && buf[47]&capFrameFailed != 0
+				b.takesNoLock = n >= 48 && buf[47]&capNoLock != 0
 				b.mu.Unlock()
 			}
 
@@ -284,11 +329,31 @@ func (b *Bridge) read(c net.Conn) {
 }
 
 // Deliver hands a frame to the emulated firmware — a frame the channel decided
-// this node received. Only CRC-passing frames should be delivered; everything
-// else belongs in the ledger and is withheld, exactly as on real hardware.
+// this node received. Only CRC-passing frames go this way; a frame the receiver
+// locked onto and could not trust goes through DeliverFailed, and one it never
+// locked onto reaches the firmware not at all, exactly as on real hardware.
 func (b *Bridge) Deliver(frame []byte) error {
 	if err := b.send(kindFrame, frame); err != nil {
 		return fmt.Errorf("firmware: deliver: %w", err)
+	}
+	return nil
+}
+
+// DeliverFailed tells the firmware's chip that a frame it locked onto failed,
+// and where. Nothing is decoded from it; the frame rides along because a CRC
+// failure leaves the corrupt bytes in the chip's buffer, as the part does.
+//
+// A node that has not said it takes the kind is told nothing, which is what it
+// was always told.
+func (b *Bridge) DeliverFailed(frame []byte, why FrameFailure) error {
+	b.mu.Lock()
+	takes := b.takesFailed && (why != FailedNoLock || b.takesNoLock)
+	b.mu.Unlock()
+	if !takes {
+		return nil
+	}
+	if err := b.send(kindFrameFailed, append([]byte{byte(why)}, frame...)); err != nil {
+		return fmt.Errorf("firmware: deliver failed frame: %w", err)
 	}
 	return nil
 }

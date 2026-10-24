@@ -82,6 +82,121 @@ func TestDeliveryReachesTheEmulator(t *testing.T) {
 	}
 }
 
+// A frame the receiver locked onto and lost reaches the chip as its own kind,
+// with where it failed in front of the bytes, so the chip can raise HeaderErr
+// or CrcErr rather than nothing - but only once the node has said it takes
+// that kind. A native bridge built before it ends its connection on a kind it
+// does not know, so a node that never says so is sent nothing.
+func TestAFailedFrameReachesOnlyANodeThatTakesIt(t *testing.T) {
+	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
+	defer func() { _ = b.Close() }()
+	c := fakeRadio(t, b.Addr())
+	defer func() { _ = c.Close() }()
+
+	for i := 0; i < 50 && !b.Attached(); i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := b.DeliverFailed([]byte{0x11}, FailedCRC); err != nil {
+		t.Fatal(err)
+	}
+
+	record := make([]byte, 48)
+	record[47] = capFrameFailed
+	if _, err := c.Write(append([]byte{kindRadioStats, 0, 48}, record...)); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 100; i++ {
+		b.mu.Lock()
+		takes := b.takesFailed
+		b.mu.Unlock()
+		if takes {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := b.DeliverFailed([]byte{0x22, 0xBB}, FailedHeader); err != nil {
+		t.Fatal(err)
+	}
+
+	var hdr [3]byte
+	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := io.ReadFull(c, hdr[:]); err != nil {
+		t.Fatal(err)
+	}
+	if hdr[0] != kindFrameFailed {
+		t.Fatalf("wrong frame kind 0x%02x, want 0x0a", hdr[0])
+	}
+	buf := make([]byte, binary.BigEndian.Uint16(hdr[1:]))
+	if _, err := io.ReadFull(c, buf); err != nil {
+		t.Fatal(err)
+	}
+	if string(buf) != string([]byte{2, 0x22, 0xBB}) {
+		t.Errorf("emulator received % x, want 02 22 bb: the failure sent before it said it takes the kind leaked", buf)
+	}
+}
+
+// A chip older than ABI 1.7 reads failure 3 as a CRC error and would raise
+// RxDone for a frame it never locked onto, so a node that takes failed frames
+// but has not said its chip reads that code is never sent it.
+func TestANeverLockedFrameReachesOnlyAChipThatReadsIt(t *testing.T) {
+	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
+	defer func() { _ = b.Close() }()
+	c := fakeRadio(t, b.Addr())
+	defer func() { _ = c.Close() }()
+
+	for i := 0; i < 50 && !b.Attached(); i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	say := func(caps byte, want func() bool) {
+		record := make([]byte, 48)
+		record[47] = caps
+		if _, err := c.Write(append([]byte{kindRadioStats, 0, 48}, record...)); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 100; i++ {
+			b.mu.Lock()
+			ok := want()
+			b.mu.Unlock()
+			if ok {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		t.Fatalf("the bridge never read capability byte 0x%02x", caps)
+	}
+	read := func() []byte {
+		var hdr [3]byte
+		_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+		if _, err := io.ReadFull(c, hdr[:]); err != nil {
+			t.Fatal(err)
+		}
+		buf := make([]byte, binary.BigEndian.Uint16(hdr[1:]))
+		if _, err := io.ReadFull(c, buf); err != nil {
+			t.Fatal(err)
+		}
+		return buf
+	}
+
+	say(capFrameFailed, func() bool { return b.takesFailed })
+	if err := b.DeliverFailed([]byte{0x11}, FailedNoLock); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.DeliverFailed([]byte{0x22}, FailedHeader); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); string(got) != string([]byte{2, 0x22}) {
+		t.Fatalf("received % x, want 02 22: a chip that never said it reads failure 3 was sent it", got)
+	}
+
+	say(capFrameFailed|capNoLock, func() bool { return b.takesNoLock })
+	if err := b.DeliverFailed([]byte{0x33}, FailedNoLock); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(); string(got) != string([]byte{3, 0x33}) {
+		t.Errorf("received % x, want 03 33", got)
+	}
+}
+
 // The point of the bridge: an emulated node's frame goes through the SAME
 // channel as a native one. If it took a different path the two backends could
 // not be compared, which is the whole reason ADR-0010 keeps both.

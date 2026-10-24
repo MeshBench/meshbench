@@ -21,45 +21,31 @@ package engine
 
 import (
 	"math"
+
+	"github.com/MeshBench/meshbench/internal/firmware"
+	"github.com/MeshBench/meshbench/internal/rf/dsp"
 )
 
 // corruptedSymbols counts how many of a transmission's symbols were destroyed
-// by co-channel traffic the receiver could not capture over.
+// by co-channel traffic the receiver could not capture over, in the whole
+// packet and in its header block alone.
 //
 // Overlaps are unioned, not summed: two interferers stamping on the same
 // stretch of a packet destroy it once. Anything the wanted signal leads by the
 // capture threshold contributes nothing, however long it overlaps for. A hit
 // shorter than one symbol still costs a whole symbol, because a chirp
 // interrupted anywhere lands in the wrong FFT bin.
+//
+// The header is counted apart because the chip answers differently for it: a
+// header it cannot read raises HeaderErr and nothing more, where a payload it
+// cannot read raises RxDone beside CrcErr. Which of the two a firmware is told
+// decides which of its error paths runs.
 func (e *Engine) corruptedSymbols(rx int, t transmission, wantedDBm float64,
-	concurrent []transmission, nodes []*Node, txPHY phy) float64 {
+	concurrent []transmission, nodes []*Node, txPHY phy) (total, header float64) {
 
-	type span struct{ from, to uint32 }
-	var hits []span
-	for _, other := range concurrent {
-		if other.packetID == t.packetID || other.from == rx || other.from == t.from {
-			continue
-		}
-		from, to := maxU32(other.startMs, t.startMs), minU32(other.endMs, t.endMs)
-		if to <= from {
-			continue
-		}
-		if !e.phyOf(nodes[other.from].specRef()).sameChannel(txPHY) {
-			continue
-		}
-		loss, ok := e.pathLoss(other.from, rx)
-		if !ok {
-			continue
-		}
-		otherDBm := e.rxPowerDBm(nodes, other.from, rx, loss)
-		if wantedDBm-otherDBm >= captureThresholdDB {
-			// Captured: the interferer is present, and irrelevant.
-			continue
-		}
-		hits = append(hits, span{from, to})
-	}
+	hits := e.uncapturedSpans(rx, t, wantedDBm, concurrent, nodes, txPHY)
 	if len(hits) == 0 {
-		return 0
+		return 0, 0
 	}
 	// Union by sweep, so two interferers over the same symbols cost one packet
 	// rather than two. Insertion sort: the list is one entry per concurrent
@@ -85,9 +71,105 @@ func (e *Engine) corruptedSymbols(rx int, t transmission, wantedDBm float64,
 
 	symbolMs := 1000 * math.Pow(2, float64(txPHY.sf)) / txPHY.bandwidthHz
 	if symbolMs <= 0 {
-		return 0
+		return 0, 0
 	}
-	return math.Ceil(float64(damagedMs) / symbolMs)
+	hdrFrom, hdrTo := headerBlockMs(t.startMs, txPHY.sf, symbolMs)
+	var headerMs float64
+	for _, h := range hits {
+		from, to := math.Max(float64(h.from), hdrFrom), math.Min(float64(h.to), hdrTo)
+		if to > from {
+			headerMs += to - from
+		}
+	}
+	return math.Ceil(float64(damagedMs) / symbolMs), math.Ceil(math.Min(headerMs, hdrTo-hdrFrom) / symbolMs)
+}
+
+// span is a stretch of a transmission, in engine milliseconds.
+type span struct{ from, to uint32 }
+
+// uncapturedSpans is where co-channel traffic the receiver could not capture
+// over lands on a transmission, one span per interferer, unsorted.
+func (e *Engine) uncapturedSpans(rx int, t transmission, wantedDBm float64,
+	concurrent []transmission, nodes []*Node, txPHY phy) []span {
+
+	var hits []span
+	for _, other := range concurrent {
+		if other.packetID == t.packetID || other.from == rx || other.from == t.from {
+			continue
+		}
+		from, to := maxU32(other.startMs, t.startMs), minU32(other.endMs, t.endMs)
+		if to <= from {
+			continue
+		}
+		if !e.phyOf(nodes[other.from].specRef()).sameChannel(txPHY) {
+			continue
+		}
+		loss, ok := e.pathLoss(other.from, rx)
+		if !ok {
+			continue
+		}
+		otherDBm := e.rxPowerDBm(nodes, other.from, rx, loss)
+		if wantedDBm-otherDBm >= captureThresholdDB {
+			// Captured: the interferer is present, and irrelevant.
+			continue
+		}
+		hits = append(hits, span{from, to})
+	}
+	return hits
+}
+
+// weakFailure is what the chip is told of a frame lost to interference it
+// could not capture over. Interference that arrived while the preamble still
+// had to be found left the receiver nothing to lock onto; arriving later, it
+// found a receiver that had locked, and what it then destroyed decides between
+// a header error and a CRC error.
+func (e *Engine) weakFailure(rx int, t transmission, wantedDBm float64,
+	concurrent []transmission, nodes []*Node, txPHY phy, headerDamaged float64) firmware.FrameFailure {
+
+	symbolMs := 1000 * math.Pow(2, float64(txPHY.sf)) / txPHY.bandwidthHz
+	lockMs := float64(t.startMs) + float64(dsp.PreambleSymbols(txPHY.sf)-4)*symbolMs
+	for _, h := range e.uncapturedSpans(rx, t, wantedDBm, concurrent, nodes, txPHY) {
+		if float64(h.from) < lockMs {
+			return firmware.FailedNoLock
+		}
+	}
+	return failureOf(headerSurvives(headerDamaged))
+}
+
+// headerBlockMs is where a transmission's explicit header sits on the air: the
+// first interleaver block after the preamble, the two sync symbols and the
+// 2.25-symbol start of frame, eight symbols long and always coded at CR 4/8.
+func headerBlockMs(startMs uint32, sf int, symbolMs float64) (from, to float64) {
+	from = float64(startMs) + (float64(dsp.PreambleSymbols(sf))+4.25)*symbolMs
+	return from, from + 8*symbolMs
+}
+
+// headerSurvives reports whether the header block can be put back together.
+// It is coded at CR 4/8 whatever the payload uses, so one destroyed symbol is
+// repaired and a second is fatal, by the same interleaver argument as below.
+func headerSurvives(damagedSymbols float64) bool {
+	return damagedSymbols <= 1
+}
+
+// failureOf is what the chip raises for a frame it locked onto and lost: a
+// header it could not read is HeaderErr and nothing more; a header that read
+// and a payload that did not is RxDone beside CrcErr, with the bytes the
+// receive chain produced left in the buffer.
+func failureOf(headerOK bool) firmware.FrameFailure {
+	if headerOK {
+		return firmware.FailedCRC
+	}
+	return firmware.FailedHeader
+}
+
+// lockFailure is failureOf for a receiver that may never have locked at all,
+// which the chip has to hear about too: it guessed at a header from how long
+// the carrier lasted, and for a frame it never locked onto the guess was wrong.
+func lockFailure(synced, headerOK bool) firmware.FrameFailure {
+	if !synced {
+		return firmware.FailedNoLock
+	}
+	return failureOf(headerOK)
 }
 
 // survivesCorruption reports whether forward error correction can put a packet
