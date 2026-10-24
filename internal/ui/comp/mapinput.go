@@ -85,6 +85,11 @@ func (m *MapView) handle(gtx layout.Context, sz image.Point, pts []projected) {
 		case pointer.Leave:
 			m.cam.hover = -1
 		case pointer.Press:
+			// A press on the map takes the keyboard back from any text field,
+			// as clicking away from a field does everywhere else. The map's
+			// keys only act while nothing is focused, so without this a field
+			// typed into once would keep Delete from the map for good.
+			gtx.Execute(key.FocusCmd{})
 			m.cam.from, m.cam.last, m.cam.moved = e.Position, e.Position, false
 			m.cam.nodeIndex = nearestWithin(pts, e.Position, 10)
 			// A right-click is a question about what is under the pointer, not

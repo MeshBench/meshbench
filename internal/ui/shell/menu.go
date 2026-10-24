@@ -380,6 +380,15 @@ func (sh *Shell) shortcuts(gtx layout.Context) {
 			if !ok {
 				continue
 			}
+			// A bare key is somebody's typing while a text field has the
+			// keyboard. The filters name no focus target, so they match
+			// whatever is focused, and this runs at the top of the frame,
+			// ahead of every field - which is how a space typed into a
+			// question pressed play. Ctrl+S and the like still save from a
+			// field; a field has no use for them.
+			if mods == 0 && !gtx.Focused(nil) {
+				continue
+			}
 			filters = append(filters, key.Filter{Name: name, Required: mods})
 			bounds = append(bounds, bound{name: name, mods: mods, act: it.Action})
 		}
