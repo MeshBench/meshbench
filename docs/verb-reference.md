@@ -1060,7 +1060,7 @@ Put one node down at a position, which is how a repeater a feed never carried ge
 | `height_m` | number | optional | antenna height above ground in metres; absent is 10 |
 | `tx_dbm` | number | optional | transmit power in decibel-milliwatts; absent is 22 |
 
-**Answers** `placed`, `kind`, `regions`, `board`, `nodes`. `regions` and the firmware build are inherited from the neighbours rather than left empty: a node holding a region its neighbours do not is as silent as one holding none. `nodes` is the whole network's count afterwards. The links are not in the answer, because measuring them is a worker's job and this returns before it.
+**Answers** `placed`, `kind`, `regions`, `board`, `nodes`. `regions` and the firmware build are inherited from the neighbours rather than left empty: a node holding a region its neighbours do not is as silent as one holding none. So is the radio: the modem most of its ten nearest neighbours are on, or EU/UK (Narrow) where none has a majority, since a node on a channel nobody else uses hears nobody. `nodes` is the whole network's count afterwards. The links are not in the answer, because measuring them is a worker's job and this returns before it.
 
 **Example** - put a repeater on the hill and see what it wins
 
