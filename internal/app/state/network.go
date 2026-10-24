@@ -410,6 +410,13 @@ type FirmwareRow struct {
 	// which reads as the library losing builds rather than as a pin nobody
 	// can honour.
 	Unavailable bool
+	// Checking marks a row whose build is not on disk while the catalogue of
+	// published builds has not answered yet. It may well be published; until
+	// the answer is in, nobody can say it is not.
+	Checking bool
+	// CatalogueDown marks a row whose build is not on disk when the catalogue
+	// could not be reached, so whether it is published is not known.
+	CatalogueDown bool
 	// Native marks a build for this machine rather than an image for a board.
 	// The two are not interchangeable and only one of them can be renamed.
 	Native bool

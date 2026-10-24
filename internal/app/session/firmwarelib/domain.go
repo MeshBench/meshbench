@@ -41,6 +41,11 @@ type catalogue struct {
 	// fetch has answered, empty after a fetch that failed.
 	published []publishedBuild
 	fetching  bool
+	// nativeDown and boardsDown are the last fetch not reaching that half of
+	// the catalogue, so a build missing from it means "could not ask" rather
+	// than "nothing is there". Two, because the halves are served from
+	// different places and one can answer while the other does not.
+	nativeDown, boardsDown bool
 }
 
 // catalogueOf is the one catalogue a Sim has, made on first use.

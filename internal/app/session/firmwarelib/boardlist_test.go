@@ -33,7 +33,10 @@ func TestPublishedBoardsReachTheLibrary(t *testing.T) {
 		t.Skip("the release catalogue came back empty, which is not this code's doing")
 	}
 
-	got := publishedBoards(ctx)
+	got, err := publishedBoards(ctx)
+	if err != nil {
+		t.Skipf("the release catalogue was not reachable the second time: %v", err)
+	}
 	if len(got) == 0 {
 		t.Fatalf("the catalogue listed %d images and none of them reached the "+
 			"library: the emulated half is missing again", len(imgs))

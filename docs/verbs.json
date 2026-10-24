@@ -2005,7 +2005,7 @@
         "builds",
         "count"
       ],
-      "answers": "The catalogue is asked over the network in the background and its answer lands seconds later, so the first call in a session answers from disk alone and is worth making again. Each row in `builds` carries `role`, `version`, `board`, `bytes`, `on_disk`, `path`, `in_use` and `unavailable`.",
+      "answers": "The catalogue is asked over the network in the background and its answer lands seconds later, so the first call in a session answers from disk alone and is worth making again. Each row in `builds` carries `role`, `version`, `board`, `bytes`, `on_disk`, `path`, `in_use`, `unavailable`, `checking` and `catalogue_down`. A build that is not on disk is `checking` until the catalogue answers, `catalogue_down` if it could not be reached, and `unavailable` only once it answered without it.",
       "example": {
         "params": {},
         "what": "list what could be run, fetched or not"

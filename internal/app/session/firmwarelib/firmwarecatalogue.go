@@ -74,13 +74,27 @@ func fillLibrary(s *session.Sim, w *state.World) {
 		r := add(role, n.Firmware.Version, n.Firmware.Board)
 		r.InUse++
 	}
+	cat := catalogueOf(s)
 	out := make([]state.FirmwareRow, 0, len(rows))
 	for _, r := range rows {
-		// Nothing on disk and nothing published for this machine, yet nodes
-		// point at it: the scenario is asking for a build nobody here can
-		// run, and the row should say so rather than wait to be discovered
-		// at start time.
-		r.Unavailable = !r.OnDisk && !published[key(r.Role, r.Version, r.Board)]
+		if !r.OnDisk && !published[key(r.Role, r.Version, r.Board)] {
+			switch {
+			case cat.fetching || cat.published == nil:
+				// Not known yet. Said as unavailable, this is the first
+				// thing a new user saw: Setup sends them to the library to
+				// download a build for each role, and the library told them
+				// none was published, because it had not heard back yet.
+				r.Checking = true
+			case r.Board == "" && cat.nativeDown, r.Board != "" && cat.boardsDown:
+				r.CatalogueDown = true
+			default:
+				// Nothing on disk and nothing published for this machine,
+				// yet nodes point at it: the scenario is asking for a build
+				// nobody here can run, and the row should say so rather
+				// than wait to be discovered at start time.
+				r.Unavailable = true
+			}
+		}
 		out = append(out, *r)
 	}
 	// In use first, then what is here, then the rest: the order somebody
@@ -112,11 +126,11 @@ func fillLibrary(s *session.Sim, w *state.World) {
 // library, so this keeps the boards MeshBench can actually run and, for each
 // board and role, the newest version. Older ones stay one click away in the
 // firmware picker, which reads the catalogue directly.
-func publishedBoards(ctx context.Context) []publishedBuild {
+func publishedBoards(ctx context.Context) ([]publishedBuild, error) {
 	cat := &emulated.BoardCatalogue{CacheDir: firmware.DefaultCacheDir()}
 	imgs, err := cat.ListAll(ctx)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	known := map[string]bool{}
 	for _, b := range hw.Boards() {
@@ -157,7 +171,7 @@ func publishedBoards(ctx context.Context) []publishedBuild {
 		}
 		return out[i].role < out[j].role
 	})
-	return out
+	return out, nil
 }
 
 // newerVersion compares vX.Y.Z by number, so v1.9.0 sorts below v1.17.0 -

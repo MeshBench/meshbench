@@ -31,11 +31,21 @@ func registerFirmwareScan(st *state.Store, s *session.Sim) {
 	})
 
 	st.HandleInternal("firmware.published", func(w *state.World, p any) (any, error) {
-		list, ok := p.([]publishedBuild)
-		if !ok {
+		var ans publishedAnswer
+		switch v := p.(type) {
+		case publishedAnswer:
+			ans = v
+		case []publishedBuild:
+			ans.builds = v
+		default:
 			return nil, session.WrongCallback("firmware.published")
 		}
+		list := ans.builds
+		if list == nil {
+			list = []publishedBuild{}
+		}
 		catalogueOf(s).published = list
+		catalogueOf(s).nativeDown, catalogueOf(s).boardsDown = ans.nativeDown, ans.boardsDown
 		catalogueOf(s).fetching = false
 		// Rebuild the rows here, or the fetch lands in a field nobody reads
 		// again: the panel asks for the library once, the network answers a
@@ -64,7 +74,8 @@ func startPublishedFetch(s *session.Sim, st *state.Store) {
 		// The native builds: MeshCore compiled for this machine, which is how
 		// most nodes run.
 		cat := &firmware.NativeCatalogue{CacheDir: firmware.DefaultCacheDir()}
-		if images, err := cat.List(ctx); err == nil {
+		images, nativeErr := cat.List(ctx)
+		if nativeErr == nil {
 			for _, img := range images {
 				if img.ForThisMachine() {
 					list = append(list, publishedBuild{
@@ -78,9 +89,19 @@ func startPublishedFetch(s *session.Sim, st *state.Store) {
 		// never did, so the whole emulated half of the library was missing: on
 		// Linux the native builds hid it, and on a Mac, where no native build
 		// exists yet, the panel was simply empty.
-		list = append(list, publishedBoards(ctx)...)
+		boards, boardsErr := publishedBoards(ctx)
+		list = append(list, boards...)
 		// An empty non-nil list on failure, so a dead network is one failed
 		// fetch rather than a fetch per frame.
-		_, _ = st.Do(context.Background(), "firmware.published", list)
+		_, _ = st.Do(context.Background(), "firmware.published", publishedAnswer{
+			builds: list, nativeDown: nativeErr != nil, boardsDown: boardsErr != nil,
+		})
 	}()
+}
+
+// publishedAnswer is what a fetch hands back: the builds, and which half of
+// the catalogue could not be reached.
+type publishedAnswer struct {
+	builds                 []publishedBuild
+	nativeDown, boardsDown bool
 }
