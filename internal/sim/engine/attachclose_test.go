@@ -63,7 +63,9 @@ func TestNoFirmwareOutlivesAnEngineClosedMidAttach(t *testing.T) {
 	if err := e.Close(); err != nil {
 		t.Fatalf("closing the engine mid-attach: %v", err)
 	}
-	<-attached
+	// The attach fails once the engine is closed under it; what matters is
+	// that it returns.
+	t.Logf("attach after close: %v", <-attached)
 
 	running, booted := stillRunning(nodefs, 20*time.Second)
 	if len(running) > 0 {

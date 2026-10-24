@@ -98,7 +98,7 @@ in the same release;
 per-platform detail, including the signing caveats, is in
 [`docs/install.md`](docs/install.md).
 
-To build from source instead (needs Go 1.25 and a C toolchain with GL and
+To build from source instead (needs Go 1.27 and a C toolchain with GL and
 X11 headers):
 
 ```console
