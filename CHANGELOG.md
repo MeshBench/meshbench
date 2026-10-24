@@ -23,6 +23,11 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **Serve a companion over Bluetooth.** `bench.serve` with `kind` `ble`, or
+  **serve BLE** in the companion bench, advertises the node on this machine's
+  adapter so a phone app finds it the way it finds a radio. Linux with BlueZ
+  only. The node runs its USB build behind it, so this tests a client against
+  a simulated mesh, not MeshCore's own BLE transport.
 - **Script input at an instant of simulated time.** `console.type`,
   `console.cli` and the `companion.*` verbs that write to a node take `at_ms`:
   the call is held and runs when the run reaches that instant, so a script
@@ -41,6 +46,10 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **The BLE peripheral speaks BLE's framing.** It passed the node's serial
+  framing through and split it into 20-byte notifications, where a BLE client
+  reads exactly one frame per notification. It also stopped five seconds after
+  the node last said anything.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.

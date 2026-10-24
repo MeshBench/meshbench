@@ -256,7 +256,7 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `bench.drop` | `node` string | `dropped` | `node.unserve()` |
 | `bench.refresh` | — | — | `wb.endpoints` |
-| `bench.serve` | `node` string, `kind` string | `node`, `addr` | `node.serve(kind='tcp'\|'serial')` |
+| `bench.serve` | `node` string, `kind` string, `name` string | `node`, `addr` | `node.serve(kind='tcp'\|'serial'\|'ble', name=)` |
 | `bench.stray` | — | `at` | `wb.endpoints.stray()` - *planned*, no client defines `wb.endpoints` yet; call the verb |
 | `sdr.serve` | *a bare string*, `node` string | `node`, `addr`, `rate_hz` | `node.serve_sdr()` |
 | `sdr.stop` | *a bare string*, `node` string | `stopped` | `node.unserve_sdr()` |

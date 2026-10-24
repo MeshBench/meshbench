@@ -267,6 +267,13 @@ func (s *Sim) endpoints() []state.Endpoint {
 	s.eachServed(func(name string, l *engine.CompanionLink, addrs []string) {
 		out = append(out, endpointView(name, l, addrs))
 	})
+	// A node in front of a BLE peripheral is reached by its advertised name;
+	// the TCP port underneath is the peripheral's, not a client's.
+	for i := range out {
+		if local, ok := s.bleName(out[i].Node); ok {
+			out[i].Kind, out[i].Addr, out[i].Addrs = "ble", local, nil
+		}
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Node < out[j].Node })
 	return out
 }

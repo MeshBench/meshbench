@@ -7,11 +7,20 @@ companion app discovers and connects to it exactly as it would to hardware.
 python3 tools/ble/nus_peripheral.py --name MSIM-GB7XYZ --bridge 127.0.0.1:7801
 ```
 
-`--bridge` is the node's TCP companion port (`companion.serve tcp`). Both
-directions cross it: the app's writes to `rx` go to the node's UART, and the
-node's output comes back as `tx` notifications. `--mtu` sets the notification
-payload size (default 20 — the largest that fits the smallest BLE MTU; a longer
-frame is split and the app reassembles it from MeshCore's length prefix).
+The workbench starts it for you: `bench.serve` with `kind` `ble`, or **serve
+BLE** in the companion bench. That serves the node over TCP and runs this
+script, embedded in the binary, against the port. It exits when the port
+closes, so dropping the endpoint stops advertising.
+
+`--bridge` is the node's TCP companion port. Both directions cross it, and
+the framing differs on each side. On the port the companion protocol is
+framed: `>` or `<`, then a two-byte little-endian length, then the frame. Over
+BLE it is not: each notification is exactly one frame and each write is
+exactly one frame, which is how MeshCore's own BLE transport and every app
+reading it work. So the node's output is deframed and sent one frame per
+notification, and each write is framed before it goes to the node. A client
+should negotiate an MTU large enough for a whole frame (MeshCIM asks for
+512); BlueZ cuts a notification longer than the MTU.
 
 Registration verified on elite against a real adapter:
 
@@ -22,7 +31,7 @@ adv registered
 REGISTERED OK
 ```
 
-The pure framing logic has a bus-free check that runs anywhere:
+The framing logic has a bus-free check that runs anywhere:
 
 ```bash
 python3 tools/ble/nus_peripheral.py --selftest   # -> selftest OK
@@ -53,8 +62,8 @@ buffered, matching the TCP and pty transports: a client that connects late
 wants what happens next, not a replay since boot.
 
 Not in CI: this tool needs BlueZ, an adapter and D-Bus, none of which the
-runners have. The `--selftest` path covers the one piece of logic — frame
-chunking and reassembly — that can be checked without them.
+runners have. The `--selftest` path covers the framing, the one piece of
+logic that can be checked without them.
 
 ## Requirements
 

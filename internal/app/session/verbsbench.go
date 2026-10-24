@@ -23,7 +23,17 @@ func registerBenchVerbs(st *state.Store, s *Sim) {
 				}
 			}
 		}
-		ep, moved, err := s.serve(name, kind)
+		var (
+			ep    state.Endpoint
+			moved string
+			err   error
+		)
+		if kind == "ble" {
+			local, _ := m["name"].(string)
+			ep, moved, err = s.serveBLE(name, local)
+		} else {
+			ep, moved, err = s.serve(name, kind)
+		}
 		if err != nil {
 			w.Say("could not serve " + name + ": " + err.Error())
 			return nil, err

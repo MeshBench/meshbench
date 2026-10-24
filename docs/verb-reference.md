@@ -2488,9 +2488,10 @@ Open a real endpoint onto one simulated node, so an unmodified companion client 
 | parameter | type | | what |
 |---|---|---|---|
 | `node` | string | optional | the node to serve; absent takes the first companion in the scenario, because an endpoint is what is wanted before a node has been chosen |
-| `kind` | string | optional | "serial" for a pseudo-terminal a serial client opens; anything else, absent included, listens on TCP on every interface and a port the operating system picks the first time this node is served |
+| `kind` | string | optional | "serial" for a pseudo-terminal a serial client opens; "ble" to advertise the node on this machine's Bluetooth adapter, so a phone finds it the way it finds a radio (Linux with BlueZ, and python3 with dbus and gi); anything else, absent included, listens on TCP on every interface and a port the operating system picks the first time this node is served |
+| `name` | string | optional | for "ble", the name to advertise; absent is MSIM- and the node's name |
 
-**Answers** `node`, `addr`. Serving takes the port off the workbench, so a companion session on that node is released rather than shared. A second call for the same node replaces the listener rather than adding one, and keeps the address: the port is drawn once per node and asked for again on every serve after, including after a drop, because a client already pointed at the first address cannot be told about a second. A port taken by something else in the meantime moves the endpoint and says so.
+**Answers** `node`, `addr`. Serving takes the port off the workbench, so a companion session on that node is released rather than shared. A second call for the same node replaces the listener rather than adding one, and keeps the address: the port is drawn once per node and asked for again on every serve after, including after a drop, because a client already pointed at the first address cannot be told about a second. A port taken by something else in the meantime moves the endpoint and says so. Over BLE, `addr` is the advertised name. The node still runs its USB build: the peripheral turns each frame into one notification and each write into a frame, so this tests a client against a simulated mesh rather than MeshCore's own BLE transport. It goes when the endpoint is dropped.
 
 **Example** - put a node on a TCP port for a real client
 
@@ -2500,7 +2501,7 @@ Open a real endpoint onto one simulated node, so an unmodified companion client 
 
 Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
 
-**Client** `node.serve(kind='tcp'|'serial')`
+**Client** `node.serve(kind='tcp'|'serial'|'ble', name=)`
 
 ### `bench.stray`
 

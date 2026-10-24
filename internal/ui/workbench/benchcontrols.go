@@ -16,6 +16,7 @@ type benchControls struct {
 	bar    comp.ActionBar
 	tcp    comp.Button
 	serial comp.Button
+	ble    comp.Button
 	drop   comp.Button
 	stray  comp.Button
 	conn   comp.Button
@@ -32,12 +33,13 @@ func (c *benchControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 		c.msg.Editor.SingleLine = true
 		c.tcp.Label, c.tcp.Kind = "serve TCP", comp.Primary
 		c.serial.Label, c.serial.Kind = "serve serial", comp.Secondary
+		c.ble.Label, c.ble.Kind = "serve BLE", comp.Secondary
 		c.drop.Label, c.drop.Kind = "drop clients", comp.Destructive
 		c.stray.Label, c.stray.Kind = "inject a stray frame", comp.Secondary
 		c.conn.Label, c.conn.Kind = "connect as a client", comp.Primary
 		c.send.Label, c.send.Kind = "send", comp.Secondary
 		c.advert.Label, c.advert.Kind = "advert", comp.Secondary
-		c.bar.Buttons = []*comp.Button{&c.tcp, &c.serial, &c.drop, &c.stray}
+		c.bar.Buttons = []*comp.Button{&c.tcp, &c.serial, &c.ble, &c.drop, &c.stray}
 		c.bar.Note = "both transports carry the firmware's own serial protocol byte " +
 			"for byte; the faults are what an application that reconnects cleanly survives"
 		c.built = true
@@ -63,6 +65,9 @@ func (c *benchControls) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapsh
 	}
 	if c.serial.Click.Clicked(gtx) && c.do != nil {
 		c.do("bench.serve", map[string]any{"node": who(), "kind": "serial"})
+	}
+	if c.ble.Click.Clicked(gtx) && c.do != nil {
+		c.do("bench.serve", map[string]any{"node": who(), "kind": "ble"})
 	}
 	if c.drop.Click.Clicked(gtx) && c.do != nil {
 		c.do("bench.drop", nil)
