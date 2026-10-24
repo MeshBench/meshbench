@@ -19,6 +19,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 // Message kinds on the wire.
@@ -105,7 +106,16 @@ type Bridge struct {
 	// with no way to hear about that hangs for as long as its deadline allows -
 	// or for ever, if it was given none.
 	done chan struct{}
+
+	// tickAt is the simulated time of the last tick sent. A frame the node
+	// writes while running that tick arrives before its ack, so this is the
+	// moment anything the node says was said - read from whichever goroutine
+	// is handling the output, without the engine's lock.
+	tickAt atomic.Uint32
 }
+
+// Now is the simulated time of the tick the node is running, or last ran.
+func (b *Bridge) Now() uint32 { return b.tickAt.Load() }
 
 // Listen starts a bridge for one emulated node. Addr is typically
 // "127.0.0.1:0"; the emulator connects to Addr().

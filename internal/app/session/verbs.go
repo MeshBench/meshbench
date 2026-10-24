@@ -235,9 +235,7 @@ func Register(st *state.Store, s *Sim) {
 			// published only on the next console.type, every answer appeared
 			// one command late, which reads as a console that does not answer.
 			if w.ConsoleNode != "" {
-				if buf, ok := s.consoles[w.ConsoleNode]; ok {
-					w.Console = buf.Snapshot()
-				}
+				w.Console = s.consoleLines(w.ConsoleNode, w.Console)
 			}
 			// And the output pane, for the same reason. Its source is a file
 			// the emulator is still writing, so a pane that read it once shows

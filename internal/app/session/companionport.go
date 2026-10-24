@@ -136,7 +136,7 @@ func (s *Sim) connectCompanion(node string) error {
 	if !ok || en.Firmware == nil {
 		return fmt.Errorf("%s runs no firmware, so it has no companion interface", node)
 	}
-	c := &compSession{node: node}
+	c := &compSession{node: node, clock: en.Firmware.Bridge.Now}
 	c.release = en.Firmware.Bridge.Claim(c)
 	s.comps[node] = c
 	if err := en.Firmware.Bridge.Type(compFrame(proto.AppStart("meshbench"))); err != nil {

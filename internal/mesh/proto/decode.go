@@ -73,6 +73,12 @@ func Decode(frame []byte) (Frame, error) {
 			return f, err
 		}
 		f.Message = m
+	case RespSent:
+		f.Sent = decodeSent(body)
+	case Response(PushSendConfirmed):
+		f.Confirmed = decodeConfirmed(body)
+	case Response(PushLoginSuccess), Response(PushLoginFail), Response(PushStatusResp):
+		f.Answer = decodeAnswer(f.Push, body)
 	}
 	return f, nil
 }

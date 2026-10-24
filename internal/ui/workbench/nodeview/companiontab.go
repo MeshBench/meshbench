@@ -141,6 +141,7 @@ func (c *companionTab) build() {
 	c.railList.Axis, c.convoList.Axis, c.cliList.Axis = layout.Vertical, layout.Vertical, layout.Vertical
 	c.buildRadio()
 	c.pathHash = 3
+	c.mode = OpenOnCompanionMode
 	c.clicks_ = map[string]*widget.Clickable{}
 	c.built = true
 }

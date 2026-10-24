@@ -189,7 +189,17 @@ The clients route by node kind, so use `node.console`. If you are driving verbs
 directly, pick by kind yourself.
 
 The vocabulary is `advert`, `floodadv`, `public <msg>`, `chan <n> <msg>`,
-`infos`, `ver`, `contacts`, `sync_msgs`, `set`, `time`. **There is no `send`.**
+`msg <contact> <msg>`, `login <contact> <password>`, `req_status <contact>`,
+`scope <name>`, `infos`, `ver`, `contacts`, `sync_msgs`, `set`, `time`.
+**There is no `send`.**
+
+`msg`, `login` and `req_status` name a contact the node holds, or a public key
+in hex: run `contacts` first, because the session only knows what the node has
+listed. Each is answered twice in the transcript (`companion.state`'s
+`recent`, not `console.read`): `sent ... by flood|direct` when the firmware
+takes it, then `delivered to X after N ms`, `login ok from`, `status from` or
+`refused`, each stamped with the simulated time it arrived. A sent line with no
+second line is a message whose ack never came back.
 
 `console.read` returns the lines under **`tail`**, capped at the last 200;
 `lines` is how many there are. Reading `lines` hands you an integer where you

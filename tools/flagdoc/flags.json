@@ -254,6 +254,7 @@
     "board-tab": "capture",
     "board-view": "capture",
     "capture": "capture",
+    "companion-mode": "capture",
     "config-section": "capture",
     "control-socket": "capture",
     "coverage": "capture",

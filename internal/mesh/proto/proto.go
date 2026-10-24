@@ -223,8 +223,6 @@ type Message struct {
 	// and the node transmitted it - but nothing comes back to echo it, so
 	// without this the operator sends into a conversation that stays empty.
 	Mine bool
-	// Confirmed is set when the firmware acknowledges the send.
-	Confirmed bool
 }
 
 // Frame is a decoded reply or push.
@@ -238,7 +236,12 @@ type Frame struct {
 	Contact  *Contact
 	Scope    *ScopeInfo
 	Device   *DeviceInfo
-	Err      string
+	// Sent and Confirmed are the two halves of a direct message's receipt.
+	Sent      *Sent
+	Confirmed *Confirmed
+	// Answer is a login or status reply from a repeater or room server.
+	Answer *Answer
+	Err    string
 	// Raw is the whole frame, kept so anything this package does not decode
 	// is still inspectable rather than lost.
 	Raw []byte

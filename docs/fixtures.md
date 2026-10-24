@@ -114,9 +114,12 @@ outside like a mesh that cannot reach itself. `fixture-fife-strict` shipped that
 way: three companions, three `public hello` lines, zero deliveries, and its own
 assertion failing on a clean tree with no check anywhere to say so.
 
-A companion's schedule takes meshcore-cli's own spellings - `advert`,
-`floodadv`, `public <message>`, `chan <number> <message>` - and anything else is
-refused by name rather than swallowed. The same split decides provisioning: a
+A companion's schedule takes meshcore-cli's own spellings, the same table
+`console.cli` answers - `advert`, `floodadv`, `public <message>`,
+`chan <number> <message>`, and in the workbench also `msg <contact> <message>`,
+`login`, `req_status` and `scope` - and anything else is refused by name rather
+than swallowed. `meshbench check` provisions without a contact list, so it takes
+only the first four. The same split decides provisioning: a
 companion is told its name, clock, position, radio and **default scope** over
 the protocol. The scope is the one that is invisible when it is missing, because
 unscoped traffic is carried by a different set of repeaters, and in a strictly
