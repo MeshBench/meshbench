@@ -103,7 +103,14 @@ func (s *Sim) restartNode(name string, seed uint64) error {
 func nativeDebug(name string, b *native.Native) map[string]any {
 	pid := b.PID()
 	syms := symbols(b.Path)
-	out := map[string]any{
+	note := "a breakpoint holds this node and the rest of the run goes on; when it is let go it " +
+		"catches up to the run's clock. On Linux, attaching needs ptrace permission: " +
+		"kernel.yama.ptrace_scope 0, or the debugger run as root"
+	if syms == "stripped" {
+		note += ". This binary has no symbols: build the firmware with meshbench dev from a " +
+			"checkout to debug it at source level"
+	}
+	return map[string]any{
 		"node": name, "debugging": true, "backend": "native",
 		"pid": pid, "binary": b.Path, "symbols": syms,
 		"attach": fmt.Sprintf("gdb -p %d %s", pid, b.Path),
@@ -111,15 +118,8 @@ func nativeDebug(name string, b *native.Native) map[string]any {
 			"name": "MeshBench " + name, "type": "cppdbg", "request": "attach",
 			"program": b.Path, "processId": fmt.Sprint(pid), "MIMode": "gdb",
 		},
-		"note": "a breakpoint holds this node and the rest of the run goes on; when it is let go it " +
-			"catches up to the run's clock. On Linux, attaching needs ptrace permission: " +
-			"kernel.yama.ptrace_scope 0, or the debugger run as root",
+		"note": note,
 	}
-	if syms == "stripped" {
-		out["note"] = out["note"].(string) + ". This binary has no symbols: build the firmware " +
-			"with meshbench dev from a checkout to debug it at source level"
-	}
-	return out
 }
 
 // emulatedDebug is how to reach an emulated board's GDB stub.
@@ -160,10 +160,14 @@ func symbols(path string) string {
 }
 
 func freePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	var lc net.ListenConfig
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		return 0, err
 	}
 	defer func() { _ = l.Close() }()
-	return l.Addr().(*net.TCPAddr).Port, nil
+	if a, ok := l.Addr().(*net.TCPAddr); ok {
+		return a.Port, nil
+	}
+	return 0, fmt.Errorf("no TCP port to hand out")
 }
