@@ -97,6 +97,34 @@ func areaOf(name string, boundaries []scenario.Boundary) state.Area {
 	return area
 }
 
+// boundariesOf is areaOf the other way round: the study areas a network was
+// loaded with, as the geometry the importer and the prune filter by.
+//
+// Each boundary carries its area's name, which is how boundary.remove finds the
+// geometry that belongs to the area being taken out.
+func boundariesOf(areas []state.Area) []scenario.Boundary {
+	var out []scenario.Boundary
+	for _, a := range areas {
+		b := scenario.Boundary{Name: a.Name}
+		for _, r := range a.Rings {
+			b.Rings = append(b.Rings, sceneRing(r))
+		}
+		for _, h := range a.Holes {
+			b.Holes = append(b.Holes, sceneRing(h))
+		}
+		out = append(out, b)
+	}
+	return out
+}
+
+func sceneRing(r []state.Point) scenario.Ring {
+	out := make(scenario.Ring, 0, len(r))
+	for _, p := range r {
+		out = append(out, scenario.LatLon{Lat: p.Lat, Lon: p.Lon})
+	}
+	return out
+}
+
 // ringOf converts a scenario ring to the flat form the renderer wants. The
 // interface does not want scenario types in its snapshot: a snapshot the
 // renderer holds for several frames must not alias anything the store can

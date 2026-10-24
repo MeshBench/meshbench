@@ -50,13 +50,20 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		}
 		out := make([]map[string]any, 0, len(found))
 		names := make([]string, 0, len(found))
+		labels := make([]string, 0, len(found))
 		for _, f := range found {
-			out = append(out, map[string]any{"name": f.Name, "kind": f.Kind})
+			out = append(out, map[string]any{"name": f.Name, "kind": f.Kind,
+				"label": labelOf(f)})
 			names = append(names, f.Name)
+			labels = append(labels, labelOf(f))
 		}
 		s.SetFoundAreas(found)
 		w.Say(fmt.Sprintf("%d places match %q", len(found), q))
-		return map[string]any{"found": out, "names": names}, nil
+		// Labels as well as names, for anything offering the results to a
+		// person. "Sydney" is two cities, "Perth" is one in Australia and one
+		// in Scotland, and a list of bare names is a list of identical rows -
+		// of which accept, matching on the name, always took the first.
+		return map[string]any{"found": out, "names": names, "labels": labels}, nil
 	})
 
 	st.Handle("boundary.accept", func(w *state.World, p any) (any, error) {
@@ -71,7 +78,18 @@ func registerBoundary(st *state.Store, s *session.Sim) {
 		// with "no boundary for that", having just been handed the boundary.
 		var chosen []scenario.Boundary
 		matched := name
+		// The full label first, so a place picked from a list is the place
+		// that was picked rather than the first one sharing its name.
 		for _, f := range s.FoundAreas() {
+			if strings.EqualFold(labelOf(f), name) {
+				chosen, matched = f.Boundaries, f.Name
+				break
+			}
+		}
+		for _, f := range s.FoundAreas() {
+			if len(chosen) > 0 {
+				break
+			}
 			// What the search offered, not only what was typed: searching
 			// "Scotland" returns "Alba / Scotland", and refusing the thing it
 			// just offered is a dead end with no way out from the panel.
@@ -201,4 +219,13 @@ func withinAny(areas []scenario.Boundary, lat, lon, marginKm float64) bool {
 		}
 	}
 	return false
+}
+
+// labelOf is how a search result is offered: the geocoder's full name, which
+// says which Perth, or the short one where it gave none.
+func labelOf(f worldb.Found) string {
+	if f.DisplayName != "" {
+		return f.DisplayName
+	}
+	return f.Name
 }
