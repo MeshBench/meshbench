@@ -192,7 +192,11 @@ type Engine struct {
 	// crashed process, noticed once and then skipped rather than retried
 	// every tick. firmwareNewlyDown is the subset a caller has not yet been
 	// told about; FirmwareFailures drains it.
-	firmwareDown      map[string]bool
+	firmwareDown map[string]bool
+	// debug is which nodes are being debugged, and held which of them a
+	// debugger is holding, at the tick they did not answer. See debug.go.
+	debug             map[string]Debug
+	held              map[string]uint32
 	firmwareNewlyDown []FirmwareFailure
 	// classCounts is events by class, kept as they are recorded so the cards
 	// that show them never walk the log.

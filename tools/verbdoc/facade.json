@@ -51,6 +51,7 @@
     "node.output_window": "node.output_window(source)",
     "node.start": "node.start()",
     "node.stop": "node.stop()",
+    "node.debug": "node.debug(wait=, port=, off=)",
     "node.set_firmware": "node.firmware = build",
     "node.set_firmware_only": "node.set_firmware(build, apply=False)",
     "node.truerf": "node.true_rf = bool",

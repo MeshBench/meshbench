@@ -119,3 +119,19 @@ func (b *Bridge) SetChannelBusy(busy bool) error {
 	}
 	return nil
 }
+
+// CaughtUp reports, without waiting, whether the node has acknowledged the tick
+// to atMs: for a node a debugger is holding, which the engine asks each tick
+// rather than waits on.
+func (b *Bridge) CaughtUp(atMs uint32) bool {
+	for {
+		select {
+		case got := <-b.acked:
+			if got >= atMs {
+				return true
+			}
+		default:
+			return false
+		}
+	}
+}

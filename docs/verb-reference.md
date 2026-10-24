@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 260 verbs: 222 a script may call and
+The store registers 261 verbs: 223 a script may call and
 38 the workbench calls on itself, which the socket refuses. Of those,
-260 say what they are for and 0 do not yet; the ones that
+261 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -489,6 +489,31 @@ Report or change what is in one node's card slot: whether a card is fitted, whic
 ```
 
 **Client** `node.card(fitted=|file=|wipe=)`
+
+### `node.debug`
+
+Make a running node debuggable and say how to attach: a native node is held rather than marked down while a breakpoint stops it, and an emulated board is restarted with its emulator's GDB stub.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | required, primary | the node to debug; refused when absent, unknown, or not running firmware |
+| `wait` | bool | optional | for an emulated board, hold its CPU at reset until a debugger continues, so boot can be stepped through; refused for a native node, which has already booted by the time anything can attach |
+| `port` | number | optional | for an emulated board, the port its GDB stub listens on; absent picks a free one |
+| `off` | bool | optional | stop debugging: a native node is given its tick deadline back, an emulated board is restarted without the stub |
+
+**Answers** `node`, `debugging`, `backend`, `pid`, `binary`, `symbols`, `gdb_port`, `wait`, `debugger`, `image`, `attach`, `vscode`, `note`. `attach` is a debugger command line and `vscode` a launch configuration to paste. A native node has `pid`, `binary` and `symbols`: `debug` with DWARF, `symbols` with a symbol table only, `stripped` with neither. An emulated board has `gdb_port`, `wait`, the `debugger` for its architecture and the `image` it runs, which has no symbols: the debugger wants the firmware.elf the same build produced. From the first call, `sim.state` reports the run as not reproducible, because a debugger stopping a node moves its clock.
+
+**Example** - attach gdb to a native repeater
+
+```json
+{"id":1,"method":"node.debug","params":{"node":"West Lomond"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `node.debug(wait=, port=, off=)`
 
 ### `node.energy`
 

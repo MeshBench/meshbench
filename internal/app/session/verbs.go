@@ -47,6 +47,7 @@ func Register(st *state.Store, s *Sim) {
 	registerPresetsAndPlace(st, s)
 	registerCompanion(st, s)
 	registerMeshCLI(st, s)
+	registerNodeDebug(st, s)
 	registerRFMode(st, s)
 	registerRFRealism(st, s)
 	registerRFEnvironment(st, s)

@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**222**<!--verbdoc:public--> public verbs a script can call and
-**38**<!--verbdoc:internal--> internal callbacks it cannot, **260**<!--verbdoc:total-->
+**223**<!--verbdoc:public--> public verbs a script can call and
+**38**<!--verbdoc:internal--> internal callbacks it cannot, **261**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **222**<!--verbdoc:public--> public verbs, plus **38**<!--verbdoc:internal-->
-  the workbench keeps to itself, **260**<!--verbdoc:total--> registered in
+- **223**<!--verbdoc:public--> public verbs, plus **38**<!--verbdoc:internal-->
+  the workbench keeps to itself, **261**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -131,6 +131,7 @@ Two verbs are **not** in this table:
 | `node.antenna` | *a bare string*, `node` string | `node`, `pattern`, `gain_dbi_peak`, `beamwidth_deg`, `front_to_back_db`, `bearing_deg`, `downtilt_deg`, `polarisation`, `feedline_db`, `peak_dbi` | `node.antenna` |
 | `node.boardview` 🪟 | *a bare string*, `node` string, `tab` string | `node`, `board`, `tab` | `wb.board_view(node)` |
 | `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=\|file=\|wipe=)` |
+| `node.debug` | *a bare string*, `node` string, `wait` bool, `port` number, `off` bool | `node`, `debugging`, `backend`, `pid`, `binary`, `symbols`, `gdb_port`, `wait`, `debugger`, `image`, `attach`, `vscode`, `note` | `node.debug(wait=, port=, off=)` |
 | `node.energy` | *a bare string*, `node` string | `node` | `node.energy()` |
 | `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |
 | `node.output_window` 🪟 | *a bare string*, `node` string, `source` string | `node`, `source` | `node.output_window(source)` |
