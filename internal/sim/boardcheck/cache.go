@@ -9,8 +9,10 @@ package boardcheck
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Dir is where reports live, keyed by board and version.
@@ -27,6 +29,17 @@ func reportPath(dir, board, version string) string {
 	return filepath.Join(dir, board+"-"+version+".json")
 }
 
+// Board and version name a cache entry, never a directory. Reject both path
+// separators on every platform so a report imported elsewhere stays contained.
+func validReportKey(board, version string) bool {
+	for _, key := range []string{board, version} {
+		if key == "" || key == "." || key == ".." || strings.ContainsAny(key, "/\\\x00") {
+			return false
+		}
+	}
+	return true
+}
+
 // Save writes a report, keyed by board and version - a later probe of the
 // same pair overwrites it, which is the point: the cache holds the most
 // recent measurement, not a history of them.
@@ -34,6 +47,9 @@ func reportPath(dir, board, version string) string {
 // call to half its methods, and the half that mutates is the one you notice
 // too late.
 func (r *BoardReport) Save() error {
+	if !validReportKey(r.Board, r.Version) {
+		return fmt.Errorf("board report: board and version must be single path components")
+	}
 	dir, err := Dir()
 	if err != nil {
 		return err
@@ -42,7 +58,7 @@ func (r *BoardReport) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(reportPath(dir, r.Board, r.Version), b, 0o644)
+	return os.WriteFile(reportPath(dir, r.Board, r.Version), b, 0o644) //nolint:gosec // G703: validated single-component keys under the current user's report cache.
 }
 
 // Load reads a cached report, or an all-Untested one if there is none -
@@ -51,6 +67,9 @@ func (r *BoardReport) Save() error {
 // emulator fingerprint in use right now, not against whatever produced the
 // file.
 func Load(board, version string) BoardReport {
+	if !validReportKey(board, version) {
+		return untestedReport(board, version)
+	}
 	dir, err := Dir()
 	if err != nil {
 		return untestedReport(board, version)
