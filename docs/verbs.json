@@ -4709,14 +4709,14 @@
       }
     },
     "sim.faster": {
-      "what": "double how much simulated time one tick covers, trading detail for how long a run takes to watch",
+      "what": "double how much simulated time one tick covers, which makes the run go twice as fast until the machine cannot keep up",
       "returns": [
         "step_ms"
       ],
-      "answers": "`step_ms` is the new tick length. Nothing bounds it: enough calls will step past whole transmissions.",
+      "answers": "`step_ms` is the new tick length, capped at 1000. A tick is ten milliseconds of wall time and the engine still steps in its own 10 ms, so nothing is skipped: past what the machine can step in a tick the run simply goes as fast as it can, and the transport's realtime figure says how fast that is.",
       "example": {
         "params": {},
-        "what": "run twice as coarsely",
+        "what": "run twice as fast",
         "runnable": true
       }
     },
@@ -4867,10 +4867,10 @@
       "returns": [
         "step_ms"
       ],
-      "answers": "`step_ms` is the new tick length, which reaches zero after enough calls and stops the clock advancing at all.",
+      "answers": "`step_ms` is the new tick length, never below 1. Below the engine's own 10 ms step, a tick steps only once it has been owed a whole step, so 5 is half real time.",
       "example": {
         "params": {},
-        "what": "run twice as finely",
+        "what": "run at half the speed",
         "runnable": true
       }
     },
@@ -4880,7 +4880,7 @@
         {
           "name": "step_ms",
           "type": "number",
-          "what": "simulated milliseconds per tick, which is what the engine actually paces on"
+          "what": "simulated milliseconds per tick, from 1 to 1000; a tick is ten milliseconds of wall time, so 10 is real time and 1000 is as fast as the machine can step"
         },
         {
           "name": "factor",

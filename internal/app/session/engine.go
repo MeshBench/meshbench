@@ -33,6 +33,9 @@ type Sim struct {
 	// sendClock is when each scheduled send last fired, so a repeating one
 	// repeats per interval rather than per tick.
 	sendClock sendClock
+	// tickOwed is simulated time a tick has been given and the engine has not
+	// yet stepped through, because a tick can be shorter than one step.
+	tickOwed uint32
 	// statesMu guards states, which Reflash writes from its own goroutine and
 	// the store goroutine reads to answer nodes.stats.
 	statesMu sync.Mutex
@@ -327,6 +330,8 @@ func (s *Sim) SetLogPath(path string) { s.logPath = path }
 
 // buildSeeded is build, with the draw stated.
 func (s *Sim) buildSeeded(nodes []scenario.Node, freqMHz float64, seed uint64) {
+	// A new engine owes nothing: time a tick gave the last one belongs to it.
+	s.tickOwed = 0
 	// A rebuild that changes nothing geometric keeps the measured matrix.
 	//
 	// Reset, a new seed, and switching run kinds all remake the engine, and

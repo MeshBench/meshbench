@@ -1379,13 +1379,13 @@ Not made by the test suite: this call needs more than the two-node headless sess
 
 ### `sim.faster`
 
-Double how much simulated time one tick covers, trading detail for how long a run takes to watch.
+Double how much simulated time one tick covers, which makes the run go twice as fast until the machine cannot keep up.
 
 **Takes** nothing.
 
-**Answers** `step_ms`. `step_ms` is the new tick length. Nothing bounds it: enough calls will step past whole transmissions.
+**Answers** `step_ms`. `step_ms` is the new tick length, capped at 1000. A tick is ten milliseconds of wall time and the engine still steps in its own 10 ms, so nothing is skipped: past what the machine can step in a tick the run simply goes as fast as it can, and the transport's realtime figure says how fast that is.
 
-**Example** - run twice as coarsely
+**Example** - run twice as fast
 
 ```json
 {"id":1,"method":"sim.faster","params":{}}
@@ -1551,9 +1551,9 @@ Halve how much simulated time one tick covers.
 
 **Takes** nothing.
 
-**Answers** `step_ms`. `step_ms` is the new tick length, which reaches zero after enough calls and stops the clock advancing at all.
+**Answers** `step_ms`. `step_ms` is the new tick length, never below 1. Below the engine's own 10 ms step, a tick steps only once it has been owed a whole step, so 5 is half real time.
 
-**Example** - run twice as finely
+**Example** - run at half the speed
 
 ```json
 {"id":1,"method":"sim.slower","params":{}}
@@ -1569,7 +1569,7 @@ Set how much simulated time one tick covers, which is the honest form of a speed
 
 | parameter | type | | what |
 |---|---|---|---|
-| `step_ms` | number | optional | simulated milliseconds per tick, which is what the engine actually paces on |
+| `step_ms` | number | optional | simulated milliseconds per tick, from 1 to 1000; a tick is ten milliseconds of wall time, so 10 is real time and 1000 is as fast as the machine can step |
 | `factor` | number | optional | a multiple of ten milliseconds per tick, read only when `step_ms` is absent, for scripts written against the old socket |
 
 **Answers** `step_ms`. `step_ms` is what it settled on. Neither parameter positive leaves the tick alone and reports it.

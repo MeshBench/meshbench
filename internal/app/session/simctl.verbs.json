@@ -84,7 +84,7 @@
       {
         "name": "step_ms",
         "type": "number",
-        "what": "simulated milliseconds per tick, which is what the engine actually paces on"
+        "what": "simulated milliseconds per tick, from 1 to 1000; a tick is ten milliseconds of wall time, so 10 is real time and 1000 is as fast as the machine can step"
       },
       {
         "name": "factor",
