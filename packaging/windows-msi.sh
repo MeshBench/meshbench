@@ -72,7 +72,11 @@ python3 "$here/dialog-bitmaps.py" \
 sed "s/<version>/$version/" "$here/installed-by-msi.txt" \
   > "$extra/installed-by-msi.txt"
 
-files=$(find "$stage" -type f | wc -l)
+# Links as well as files: the emulators unpack with a few symlinks in them,
+# and the tree reaches the Windows runner through an artifact upload, which
+# stores each one as the file it points at - so each becomes a file the
+# installer carries, and a count of files alone came out three short.
+files=$(find "$stage" \( -type f -o -type l \) | wc -l)
 cat > "$extra/msi.env" <<ENV
 MSIVERSION=$msiversion
 PRODUCT=$product
