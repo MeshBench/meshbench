@@ -66,9 +66,13 @@ say "product code $got, derived from the version"
 upgrades=$(table Upgrade | upper)
 holds "$upgrades" "$want" ||
   bad "$msi has no Upgrade row for $want, so it would install beside an older version"
-holds "$upgrades" OLDERVERSIONBEINGUPGRADED ||
+# The property names are the toolset's: WiX 4 and later's MajorUpgrade writes
+# WIX_UPGRADE_DETECTED and WIX_DOWNGRADE_DETECTED, where WiX 3 and hand-authored
+# packages used OLDERVERSIONBEINGUPGRADED and NEWERVERSIONDETECTED. Either pair
+# is the same two rows; the check is that both rows exist.
+holds "$upgrades" "WIX_UPGRADE_DETECTED\|OLDERVERSIONBEINGUPGRADED" ||
   bad "$msi detects no older version to remove"
-holds "$upgrades" NEWERVERSIONDETECTED ||
+holds "$upgrades" "WIX_DOWNGRADE_DETECTED\|NEWERVERSIONDETECTED" ||
   bad "$msi would let an older build install over a newer one"
 say "older versions are removed and a newer one is refused"
 
