@@ -838,7 +838,9 @@ jobs:
         with:
           name: msi-unverified
           retention-days: 1
-          path: dist/*.msi
+          path: |
+            dist/*.msi
+            dist/*.msi.files
 
   windows-msi-verify:
     timeout-minutes: 15
@@ -864,8 +866,10 @@ jobs:
           set -e
           for v in compact bundled; do
             . "msi/extra-$v/msi.env"
-            packaging/verify-msi.sh "dist/meshbench-windows-x86_64-$v.msi" \
-              "$MSIVERSION" "$UPGRADE" "$((FILES + 1))"
+            msi="dist/meshbench-windows-x86_64-$v.msi"
+            # The count of what WiX harvested, taken on the Windows runner.
+            files=$(cat "$msi.files")
+            packaging/verify-msi.sh "$msi" "$MSIVERSION" "$UPGRADE" "$((files + 1))"
           done
       - uses: actions/upload-artifact@v7
         if: inputs.release || startsWith(github.ref, 'refs/tags/v')

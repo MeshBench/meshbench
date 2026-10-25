@@ -50,4 +50,12 @@ $view.GetType().InvokeMember('Close', 'InvokeMethod', $null, $view, $null) | Out
 $db.GetType().InvokeMember('Commit', 'InvokeMethod', $null, $db, $null) | Out-Null
 [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($db) | Out-Null
 
+# How many files WiX harvested from, for verify-msi.sh to hold the package to.
+# Counted here rather than where the tree was staged: it reached this runner as
+# an artifact, which stores each symlink in the emulators as the file it points
+# at, so a count from the Linux side came out short.
+$files = (Get-ChildItem -Path $Stage -Recurse -File -Force).Count
+Set-Content -Path "$Out.files" -Value $files -NoNewline
+
 Get-Item $Out | Format-List Name, Length
+"$files files staged"

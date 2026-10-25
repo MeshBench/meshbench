@@ -16,7 +16,10 @@
 # What lands in <extra-dir>: the icon, the two dialog bitmaps, the note the
 # installer adds beside the binary, and msi.env, which carries the version the
 # MSI is stamped with, the product and upgrade codes, and how many files the
-# stage holds, for the build and the check to agree on.
+# stage holds here. The check uses the count windows-msi.ps1 takes of the tree
+# WiX actually harvested instead, because the tree crosses to the Windows
+# runner as an artifact and the emulators' symlinks arrive as the files they
+# point at - a count taken on this side came out short.
 set -euo pipefail
 
 stage=${1:?the directory meshbench.exe sits in}
@@ -72,11 +75,7 @@ python3 "$here/dialog-bitmaps.py" \
 sed "s/<version>/$version/" "$here/installed-by-msi.txt" \
   > "$extra/installed-by-msi.txt"
 
-# Links as well as files: the emulators unpack with a few symlinks in them,
-# and the tree reaches the Windows runner through an artifact upload, which
-# stores each one as the file it points at - so each becomes a file the
-# installer carries, and a count of files alone came out three short.
-files=$(find "$stage" \( -type f -o -type l \) | wc -l)
+files=$(find "$stage" -type f | wc -l)
 cat > "$extra/msi.env" <<ENV
 MSIVERSION=$msiversion
 PRODUCT=$product
