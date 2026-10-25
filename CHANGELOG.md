@@ -41,6 +41,15 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **A Linux tarball install knows it is one.** The updater recognised the
+  tarball by a `radioserver` beside the binary, which no tarball has shipped
+  since the chip became a library, so every tarball install reported itself
+  as unpackaged and got a generic instruction instead of its own. It now looks
+  for `VARIANT`.
+- **Headless echoes every status line.** It printed the latest status line at
+  each look, so several lines said close together lost all but the last, and
+  a line said just before exit was lost. A failed update check left nothing in
+  the log at all.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.
