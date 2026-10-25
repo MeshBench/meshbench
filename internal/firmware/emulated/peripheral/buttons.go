@@ -2,6 +2,7 @@ package peripheral
 
 import (
 	"context"
+	"io"
 	"net"
 	"os"
 	"sync"
@@ -37,6 +38,12 @@ type ButtonSender struct {
 	// like a working battery meter.
 	atConnect *[msgLen]byte
 
+	// lamps is what each watched lamp pin was last driven to, and changes how
+	// many times it moved, so a flash between two looks is still seen.
+	// Nil until a machine has said anything about a lamp.
+	lamps   map[int]bool
+	changes map[int]int
+
 	ln   net.Listener
 	path string
 	port int
@@ -57,6 +64,9 @@ const (
 	// of a board the simulation drives rather than a person: on these boards,
 	// the divider its cell is measured through.
 	analogTag = 'A'
+	// lampTag comes the other way: a lamp pin and the level the firmware
+	// drove it to, from a machine that watches the board's lamps.
+	lampTag = 'L'
 )
 
 // ListenButtons starts accepting the emulator's connection at path.
@@ -248,7 +258,51 @@ func (b *ButtonSender) accept() {
 			// its first reading is a device the next write will drop anyway.
 			_, _ = conn.Write(first[:])
 		}
+		go b.readBack(conn)
 	}
+}
+
+// readBack takes what the machine says about the board's outputs: its lamps.
+// A machine that says nothing - QEMU, which watches none yet - leaves this
+// waiting on a read until the connection goes.
+func (b *ButtonSender) readBack(conn net.Conn) {
+	var msg [msgLen]byte
+	for {
+		if _, err := io.ReadFull(conn, msg[:]); err != nil {
+			return
+		}
+		if msg[0] != lampTag {
+			continue
+		}
+		pin, lit := int(msg[1]), msg[2] != 0
+		b.mu.Lock()
+		if b.lamps == nil {
+			b.lamps, b.changes = map[int]bool{}, map[int]int{}
+		}
+		if was, seen := b.lamps[pin]; !seen || was != lit {
+			b.changes[pin]++
+		}
+		b.lamps[pin] = lit
+		b.mu.Unlock()
+	}
+}
+
+// Lamps is each watched lamp pin's level and how many times it has changed,
+// or nil when nothing has reported a lamp.
+func (b *ButtonSender) Lamps() (lit map[int]bool, changes map[int]int) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.lamps == nil {
+		return nil, nil
+	}
+	lit, changes = make(map[int]bool, len(b.lamps)), make(map[int]int, len(b.changes))
+	for k, v := range b.lamps {
+		lit[k] = v
+	}
+	for k, v := range b.changes {
+		changes[k] = v
+	}
+	return lit, changes
 }
 
 var errNoButtons = errNoButtonsError{}

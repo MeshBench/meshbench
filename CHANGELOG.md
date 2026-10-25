@@ -23,6 +23,11 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **An nRF52 board's lamps are watched.** Under Renode each declared lamp's
+  output is followed and reported back, so the board view draws it lit or
+  unlit and says how many times it changed, and `nodes.stats` carries `lamps`.
+  A RAK4631 repeater's two LEDs flash three times at boot. ESP32 boards under
+  QEMU still draw lamps as not modelled; that half needs the QEMU fork.
 - **Script input at an instant of simulated time.** `console.type`,
   `console.cli` and the `companion.*` verbs that write to a node take `at_ms`:
   the call is held and runs when the run reaches that instant, so a script
