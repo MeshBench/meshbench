@@ -265,7 +265,9 @@ class Firmware:
             p["board"] = board
         self._wb.call("firmware.download", p)
 
-    def import_(self, path: str, role: str, board: str = "", label: str = "") -> Build:
+    def import_(
+        self, path: str, role: str, board: str = "", label: str = "", dialect: str = ""
+    ) -> Build:
         """Take a build from a path - the one way a locally built image gets
         into the library.
 
@@ -279,6 +281,8 @@ class Firmware:
             p["board"] = board
         if label:
             p["label"] = label
+        if dialect:
+            p["dialect"] = dialect
         return Build.parse(self._wb.call("firmware.import", p) or {})
 
     def delete(self, build: Build) -> str:
@@ -318,6 +322,7 @@ class Firmware:
         new_board: Board | str | None = None,
         coproc_at_reset: bool | None = None,
         card_required: bool | None = None,
+        dialect: str | None = None,
         notes: str | None = None,
     ) -> BuildDetails:
         """Rename a build, move it to another board or role, or change how it
@@ -344,6 +349,8 @@ class Firmware:
             p["coproc_at_reset"] = coproc_at_reset
         if card_required is not None:
             p["card_required"] = card_required
+        if dialect is not None:
+            p["dialect"] = dialect
         if notes is not None:
             p["notes"] = notes
         got = self._wb.call("firmware.update", p) or {}

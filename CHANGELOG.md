@@ -23,6 +23,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **A build says whether it takes MeshCore's console commands.** A firmware
+  that is not MeshCore is no longer sent provisioning it refuses line by line,
+  and an experiment arm that would pin a setting onto one is refused before
+  the run rather than producing cells that differ by nothing. `dialect` on
+  `firmware.import`, `firmware.update` and `firmware.details`, and a switch
+  in the build's window.
 - **Script input at an instant of simulated time.** `console.type`,
   `console.cli` and the `companion.*` verbs that write to a node take `at_ms`:
   the call is held and runs when the run reaches that instant, so a script

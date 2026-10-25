@@ -99,6 +99,15 @@ func registerFirmwareCache(st *state.Store, s *session.Sim) {
 		if err != nil {
 			return nil, err
 		}
+		// What the build speaks travels with it, so a third-party firmware is
+		// not sent MeshCore's provisioning the first time it is run.
+		if d, ok := session.NamedField(p, "dialect"); ok && normalDialect(d) != "" {
+			set := firmware.LoadBuildSettings(img.URL)
+			set.Dialect = normalDialect(d)
+			if err := firmware.SaveBuildSettings(img.URL, set); err != nil {
+				return nil, err
+			}
+		}
 		fillLibrary(s, w)
 		w.Say("imported " + img.Version + " as " + role)
 		return map[string]any{

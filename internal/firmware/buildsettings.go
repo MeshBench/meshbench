@@ -44,10 +44,26 @@ type BuildSettings struct {
 	// slot fails minutes into a run, somewhere that does not mention cards.
 	CardRequired bool `json:"card_required,omitempty"`
 
+	// Dialect is the console vocabulary this firmware speaks: empty or
+	// "meshcore" for MeshCore's own commands, "none" for a firmware with no
+	// command line, or the name of another. Provisioning speaks MeshCore's,
+	// so a node running anything else is not sent it - every line would be
+	// refused, and a setting an experiment pinned would silently not apply
+	// (#599).
+	Dialect string `json:"dialect,omitempty"`
+
 	// Notes is whatever the person who imported it wanted the next person to
 	// know: where it came from, what it is for, what is wrong with it.
 	Notes string `json:"notes,omitempty"`
 }
+
+// SpeaksMeshCore reports whether provisioning can be sent to this build.
+func (b BuildSettings) SpeaksMeshCore() bool {
+	return b.Dialect == "" || b.Dialect == DialectMeshCore
+}
+
+// DialectMeshCore is MeshCore's own console vocabulary.
+const DialectMeshCore = "meshcore"
 
 // Zero reports whether anything has been decided at all, which is when the
 // file is removed rather than written empty.

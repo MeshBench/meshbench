@@ -45,6 +45,9 @@ type firmwareWindowPanel struct {
 	notes  comp.Field
 	coproc comp.Check
 	card   comp.Check
+	// console is whether the build takes MeshCore's console commands, which
+	// is what provisioning types at it.
+	console comp.Check
 
 	// roleWant and boardWant are the draft: what the chips and the board
 	// list say, which is not the same as what the build is until apply. They
@@ -82,6 +85,7 @@ func (p *firmwareWindowPanel) build() {
 	p.notes.Hint = "what the next person should know about this build"
 	p.coproc.Label = "coprocessors enabled at reset"
 	p.card.Label = "needs a card in the board's slot"
+	p.console.Label = "takes MeshCore's console commands"
 	p.apply.Label, p.apply.Kind = "apply", comp.Primary
 	p.revert.Label, p.revert.Kind = "revert", comp.Secondary
 	p.useFor.Label, p.useFor.Kind = "use for this role", comp.Secondary
@@ -121,6 +125,7 @@ func (p *firmwareWindowPanel) seed(r state.FirmwareRow) {
 	p.notes.Editor.SetText(r.Settings.Notes)
 	p.coproc.Bool.Value = r.Settings.CoprocAtReset
 	p.card.Bool.Value = r.Settings.CardRequired
+	p.console.Bool.Value = r.Settings.SpeaksMeshCore()
 	p.roleWant, p.boardWant = r.Role, r.Board
 }
 

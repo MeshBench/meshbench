@@ -1763,7 +1763,7 @@ Report everything known about one build: where it is, what it is, and what has b
 | `role` | string | optional | which role, when one label carries more than one |
 | `board` | string | optional | which board; absent means a build for this machine |
 
-**Answers** `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `card_required`, `notes`. Answered from the library, so a published build nobody has fetched is described too: `on_disk` is then false and `path` and `bytes` are empty. `in_use` counts the nodes pinned to it, `kind`, `bootable` and `flash_mb` are read from a board image and say nothing about a native build, `settings_path` is where its settings would be written whether any exist or not, and `modified` is absent for a build not on this machine. A label naming more than one build is refused rather than guessed at.
+**Answers** `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `card_required`, `dialect`, `notes`. Answered from the library, so a published build nobody has fetched is described too: `on_disk` is then false and `path` and `bytes` are empty. `in_use` counts the nodes pinned to it, `kind`, `bootable` and `flash_mb` are read from a board image and say nothing about a native build, `settings_path` is where its settings would be written whether any exist or not, and `modified` is absent for a build not on this machine. A label naming more than one build is refused rather than guessed at.
 
 **Example** - find out where a build lives and what is running it
 
@@ -1828,6 +1828,7 @@ Put somebody's own build into the library, which is how a change is tested again
 | `board` | string | optional | the board it is for; absent means a build for this machine |
 | `label` | string | optional | what the library will know it by and what a node pins; absent, it is stamped with a timestamp so a second import does not replace the first in place |
 | `version` | string | optional | an older name for `label`, read only when `label` is absent, because scripts written against it are already out in the world |
+| `dialect` | string | optional | the console vocabulary the image speaks: meshcore, absent included, for MeshCore's own; none for a firmware with no console; or the name of another. A node running a build that is not MeshCore's is not sent provisioning, which it would refuse line by line |
 
 **Answers** `version`, `role`, `board`, `path`, `bytes`. `version` is the label the build was stored under, which is the timestamp when none was given and is what `firmware.set` then has to be handed.
 
@@ -2006,6 +2007,7 @@ Rename a build, move it to another board or role, or change how it is run.
 | `new_board` | string | optional | move it to this board instead; unchanged when absent |
 | `card_required` | bool | optional | this firmware will not get far without storage in the board's slot, so every node running it is given a card whatever it would otherwise have had |
 | `coproc_at_reset` | bool | optional | start this build's coprocessors enabled, which the part does not do - for a firmware that traps inside its own exception vector and cannot be seen past |
+| `dialect` | string | optional | the console vocabulary the build speaks: meshcore for MeshCore's own, none for no console, or another name; absent leaves it alone. Anything but meshcore means nodes running this build are not provisioned, and an experiment arm that pins settings onto one is refused |
 | `notes` | string | optional | what the next person should know about this build |
 
 **Answers** `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings`. The build's identity after the change comes back, with `renamed` saying whether the file actually moved and `repinned` how many nodes were pointed at the new name, which happens on their behalf so none is left naming a build nothing answers to. `settings` holds `coproc_at_reset`, `card_required` and `notes` as they now stand. Refused for a build not on this machine, and refused while a node is running it.
@@ -3683,7 +3685,7 @@ Put every arm through every seed on a worker, each cell in its own engine with n
 
 **Takes** nothing.
 
-**Answers** `running`, `runs`, `reproducible`, `not_reproducible_why`. `runs` is how many cells were queued. Poll experiment.state until `running` goes false. It refuses where a sweep is already running, where no network is loaded, where no sender has been named, and where the last sweep's cell in flight has not yet let go of the results table. `reproducible` is false where the network carries a node running in an emulator, whose firmware is stepped by the emulator's clock rather than by the run's: the cells then differ for reasons the matrix does not record, so the arms measure nothing against each other, and `not_reproducible_why` says which node, empty when there is none. The sweep still runs - a single arm on emulated firmware is a legitimate thing to watch - but a script comparing arms should stop here.
+**Answers** `running`, `runs`, `reproducible`, `not_reproducible_why`. `runs` is how many cells were queued. Poll experiment.state until `running` goes false. It refuses where a sweep is already running, where no network is loaded, where no sender has been named, and where the last sweep's cell in flight has not yet let go of the results table. `reproducible` is false where the network carries a node running in an emulator, whose firmware is stepped by the emulator's clock rather than by the run's: the cells then differ for reasons the matrix does not record, so the arms measure nothing against each other, and `not_reproducible_why` says which node, empty when there is none. The sweep still runs - a single arm on emulated firmware is a legitimate thing to watch - but a script comparing arms should stop here. Refused before anything runs when an arm pins a setting onto a node whose firmware does not take MeshCore's console commands (`firmware.update` `dialect`), naming the arm and the nodes: the setting would not apply, and the cells would differ by nothing.
 
 **Example** - start the matrix that is defined
 

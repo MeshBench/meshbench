@@ -36,6 +36,7 @@ func registerFirmwareDetails(st *state.Store, s *session.Sim) {
 			"flash_mb":        row.Facts.FlashMB,
 			"coproc_at_reset": row.Settings.CoprocAtReset,
 			"card_required":   row.Settings.CardRequired,
+			"dialect":         dialectName(row.Settings),
 			"notes":           row.Settings.Notes,
 		}
 		if !row.Modified.IsZero() {
@@ -103,6 +104,9 @@ func registerFirmwareUpdate(st *state.Store, s *session.Sim) {
 		if on, ok := session.BoolOf(p, "card_required"); ok {
 			set.CardRequired = on
 		}
+		if d, ok := session.NamedField(p, "dialect"); ok {
+			set.Dialect = normalDialect(d)
+		}
 		if err := firmware.SaveBuildSettings(in.Path, set); err != nil {
 			return nil, err
 		}
@@ -120,7 +124,7 @@ func registerFirmwareUpdate(st *state.Store, s *session.Sim) {
 			"path": in.Path, "renamed": renamed, "repinned": repinned,
 			"settings": map[string]any{
 				"coproc_at_reset": set.CoprocAtReset, "notes": set.Notes,
-				"card_required": set.CardRequired,
+				"card_required": set.CardRequired, "dialect": dialectName(set),
 			},
 		}, nil
 	})
@@ -265,4 +269,23 @@ func deleteBuildSettings(path string) {
 		return
 	}
 	_ = os.Remove(firmware.SettingsPath(path))
+}
+
+// normalDialect stores MeshCore's own vocabulary as no setting at all, so a
+// build that says "meshcore" and one that says nothing are one build.
+func normalDialect(d string) string {
+	d = strings.ToLower(strings.TrimSpace(d))
+	if d == firmware.DialectMeshCore {
+		return ""
+	}
+	return d
+}
+
+// dialectName is what a build speaks, said: "meshcore" when nothing else is
+// recorded.
+func dialectName(set firmware.BuildSettings) string {
+	if set.Dialect == "" {
+		return firmware.DialectMeshCore
+	}
+	return set.Dialect
 }

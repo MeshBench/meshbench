@@ -207,10 +207,10 @@ Two verbs are **not** in this table:
 | `firmware.build_failed` | — | — | *none* — the build worker telling the store it failed |
 | `firmware.built` | — | `built` | *none* — the build worker telling the store it finished |
 | `firmware.delete` | *a bare string*, `path` string | `deleted` | `wb.firmware.delete(build)` |
-| `firmware.details` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `card_required`, `notes` | `wb.firmware.details(build)` |
+| `firmware.details` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `card_required`, `dialect`, `notes` | `wb.firmware.details(build)` |
 | `firmware.download` | *a bare string*, `role` string, `version` string, `board` string | `downloading`, `role`, `version`, `board`, `job` | `wb.firmware.download(role, version, board=None)` |
 | `firmware.failed` | *a bare string*, `reason` string | — | *none* — the firmware starter reporting a failure |
-| `firmware.import` | *a bare string*, `path` string, `role` string, `board` string, `label` string, `version` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None, label="")` |
+| `firmware.import` | *a bare string*, `path` string, `role` string, `board` string, `label` string, `version` string, `dialect` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None, label="")` |
 | `firmware.installed` | — | `cache`, `installed` | `wb.firmware.installed` |
 | `firmware.library` | — | `builds`, `count` | `wb.firmware.library` |
 | `firmware.needed` | — | `roles` | `wb.firmware.needed()` |
@@ -220,7 +220,7 @@ Two verbs are **not** in this table:
 | `firmware.start` | — | `starting` | `wb.firmware.start()` |
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
 | `firmware.state` | — | `running`, `nodes`, `total`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |
-| `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `card_required` bool, `coproc_at_reset` bool, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=\|new_role=\|coproc_at_reset=\|notes=)` |
+| `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `card_required` bool, `coproc_at_reset` bool, `dialect` string, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=\|new_role=\|coproc_at_reset=\|notes=)` |
 | `firmware.window` 🪟 | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board` | `wb.firmware.window(build)` |
 | `firmware.wipe` | — | `wiped`, `root`, `cards` | `wb.firmware.wipe()` |
 

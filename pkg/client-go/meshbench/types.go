@@ -186,8 +186,11 @@ type BuildDetails struct {
 	// CardRequired says this firmware will not get far without storage in the
 	// board's slot, so every node running it is given a card whatever its own
 	// slot was set to.
-	CardRequired bool   `json:"card_required"`
-	Notes        string `json:"notes"`
+	CardRequired bool `json:"card_required"`
+	// Dialect is the console vocabulary the build speaks; "meshcore" unless
+	// something else was recorded.
+	Dialect string `json:"dialect"`
+	Notes   string `json:"notes"`
 }
 
 // Describe is how this build is named where a person will read it.
