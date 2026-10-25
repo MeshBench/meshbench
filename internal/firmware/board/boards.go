@@ -366,6 +366,11 @@ var EmulationVerified = []string{
 	"Xiao_S3",
 	"Xiao_S3_WIO",
 	"RAK_3112",
+	// Probed for #603 against v1.17.1: build, boot, radio, tx, rx and flood
+	// all passed. The E290's e-paper panel is still not drawn - the board
+	// runs, its display is the gap.
+	"Heltec_E290",
+	"heltec_tracker_v2",
 }
 
 // EmulationSupported reports whether a board can be run under emulation today.
