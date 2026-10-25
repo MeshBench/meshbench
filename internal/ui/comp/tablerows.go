@@ -268,6 +268,14 @@ func numericValue(s string) float64 {
 	return v
 }
 
+// searchRow is the filter box, unless the caller draws it.
+func (tb *Table) searchRow(t *theme.Theme, gtx layout.Context) layout.Dimensions {
+	if tb.OwnFilter {
+		return layout.Dimensions{}
+	}
+	return tb.search(t, gtx)
+}
+
 // search is the filter box above the header.
 //
 // Its hint says what it matches on rather than "search", because a box that

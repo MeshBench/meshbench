@@ -41,6 +41,9 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **The Nodes panel shows its filter once.** The panel drew the table's
+  filter in its own box and the table drew it again underneath, so typing
+  showed the text twice with two carets.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.

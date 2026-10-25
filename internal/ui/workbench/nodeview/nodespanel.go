@@ -86,6 +86,7 @@ func (np *Panel) Draw(t *theme.Theme, gtx layout.Context, s *state.Snapshot) lay
 			// The table's own editor, drawn with the field's chrome. One
 			// widget at one address, which is what focus is keyed on.
 			np.filter.Hint = "filter by name or kind"
+			np.tbl.OwnFilter = true
 			return np.filter.LayoutEditor(t, gtx, &np.tbl.Filter)
 		}),
 		layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
