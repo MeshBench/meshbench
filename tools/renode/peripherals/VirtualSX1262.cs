@@ -25,6 +25,7 @@ using System;
 using Antmicro.Renode.Core;
 using Antmicro.Renode.Logging;
 using Antmicro.Renode.Peripherals.SPI;
+using Antmicro.Renode.Time;
 
 namespace Antmicro.Renode.Peripherals.Radio
 {
@@ -108,6 +109,14 @@ namespace Antmicro.Renode.Peripherals.Radio
             engine = new VirtualSX1262Engine(lib, chip, chipLock, SettleIrq,
                                              () => femLevel,
                                              m => this.Log(LogLevel.Warning, m));
+            if(VirtualSX1262Engine.Lockstep)
+            {
+                // Once a millisecond of the machine's own virtual time; see
+                // VirtualSX1262Engine.OnVirtualMillisecond.
+                var tick = engine;
+                machine.ClockSource.AddClockEntry(new ClockEntry(1, 1000,
+                    () => tick.OnVirtualMillisecond(), this, "meshbench-lockstep"));
+            }
             if(engine.Connect(engineHost, enginePort))
             {
                 this.Log(LogLevel.Info, "joined the engine at {0}:{1}",

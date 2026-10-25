@@ -98,6 +98,7 @@ namespace Antmicro.Renode.Peripherals.Radio
                 }
             }
             stream = null;
+            Release();
         }
 
         private void Handle(byte kind, byte[] payload)
@@ -156,27 +157,95 @@ namespace Antmicro.Renode.Peripherals.Radio
 
         private void Advance(uint toMs)
         {
-            lock(chipLock)
+            if(Lockstep)
             {
-                // A millisecond at a time, as a native node is stepped.
-                // Stepping rather than jumping is what keeps the chip's own
-                // timeouts behaving: a preamble flag that should clear after
-                // 66 ms does not, if time arrives in 500 ms lumps.
-                while(simMs < toMs)
+                AdvanceInLockstep(toMs);
+            }
+            else
+            {
+                lock(chipLock)
                 {
-                    simMs++;
+                    // A millisecond at a time, as a native node is stepped.
+                    // Stepping rather than jumping is what keeps the chip's own
+                    // timeouts behaving: a preamble flag that should clear after
+                    // 66 ms does not, if time arrives in 500 ms lumps.
+                    while(simMs < toMs)
+                    {
+                        simMs++;
+                        lib.Tick(chip, simMs);
+                        DrainTx();
+                    }
                     lib.Tick(chip, simMs);
                     DrainTx();
+                    SendStats();
                 }
-                lib.Tick(chip, simMs);
-                DrainTx();
-                SendStats();
+                settle();
             }
-            settle();
 
             var ack = new byte[4];
             Put32(ack, 0, toMs);
             Send(Ack, ack, ack.Length);
+        }
+
+        // Lockstep (#774). The machine runs, but a clock entry in its own
+        // virtual time calls OnVirtualMillisecond once a millisecond, on the
+        // CPU's thread, and that is where the chip is ticked and where the CPU
+        // waits until the engine has asked for the next millisecond. So the
+        // CPU and the chip never run ahead of the engine, and since Renode's
+        // virtual time comes from the instructions executed rather than the
+        // host clock, the same tick runs the same firmware on an idle machine
+        // and a loaded one. Advance only grants time and waits for the CPU to
+        // reach it.
+        private void AdvanceInLockstep(uint toMs)
+        {
+            lock(gate)
+            {
+                granted = Math.Max(granted, toMs);
+                Monitor.PulseAll(gate);
+                while(simMs < toMs && !released)
+                {
+                    Monitor.Wait(gate, 1000);
+                }
+            }
+            lock(chipLock)
+            {
+                SendStats();
+            }
+        }
+
+        // OnVirtualMillisecond is the clock entry's handler; see
+        // AdvanceInLockstep.
+        public void OnVirtualMillisecond()
+        {
+            lock(chipLock)
+            {
+                simMs++;
+                lib.Tick(chip, simMs);
+                DrainTx();
+            }
+            settle();
+            lock(gate)
+            {
+                Monitor.PulseAll(gate);
+                // A timeout and a re-check rather than a bare wait, so a
+                // machine being shut down is not held for ever by an engine
+                // that has gone.
+                while(simMs >= granted && !released)
+                {
+                    Monitor.Wait(gate, 1000);
+                }
+            }
+        }
+
+        // Release lets the machine run free: the engine has gone, or the
+        // machine is shutting down.
+        private void Release()
+        {
+            lock(gate)
+            {
+                released = true;
+                Monitor.PulseAll(gate);
+            }
         }
 
         // Anything the firmware handed its radio goes out to the engine now.
@@ -328,6 +397,7 @@ namespace Antmicro.Renode.Peripherals.Radio
 
         public void Dispose()
         {
+            Release();
             var wire = stream;
             stream = null;
             if(wire != null)
@@ -336,6 +406,12 @@ namespace Antmicro.Renode.Peripherals.Radio
             }
             client = null;
         }
+
+        // Lockstep runs the machine from the tick instead of letting it run
+        // free; see Advance. Set from MESHBENCH_RENODE_LOCKSTEP, and the
+        // script then never starts the machine itself.
+        public static readonly bool Lockstep =
+            Environment.GetEnvironmentVariable("MESHBENCH_RENODE_LOCKSTEP") == "1";
 
         private const byte Frame = 0x01;
         private const byte Tick = 0x02;
@@ -348,6 +424,12 @@ namespace Antmicro.Renode.Peripherals.Radio
         // irq_suppressed, which ends at byte 47. Byte 47 itself, the
         // capabilities, is left off - this host sends no failed frames.
         private const int StatsLength = 47;
+
+        // gate guards granted, how far the engine has asked the machine to
+        // run in lockstep, and released, set once nothing will ask again.
+        private readonly object gate = new object();
+        private uint granted;
+        private bool released;
 
         private readonly VirtualSX1262Lib lib;
         private readonly IntPtr chip;
@@ -364,6 +446,6 @@ namespace Antmicro.Renode.Peripherals.Radio
         private TcpClient client;
         private NetworkStream stream;
         private Thread thread;
-        private uint simMs;
+        private volatile uint simMs;
     }
 }

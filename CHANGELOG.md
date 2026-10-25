@@ -23,6 +23,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **Renode boards can run in lockstep with the engine.** With
+  `MESHBENCH_RENODE_LOCKSTEP=1`, an nRF52 board's CPU and chip advance one
+  millisecond of virtual time per millisecond the engine asks for, with the
+  machine's random numbers seeded from the node. Console input still arrives
+  on the wall clock, so runs with emulated boards are still reported as not
+  reproducible; see `docs/shortcomings.md` §3.2a.
 - **Debug a node's firmware while the run goes on.** `node.debug`, and
   "Debug this node" on a node's row menu, say how to attach gdb or VS Code to
   a running node. A native node gets its process, binary and whether it has

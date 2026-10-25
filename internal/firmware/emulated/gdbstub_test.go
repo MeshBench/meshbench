@@ -45,3 +45,22 @@ func TestTheDebuggerFollowsTheArchitecture(t *testing.T) {
 		}
 	}
 }
+
+// In lockstep the machine's random numbers are seeded from the node and idle
+// time is skipped, or the same tick would not run the same firmware (#774).
+func TestALocksteppedRenodeScriptIsSeeded(t *testing.T) {
+	t.Setenv(EnvRenodeLockstep, "1")
+	a := (&EmulatedNode{NodeName: "a", RunSeed: 1}).renodeStart()
+	b := (&EmulatedNode{NodeName: "b", RunSeed: 1}).renodeStart()
+	for _, want := range []string{"emulation SetSeed ", "emulation SetAdvanceImmediately true\n", "start\n"} {
+		if !strings.Contains(a, want) {
+			t.Errorf("missing %q in:\n%s", want, a)
+		}
+	}
+	if a == b {
+		t.Error("two nodes share one random stream")
+	}
+	if a != (&EmulatedNode{NodeName: "a", RunSeed: 1}).renodeStart() {
+		t.Error("the same node is seeded differently twice")
+	}
+}
