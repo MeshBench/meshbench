@@ -64,6 +64,20 @@ func Panel(radioBase uint32, port, width, height, cs, dc int, dcPort string) str
 `, stockSPIName, port, width, height, cs, dc, dcPort, cs, cs, dc, dc)
 }
 
+// Oled is an I2C display on the first TWIM, at its address. offset is where
+// the glass starts in the controller's columns: 2 for an SH1106.
+func Oled(port int, addr uint8, width, height, offset int) string {
+	if port == 0 || addr == 0 || width <= 0 || height <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(`oled: Video.MeshBenchOled @ twi0 0x%X
+    port: %d
+    width: %d
+    height: %d
+    columnOffset: %d
+`, addr, port, width, height, offset)
+}
+
 func UnregisterStockSPI() string {
 	return "sysbus Unregister sysbus." + stockSPIName + "\n"
 }

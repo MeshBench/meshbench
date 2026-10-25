@@ -23,6 +23,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **The RAK4631's display is drawn under Renode.** Its SSD1306 is on I2C,
+  and the TWIM model answered every address with a NACK. The TWIM now carries
+  devices registered at an address and moves each transfer's bytes through
+  EasyDMA, and a new SSD1306 model sends the controller's memory to the board
+  view. An address nobody claims is still a NACK. The published v1.17.1
+  repeater draws its own boot screen.
 - **Script input at an instant of simulated time.** `console.type`,
   `console.cli` and the `companion.*` verbs that write to a node take `at_ms`:
   the call is held and runs when the run reaches that instant, so a script

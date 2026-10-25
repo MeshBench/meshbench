@@ -52,8 +52,14 @@ lora: Radio.VirtualSX1262 @ radiospi
     %d -> lora@0
 `, renode.EasyDMASPI(e.SPIBase), e.SPIBase, engineHost, enginePort, e.IrqPort,
 		e.IrqPin, e.NssPort, e.NssPin)
-	wiring += renode.Panel(e.SPIBase, e.PanelPort, e.PanelWidth, e.PanelHgt,
-		e.PanelCS, e.PanelDC, e.NssPort)
+	// A colour panel has a select line of its own; an I2C display has an
+	// address instead.
+	if e.PanelCS != 0 {
+		wiring += renode.Panel(e.SPIBase, e.PanelPort, e.PanelWidth, e.PanelHgt,
+			e.PanelCS, e.PanelDC, e.NssPort)
+	} else {
+		wiring += renode.Oled(e.PanelPort, e.PanelAddr, e.PanelWidth, e.PanelHgt, e.PanelOffset)
+	}
 	wiring += renode.Inputs(e.ButtonPort, e.HasMeter)
 	if err := os.WriteFile(repl, []byte(wiring), 0o644); err != nil {
 		return "", err
@@ -80,6 +86,7 @@ i @%[1]s/peripherals/VirtualSX1262Engine.cs
 i @%[1]s/peripherals/VirtualSX1262.cs
 i @%[1]s/peripherals/MeshBenchInputs.cs
 i @%[1]s/peripherals/MeshBenchPanel.cs
+i @%[1]s/peripherals/MeshBenchOled.cs
 i @%[1]s/peripherals/NRF52840_Temp.cs
 i @%[1]s/peripherals/NRF52840_Clock.cs
 i @%[1]s/peripherals/NRF52840_SAADC.cs
