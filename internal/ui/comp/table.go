@@ -67,7 +67,7 @@ type Table struct {
 	FilterHint string
 	// OwnFilter is set by a caller that draws Filter in a box of its own, so
 	// the table does not draw it again: one editor laid out twice is two boxes
-	// showing the same text, each with a caret (#770).
+	// showing the same text, each with a caret.
 	OwnFilter bool
 	// OnCell is called when a Menu column's cell is clicked, with the row's
 	// key and the column index.
