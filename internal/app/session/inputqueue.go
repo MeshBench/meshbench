@@ -33,6 +33,7 @@ var inputVerbs = map[string]bool{
 	"companion.refresh":     true,
 	"companion.raw":         true,
 	"companion.configure":   true,
+	"companion.cli":         true,
 }
 
 // queuedInput is one held call.

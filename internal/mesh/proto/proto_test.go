@@ -280,3 +280,36 @@ func TestDecodeMessageTooShort(t *testing.T) {
 		t.Fatalf("a 1-byte message body decoded as %+v, want an error", f.Message)
 	}
 }
+
+// A remote command is a direct message marked TXT_TYPE_CLI_DATA, attempt 0,
+// and its reply decodes as a CLI message rather than a written one.
+func TestARemoteCommandIsMarkedAsOne(t *testing.T) {
+	key := []byte{1, 2, 3, 4, 5, 6, 7, 8}
+	f, err := proto.SendCommandData(key, time.Unix(0x01020304, 0), "get name")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := append([]byte{byte(proto.CmdSendTxtMsg), 1, 0, 4, 3, 2, 1, 1, 2, 3, 4, 5, 6}, "get name"...)
+	if string(f) != string(want) {
+		t.Errorf("frame % x, want % x", f, want)
+	}
+	if _, err := proto.SendCommandData(key[:5], time.Now(), "x"); err == nil {
+		t.Error("a five-byte key was accepted")
+	}
+
+	// A v3 contact message: snr, two reserved, six-byte sender, path length,
+	// txt_type, timestamp, text.
+	reply := append([]byte{byte(proto.RespContactMsgRecvV3), 40, 0, 0, 1, 2, 3, 4, 5, 6, 0xFF, 1, 0, 0, 0, 0},
+		"  -> Rep"...)
+	fr, err := proto.Decode(reply)
+	if err != nil || fr.Message == nil {
+		t.Fatalf("decode: %v %+v", err, fr)
+	}
+	if !fr.Message.CLI || fr.Message.Text != "  -> Rep" {
+		t.Errorf("a CLI reply decoded as %+v", fr.Message)
+	}
+	reply[11] = 0
+	if fr, _ := proto.Decode(reply); fr.Message == nil || fr.Message.CLI {
+		t.Errorf("a plain message decoded as CLI: %+v", fr.Message)
+	}
+}

@@ -10,6 +10,7 @@ package session
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"sync"
 
@@ -163,7 +164,12 @@ func (c *compSession) apply(f proto.Frame) {
 			}
 			c.unread[f.Message.ChannelIdx]++
 		}
-		c.note(fmt.Sprintf("[%.3f s] message: %s", float64(c.simMs())/1000, f.Message.Text))
+		if f.Message.CLI {
+			c.note(fmt.Sprintf("[%.3f s] reply from %s: %s", float64(c.simMs())/1000,
+				hex.EncodeToString(f.Message.SenderKey), f.Message.Text))
+		} else {
+			c.note(fmt.Sprintf("[%.3f s] message: %s", float64(c.simMs())/1000, f.Message.Text))
+		}
 	case f.Scope != nil:
 		c.scope, c.scopeKnown = f.Scope.Name, true
 		if f.Scope.Name == "" {

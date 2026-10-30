@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 261 verbs: 223 a script may call and
+The store registers 262 verbs: 224 a script may call and
 38 the workbench calls on itself, which the socket refuses. Of those,
-261 say what they are for and 0 do not yet; the ones that
+262 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -2222,6 +2222,31 @@ Not made by the test suite: this call needs more than the two-node headless sess
 
 **Client** `node.companion.advert(flood=False)`
 
+### `companion.cli`
+
+Run a command on another node over the air, as an operator's phone administers a repeater it cannot plug into: the text goes as a remote-admin message (TXT_TYPE_CLI_DATA), the recipient runs it on its own command line, and its answer comes back the same way.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | required, primary | the connected companion to send from; refused when nothing is connected to it, or when it has not answered anything since it was connected |
+| `to` | string | required | the node to run it, by contact name or by public key in hex as the companion holds it; refused when the companion holds no such contact and the key is too short to address one |
+| `command` | string | required | the command line to run there, as it would be typed at that node's serial console; refused when absent or blank |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
+
+**Answers** `node`, `to`, `command`, `note`, `queued`, `at_ms`, `now_ms`. The recipient runs the command only for a sender logged in to it as admin, so log in first (`console.cli` with `login <contact> <password>`). Nothing is acked: the answer is the reply itself, which arrives later and is read from `companion.state` as `cli_replies`. A command from a sender that is not logged in gets no reply at all.
+
+**Example** - ask a repeater over the air what radio settings it holds
+
+```json
+{"id":1,"method":"companion.cli","params":{"command":"get radio","node":"Phone","to":"West Lomond"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `node.companion.remote(to, command)`
+
 ### `companion.configure`
 
 Change a node's own settings the way a phone would, sending only the fields that were asked for, and reporting which ones went.
@@ -2429,7 +2454,7 @@ Read what a client attached to this node would be showing, which is what the nod
 |---|---|---|---|
 | `node` | string | required, primary | the connected node; refused when nothing is connected to it |
 
-**Answers** `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz`. `contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not.
+**Answers** `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz`, `cli_replies`. `contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not. `cli_replies` lists the answers to remote commands sent with `companion.cli`, oldest first, each with the key prefix it came `from` and its `text`.
 
 **Example** - ask what the client sees
 

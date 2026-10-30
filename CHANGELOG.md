@@ -23,6 +23,13 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **Run a command on another node over the air.** `companion.cli` sends a
+  command from a connected companion to a node it is logged in to, as
+  MeshCore's remote admin does (`TXT_TYPE_CLI_DATA`). The node's own firmware
+  runs it and answers the same way, and `companion.state` lists the answers as
+  `cli_replies`. The companion command line has it as `cmd <contact>
+  <command>`. A study can now provision a mesh the way an operator does,
+  rather than over every node's serial port.
 - **The RAK4631's display is drawn under Renode.** Its SSD1306 is on I2C,
   and the TWIM model answered every address with a NACK. The TWIM now carries
   devices registered at an address and moves each transfer's bytes through

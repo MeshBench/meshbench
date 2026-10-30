@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**223**<!--verbdoc:public--> public verbs a script can call and
-**38**<!--verbdoc:internal--> internal callbacks it cannot, **261**<!--verbdoc:total-->
+**224**<!--verbdoc:public--> public verbs a script can call and
+**38**<!--verbdoc:internal--> internal callbacks it cannot, **262**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **223**<!--verbdoc:public--> public verbs, plus **38**<!--verbdoc:internal-->
-  the workbench keeps to itself, **261**<!--verbdoc:total--> registered in
+- **224**<!--verbdoc:public--> public verbs, plus **38**<!--verbdoc:internal-->
+  the workbench keeps to itself, **262**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -240,6 +240,7 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `companion.add_channel` | *a bare string*, `node` string, `index` number, `at_ms` number | `asked_for_channel`, `queued`, `at_ms`, `now_ms` | `node.companion.add_channel(index)` |
 | `companion.advert` | *a bare string*, `node` string, `flood` bool, `at_ms` number | `advert`, `flood`, `queued`, `at_ms`, `now_ms` | `node.companion.advert(flood=False)` |
+| `companion.cli` | *a bare string*, `node` string, `to` string, `command` string, `at_ms` number | `node`, `to`, `command`, `note`, `queued`, `at_ms`, `now_ms` | `node.companion.remote(to, command)` |
 | `companion.configure` | *a bare string*, `node` string, `name` string, `lat` number, `lon` number, `tx_dbm` number, `freq_khz` number, `bw_khz` number, `sf` number, `cr` number, `path_hash` number, `at_ms` number | `set`, `queued`, `at_ms`, `now_ms` | `node.companion.configure(...)` |
 | `companion.connect` | *a bare string*, `node` string, `at_ms` number | `connected`, `took_port`, `note`, `queued`, `at_ms`, `now_ms` | `node.companion.connect()` |
 | `companion.disconnect` | *a bare string*, `node` string | `disconnected` | `node.companion.disconnect()` |
@@ -248,7 +249,7 @@ Two verbs are **not** in this table:
 | `companion.refresh` | *a bare string*, `node` string, `at_ms` number | `node`, `queued`, `at_ms`, `now_ms` | `node.companion.refresh()` |
 | `companion.scope` | *a bare string*, `node` string, `scope` string, `at_ms` number | `node`, `scope`, `queued`, `at_ms`, `now_ms` | `node.companion.scope = name` |
 | `companion.send` | *a bare string*, `node` string, `text` string, `channel` number, `path_hash` number, `at_ms` number | `sent`, `channel`, `queued`, `at_ms`, `now_ms` | `node.companion.send(text, channel=, path_hash=)` |
-| `companion.state` | *a bare string*, `node` string | `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz` | `node.companion  (properties)` |
+| `companion.state` | *a bare string*, `node` string | `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz`, `cli_replies` | `node.companion  (properties)` |
 
 ### Serving to real clients
 

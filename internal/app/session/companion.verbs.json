@@ -71,6 +71,53 @@
       "what": "announce to the neighbours only"
     }
   },
+  "companion.cli": {
+    "what": "run a command on another node over the air, as an operator's phone administers a repeater it cannot plug into: the text goes as a remote-admin message (TXT_TYPE_CLI_DATA), the recipient runs it on its own command line, and its answer comes back the same way",
+    "params": [
+      {
+        "name": "node",
+        "type": "string",
+        "required": true,
+        "primary": true,
+        "what": "the connected companion to send from; refused when nothing is connected to it, or when it has not answered anything since it was connected"
+      },
+      {
+        "name": "to",
+        "type": "string",
+        "required": true,
+        "what": "the node to run it, by contact name or by public key in hex as the companion holds it; refused when the companion holds no such contact and the key is too short to address one"
+      },
+      {
+        "name": "command",
+        "type": "string",
+        "required": true,
+        "what": "the command line to run there, as it would be typed at that node's serial console; refused when absent or blank"
+      },
+      {
+        "name": "at_ms",
+        "type": "number",
+        "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
+      }
+    ],
+    "returns": [
+      "node",
+      "to",
+      "command",
+      "note",
+      "queued",
+      "at_ms",
+      "now_ms"
+    ],
+    "answers": "The recipient runs the command only for a sender logged in to it as admin, so log in first (`console.cli` with `login <contact> <password>`). Nothing is acked: the answer is the reply itself, which arrives later and is read from `companion.state` as `cli_replies`. A command from a sender that is not logged in gets no reply at all.",
+    "example": {
+      "params": {
+        "node": "Phone",
+        "to": "West Lomond",
+        "command": "get radio"
+      },
+      "what": "ask a repeater over the air what radio settings it holds"
+    }
+  },
   "companion.connect": {
     "what": "claim a node's serial port for the companion protocol and make the same opening a phone makes, so a client's view of the node can be shown or driven",
     "params": [
@@ -284,9 +331,10 @@
       "channels",
       "recent",
       "name",
-      "freq_khz"
+      "freq_khz",
+      "cli_replies"
     ],
-    "answers": "`contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not.",
+    "answers": "`contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not. `cli_replies` lists the answers to remote commands sent with `companion.cli`, oldest first, each with the key prefix it came `from` and its `text`.",
     "example": {
       "params": {
         "node": "West Lomond"
