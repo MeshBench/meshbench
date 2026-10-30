@@ -11,17 +11,17 @@ import (
 // machine goes away, so one pointed at a port nobody opened would spend the
 // run failing to connect and logging about it.
 func TestABoardWithNoInputsGetsNoChannel(t *testing.T) {
-	if got := Inputs(0, false); got != "" {
+	if got := Inputs(0, false, nil); got != "" {
 		t.Errorf("a board with no inputs was given a channel:\n%s", got)
 	}
-	if got := Inputs(0, true); got != "" {
+	if got := Inputs(0, true, nil); got != "" {
 		t.Errorf("a meter with no channel to arrive on was declared:\n%s", got)
 	}
 }
 
 // The channel names both ports and, where the board has one, its converter.
 func TestTheInputChannelNamesWhatItDrives(t *testing.T) {
-	got := Inputs(41235, true)
+	got := Inputs(41235, true, nil)
 	for _, want := range []string{
 		"Miscellaneous.MeshBenchInputs @ sysbus",
 		"port: 41235",
@@ -36,7 +36,7 @@ func TestTheInputChannelNamesWhatItDrives(t *testing.T) {
 	// A board with no cell to read has no meter to point at, and naming one
 	// that is not in the platform is a description Renode refuses to load -
 	// which takes the whole node down rather than one row of a table.
-	if bare := Inputs(41235, false); strings.Contains(bare, "meter:") {
+	if bare := Inputs(41235, false, nil); strings.Contains(bare, "meter:") {
 		t.Errorf("a board with no converter was pointed at one:\n%s", bare)
 	}
 }
@@ -82,6 +82,18 @@ func TestNoDisplayIsDescribedWhereNoneCanBe(t *testing.T) {
 	} {
 		if c.got != "" {
 			t.Errorf("%s was given a display:\n%s", c.what, c.got)
+		}
+	}
+}
+
+// Each lamp's output is connected back to the inputs peripheral, on the right
+// port and numbered by flat pin, which is how it names the lamp it reports
+// (#600).
+func TestLampOutputsAreConnectedBack(t *testing.T) {
+	got := Inputs(4242, false, []int{35, 5})
+	for _, want := range []string{"gpio1:\n    3 -> inputs@35", "gpio0:\n    5 -> inputs@5"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
 		}
 	}
 }

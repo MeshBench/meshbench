@@ -1093,11 +1093,12 @@
         "node",
         "reply",
         "failed",
+        "paused",
         "queued",
         "at_ms",
         "now_ms"
       ],
-      "answers": "`failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback.",
+      "answers": "`failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.",
       "example": {
         "params": {
           "command": "?",
@@ -1154,11 +1155,12 @@
         "node",
         "sent",
         "note",
+        "paused",
         "queued",
         "at_ms",
         "now_ms"
       ],
-      "answers": "The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.",
+      "answers": "The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.",
       "example": {
         "params": {
           "command": "get name",
@@ -4288,6 +4290,41 @@
         },
         "what": "make the mesh advertise, and let adverts cross a country",
         "runnable": true
+      }
+    },
+    "radio.deliver": {
+      "what": "hand a node's radio one frame directly, as received or as a chosen kind of failed reception, to test the firmware's receive path without the channel deciding anything",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "what": "the node whose radio receives it; it needs firmware running"
+        },
+        {
+          "name": "hex",
+          "type": "string",
+          "what": "the frame, header first, as hex digits"
+        },
+        {
+          "name": "as",
+          "type": "string",
+          "what": "ok (the default), crc_error, header_error, no_crc (the header said the payload has no CRC), next_before_read or next_during_read (the next frame's header arriving in continuous receive before or during the firmware's read of this one)"
+        }
+      ],
+      "returns": [
+        "node",
+        "as",
+        "bytes",
+        "delivered"
+      ],
+      "answers": "`delivered` is false when the node has no firmware or its chip does not read that kind, which is an answer rather than a refusal. The next_* kinds need a frame already received and not yet read, so they follow an ok delivery.",
+      "example": {
+        "params": {
+          "as": "no_crc",
+          "hex": "1500348b2db7",
+          "node": "West Lomond"
+        },
+        "what": "a frame whose header said it carries no CRC"
       }
     },
     "radio.preset": {

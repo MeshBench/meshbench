@@ -121,7 +121,10 @@ type EmulatedNode struct {
 	// to dial a socket file. Exactly one of the two is set.
 	ButtonPort int
 	ButtonPins []int
-	Buttons    *peripheral.ButtonSender
+	// LampPins are the board's lamps, whose outputs the machine reports back
+	// on the same channel - Renode only, for now (#600).
+	LampPins []int
+	Buttons  *peripheral.ButtonSender
 
 	// KbdAddr and TouchAddr are where a keyboard and a touch panel answer on
 	// the board's I2C bus, or zero where it carries neither.
@@ -307,6 +310,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 		fmt.Sprintf("%s=%d", EnvNoiseSeed, noiseSeedFor(e.RunSeed, e.NodeName, e.BoardName, e.Position)))
 
 	if e.Emulator == Renode {
+		e.radioEnv = append(e.radioEnv, "MESHBENCH_FLASH_KEEP="+e.keptStorage())
 		if err := e.startRenode(ctx, bridge); err != nil {
 			return err
 		}

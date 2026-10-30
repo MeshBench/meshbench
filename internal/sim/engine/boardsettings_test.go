@@ -160,3 +160,15 @@ func shortNodeFS(t *testing.T) string {
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
 }
+
+// The RAK4631's SSD1306 is drawn under Renode now, so the window must say so
+// rather than say the gap is ours (#602).
+func TestTheRAK4631DisplayIsModelled(t *testing.T) {
+	b, err := hw.BoardByName("RAK_4631")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ScreenModelled(b) {
+		t.Error("the RAK4631's I2C display reads as not modelled")
+	}
+}

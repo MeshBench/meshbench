@@ -228,9 +228,9 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `console.cli` | *a bare string*, `node` string, `command` string, `at_ms` number | `node`, `reply`, `failed`, `queued`, `at_ms`, `now_ms` | `node.companion.cli(line)` |
+| `console.cli` | *a bare string*, `node` string, `command` string, `at_ms` number | `node`, `reply`, `failed`, `paused`, `queued`, `at_ms`, `now_ms` | `node.companion.cli(line)` |
 | `console.read` | *a bare string*, `node` string | `node`, `lines`, `tail` | `node.console.read()  /  node.console.tail` |
-| `console.type` | `node` string, `command` string, `at_ms` number | `node`, `sent`, `note`, `queued`, `at_ms`, `now_ms` | `node.console.send(line)` |
+| `console.type` | `node` string, `command` string, `at_ms` number | `node`, `sent`, `note`, `paused`, `queued`, `at_ms`, `now_ms` | `node.console.send(line)` |
 | `fleet.replies` | — | `replies` | *none* — the reply collector, called only by its own goroutine |
 | `fleet.send` | *a bare string*, `command` string, `node` string, `kind` string | `command`, `sent_to`, `replies`, `warning` | `wb.fleet.send(command, kind=\|node=)` - *planned*, no client defines `wb.fleet` yet; call the verb |
 
@@ -259,6 +259,8 @@ Two verbs are **not** in this table:
 | `bench.refresh` | — | — | `wb.endpoints` |
 | `bench.serve` | `node` string, `kind` string | `node`, `addr` | `node.serve(kind='tcp'\|'serial')` |
 | `bench.stray` | — | `at` | `wb.endpoints.stray()` - *planned*, no client defines `wb.endpoints` yet; call the verb |
+| `radio.deliver` | `node` string, `hex` string, `as` string | `node`, `as`, `bytes`, `delivered` | `node.deliver(frame_hex, as_='ok')` |
+| `radio.preset` | *a bare string*, `preset` string, `node` string | `preset`, `nodes` | `wb.radio.presets  /  wb.radio.apply(preset, node=)` - *planned*, no client defines `wb.radio` yet; call the verb |
 | `sdr.serve` | *a bare string*, `node` string | `node`, `addr`, `rate_hz` | `node.serve_sdr()` |
 | `sdr.stop` | *a bare string*, `node` string | `stopped` | `node.unserve_sdr()` |
 
@@ -368,7 +370,6 @@ Two verbs are **not** in this table:
 | `environ.fetch` | *a bare string*, `source` string | `source`, `started` | `wb.rf.fetch_environment(source)` - *planned*, no client defines `wb.rf` yet; call the verb |
 | `environ.fetched` | *a bare string*, `note` string | — | *none* — the building fetch reporting success |
 | `environ.list` | — | `dirs`, `current` | `wb.rf.environments` - *planned*, no client defines `wb.rf` yet; call the verb |
-| `radio.preset` | *a bare string*, `preset` string, `node` string | `preset`, `nodes` | `wb.radio.presets  /  wb.radio.apply(preset, node=)` - *planned*, no client defines `wb.radio` yet; call the verb |
 | `rf.environment` | *a bare string*, `dir` string, `on` bool | `environment` | `wb.rf.environment = dir` - *planned*, no client defines `wb.rf` yet; call the verb |
 | `rf.excess_loss` | *a bare string*, `db` number | `db`, `links` | `wb.rf.excess_loss_db = n` - *planned*, no client defines `wb.rf` yet; call the verb |
 | `rf.mode` | *a bare string*, `mode` string | `mode` | `wb.rf.mode = 'calculated'\|'waveform'` - *planned*, no client defines `wb.rf` yet; call the verb |

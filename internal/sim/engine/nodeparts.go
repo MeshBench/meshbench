@@ -54,7 +54,17 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 			touch = part.Addr
 		}
 		meter, hasMeter := batteryMeter(board)
-		if len(pins) > 0 || kbd != 0 || touch != 0 || hasMeter {
+		// Lamps are watched where the machine can follow an output, which is
+		// Renode; QEMU's half needs a device in its fork (#600).
+		var lamps []int
+		if board.Renode != nil {
+			for _, part := range p.PartsOfKind(hw.Lamp) {
+				if part.Pin != hw.PinNone {
+					lamps = append(lamps, part.Pin)
+				}
+			}
+		}
+		if len(pins) > 0 || kbd != 0 || touch != 0 || hasMeter || len(lamps) > 0 {
 			// Renode cannot dial a socket file, so its boards get the same
 			// channel on a loopback port. Which one a board uses is decided
 			// here and nowhere else: everything above and below this line is
@@ -67,6 +77,7 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 			node.ButtonPath = bs.Path()
 			node.ButtonPort = bs.Port()
 			node.ButtonPins = pins
+			node.LampPins = lamps
 			node.KbdAddr, node.TouchAddr = kbd, touch
 			if hasMeter {
 				node.BatChannel, node.BatRaw, node.HasMeter = meter.channel, meter.raw, true
@@ -149,9 +160,20 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 			node.PanelCS, node.PanelDC = p.Screen.CS, p.Screen.DC
 			node.PanelWidth, node.PanelHgt = p.Screen.WidthPx, p.Screen.HeightPx
 		}
+		// Renode's I2C display model is told its glass too; QEMU's takes it
+		// from the controller it emulates.
+		if p.Screen.Bus == hw.BusI2C && board.Renode != nil {
+			node.PanelWidth, node.PanelHgt = p.Screen.WidthPx, p.Screen.HeightPx
+		}
 	}
 	return node, nil
 }
+
+// LampsWatched reports whether the machine that would run this board reports
+// its lamps' levels: Renode does, by following each lamp's output; QEMU does
+// not yet. Beside ScreenModelled for the same reason: the board view's
+// Observed column is the one a person trusts.
+func LampsWatched(board hw.Board) bool { return board.Renode != nil }
 
 // ScreenModelled reports whether the machine that would run this board has a
 // display model to put behind its declared screen.
@@ -162,11 +184,10 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 // nothing draws must read as "no display modelled" and never as "silent", which
 // says the firmware chose not to draw.
 //
-// QEMU has both buses. Renode has the SPI panels - an ST7789 and an ST7735,
-// sharing the radio's controller and told apart by chip select, which is how
-// they are wired in copper - and not the I2C one: its TWIM model answers an
-// address with a NACK because until now no board under it had anything on that
-// bus to answer.
+// QEMU has both buses. So does Renode: the SPI panels - an ST7789 and an
+// ST7735, sharing the radio's controller and told apart by chip select, which
+// is how they are wired in copper - and an SSD1306 on I2C, registered on the
+// TWIM at its address.
 func ScreenModelled(board hw.Board) bool {
 	p := board.Hardware
 	if p == nil || p.Screen == nil {
@@ -178,6 +199,11 @@ func ScreenModelled(board hw.Board) bool {
 		// other port would be wired wrong rather than unsupported. Both boards
 		// that carry one have it on the radio's port; this is the check that
 		// says so rather than a comment claiming it.
+		// An I2C display hangs off the first TWIM at its address, where
+		// MeshBenchOled answers for an SSD1306 or an SH1106 (#602).
+		if p.Screen.Bus == hw.BusI2C {
+			return p.Screen.Controller == "SSD1306" || p.Screen.Controller == "SH1106"
+		}
 		return p.Screen.Bus == hw.BusSPI &&
 			p.Screen.CS != 0 && p.Screen.DC != 0 &&
 			onSamePort(p.Screen.CS, board.Renode.NssPort) &&
