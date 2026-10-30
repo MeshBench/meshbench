@@ -444,7 +444,8 @@ class Node:
         False when the node has no firmware or its chip does not read that
         kind, which is an answer, not a refusal.
         """
-        got = self._wb.call("radio.deliver", {"node": self.name, "hex": frame_hex, "as": as_}) or {}
+        params = {"node": self.name, "hex": frame_hex, "as": as_}
+        got = self._wb.call("radio.deliver", params) or {}
         return bool(got.get("delivered"))
 
     def provisioning(self) -> list[str]:
