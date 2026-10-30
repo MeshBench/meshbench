@@ -13,7 +13,7 @@ import (
 )
 
 // A companion logged in to a repeater runs a command on it over the air and
-// reads the answer back (#253). Nothing here is modelled: the repeater's own
+// reads the answer back. Nothing here is modelled: the repeater's own
 // firmware takes TXT_TYPE_CLI_DATA from an admin and answers in kind, and the
 // verb only originates it.
 func TestLiveACompanionRunsACommandOnARepeater(t *testing.T) {

@@ -282,7 +282,7 @@ func TestDecodeMessageTooShort(t *testing.T) {
 }
 
 // A remote command is a direct message marked TXT_TYPE_CLI_DATA, attempt 0,
-// and its reply decodes as a CLI message rather than a written one (#253).
+// and its reply decodes as a CLI message rather than a written one.
 func TestARemoteCommandIsMarkedAsOne(t *testing.T) {
 	key := []byte{1, 2, 3, 4, 5, 6, 7, 8}
 	f, err := proto.SendCommandData(key, time.Unix(0x01020304, 0), "get name")
