@@ -1689,7 +1689,7 @@
         "reproducible",
         "not_reproducible_why"
       ],
-      "answers": "`runs` is how many cells were queued. Poll experiment.state until `running` goes false. It refuses where a sweep is already running, where no network is loaded, where no sender has been named, and where the last sweep's cell in flight has not yet let go of the results table. `reproducible` is false where the network carries a node running in an emulator, whose firmware is stepped by the emulator's clock rather than by the run's: the cells then differ for reasons the matrix does not record, so the arms measure nothing against each other, and `not_reproducible_why` says which node, empty when there is none. The sweep still runs - a single arm on emulated firmware is a legitimate thing to watch - but a script comparing arms should stop here.",
+      "answers": "`runs` is how many cells were queued. Poll experiment.state until `running` goes false. It refuses where a sweep is already running, where no network is loaded, where no sender has been named, and where the last sweep's cell in flight has not yet let go of the results table. `reproducible` is false where the network carries a node running in an emulator, whose firmware is stepped by the emulator's clock rather than by the run's: the cells then differ for reasons the matrix does not record, so the arms measure nothing against each other, and `not_reproducible_why` says which node, empty when there is none. The sweep still runs - a single arm on emulated firmware is a legitimate thing to watch - but a script comparing arms should stop here. Refused before anything runs when an arm pins a setting onto a node whose firmware does not take MeshCore's console commands (`firmware.update` `dialect`), naming the arm and the nodes: the setting would not apply, and the cells would differ by nothing.",
       "example": {
         "params": {},
         "what": "start the matrix that is defined"
@@ -1931,6 +1931,7 @@
         "flash_mb",
         "coproc_at_reset",
         "card_required",
+        "dialect",
         "notes"
       ],
       "answers": "Answered from the library, so a published build nobody has fetched is described too: `on_disk` is then false and `path` and `bytes` are empty. `in_use` counts the nodes pinned to it, `kind`, `bootable` and `flash_mb` are read from a board image and say nothing about a native build, `settings_path` is where its settings would be written whether any exist or not, and `modified` is absent for a build not on this machine. A label naming more than one build is refused rather than guessed at.",
@@ -2021,6 +2022,11 @@
           "name": "version",
           "type": "string",
           "what": "an older name for `label`, read only when `label` is absent, because scripts written against it are already out in the world"
+        },
+        {
+          "name": "dialect",
+          "type": "string",
+          "what": "the console vocabulary the image speaks: meshcore, absent included, for MeshCore's own; none for a firmware with no console; or the name of another. A node running a build that is not MeshCore's is not sent provisioning, which it would refuse line by line"
         }
       ],
       "returns": [
@@ -2219,6 +2225,11 @@
           "name": "coproc_at_reset",
           "type": "bool",
           "what": "start this build's coprocessors enabled, which the part does not do - for a firmware that traps inside its own exception vector and cannot be seen past"
+        },
+        {
+          "name": "dialect",
+          "type": "string",
+          "what": "the console vocabulary the build speaks: meshcore for MeshCore's own, none for no console, or another name; absent leaves it alone. Anything but meshcore means nodes running this build are not provisioned, and an experiment arm that pins settings onto one is refused"
         },
         {
           "name": "notes",
@@ -3006,6 +3017,55 @@
         "params": "West Lomond",
         "what": "ask what is in a node's card slot",
         "runnable": true
+      }
+    },
+    "node.debug": {
+      "what": "make a running node debuggable and say how to attach: a native node is held rather than marked down while a breakpoint stops it, and an emulated board is restarted with its emulator's GDB stub",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to debug; refused when absent, unknown, or not running firmware"
+        },
+        {
+          "name": "wait",
+          "type": "bool",
+          "what": "for an emulated board, hold its CPU at reset until a debugger continues, so boot can be stepped through; refused for a native node, which has already booted by the time anything can attach"
+        },
+        {
+          "name": "port",
+          "type": "number",
+          "what": "for an emulated board, the port its GDB stub listens on; absent picks a free one"
+        },
+        {
+          "name": "off",
+          "type": "bool",
+          "what": "stop debugging: a native node is given its tick deadline back, an emulated board is restarted without the stub"
+        }
+      ],
+      "returns": [
+        "node",
+        "debugging",
+        "backend",
+        "pid",
+        "binary",
+        "symbols",
+        "gdb_port",
+        "wait",
+        "debugger",
+        "image",
+        "attach",
+        "vscode",
+        "note"
+      ],
+      "answers": "`attach` is a debugger command line and `vscode` a launch configuration to paste. A native node has `pid`, `binary` and `symbols`: `debug` with DWARF, `symbols` with a symbol table only, `stripped` with neither. An emulated board has `gdb_port`, `wait`, the `debugger` for its architecture and the `image` it runs, which has no symbols: the debugger wants the firmware.elf the same build produced. From the first call, `sim.state` reports the run as not reproducible, because a debugger stopping a node moves its clock.",
+      "example": {
+        "params": {
+          "node": "West Lomond"
+        },
+        "what": "attach gdb to a native repeater"
       }
     },
     "node.energy": {

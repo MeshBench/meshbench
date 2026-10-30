@@ -28,6 +28,25 @@ had changed in them - which is the gap this file exists to close.
   adapter so a phone app finds it the way it finds a radio. Linux with BlueZ
   only. The node runs its USB build behind it, so this tests a client against
   a simulated mesh, not MeshCore's own BLE transport.
+- **A build says whether it takes MeshCore's console commands.** A firmware
+  that is not MeshCore is no longer sent provisioning it refuses line by line,
+  and an experiment arm that would pin a setting onto one is refused before
+  the run rather than producing cells that differ by nothing. `dialect` on
+  `firmware.import`, `firmware.update` and `firmware.details`, and a switch
+  in the build's window.
+- **Renode boards can run in lockstep with the engine.** With
+  `MESHBENCH_RENODE_LOCKSTEP=1`, an nRF52 board's CPU and chip advance one
+  millisecond of virtual time per millisecond the engine asks for, with the
+  machine's random numbers seeded from the node. Console input still arrives
+  on the wall clock, so runs with emulated boards are still reported as not
+  reproducible; see `docs/shortcomings.md` §3.2a.
+- **Debug a node's firmware while the run goes on.** `node.debug`, and
+  "Debug this node" on a node's row menu, say how to attach gdb or VS Code to
+  a running node. A native node gets its process, binary and whether it has
+  symbols, and a breakpoint now holds it rather than getting it marked down:
+  the rest of the mesh carries on, and it rejoins when let go. An emulated
+  board is restarted with QEMU's or Renode's GDB stub, optionally held at
+  reset so boot can be stepped through. See `docs/debugging-firmware.md`.
 - **Run a command on another node over the air.** `companion.cli` sends a
   command from a connected companion to a node it is logged in to, as
   MeshCore's remote admin does (`TXT_TYPE_CLI_DATA`). The node's own firmware

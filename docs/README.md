@@ -50,6 +50,7 @@ lives here and **is** maintained - unlike the working notes below.
 | `install.md` | per platform, including the macOS and Windows signing caveats |
 | `firmware-build-settings.md` | what each setting in a build's own window does, and what it costs |
 | `native-and-emulated.md` | where the real firmware ends and the simulation begins, and the two ways a node can run |
+| `debugging-firmware.md` | attaching gdb or an IDE to a running node, native or emulated |
 
 ## Machine-specific, and deliberately so
 

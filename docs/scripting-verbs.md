@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**224**<!--verbdoc:public--> public verbs a script can call and
-**38**<!--verbdoc:internal--> internal callbacks it cannot, **262**<!--verbdoc:total-->
+**225**<!--verbdoc:public--> public verbs a script can call and
+**38**<!--verbdoc:internal--> internal callbacks it cannot, **263**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **224**<!--verbdoc:public--> public verbs, plus **38**<!--verbdoc:internal-->
-  the workbench keeps to itself, **262**<!--verbdoc:total--> registered in
+- **225**<!--verbdoc:public--> public verbs, plus **38**<!--verbdoc:internal-->
+  the workbench keeps to itself, **263**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -131,6 +131,7 @@ Two verbs are **not** in this table:
 | `node.antenna` | *a bare string*, `node` string | `node`, `pattern`, `gain_dbi_peak`, `beamwidth_deg`, `front_to_back_db`, `bearing_deg`, `downtilt_deg`, `polarisation`, `feedline_db`, `peak_dbi` | `node.antenna` |
 | `node.boardview` 🪟 | *a bare string*, `node` string, `tab` string | `node`, `board`, `tab` | `wb.board_view(node)` |
 | `node.card` | *a bare string*, `node` string, `fitted` bool, `file` string, `wipe` bool | `node`, `slot`, `fitted`, `file`, `own_file`, `bytes`, `required_by_firmware`, `board_has_slot`, `wiped` | `node.card(fitted=\|file=\|wipe=)` |
+| `node.debug` | *a bare string*, `node` string, `wait` bool, `port` number, `off` bool | `node`, `debugging`, `backend`, `pid`, `binary`, `symbols`, `gdb_port`, `wait`, `debugger`, `image`, `attach`, `vscode`, `note` | `node.debug(wait=, port=, off=)` |
 | `node.energy` | *a bare string*, `node` string | `node` | `node.energy()` |
 | `node.output` | *a bare string*, `node` string, `source` string, `lines` number | `node`, `source`, `lines`, `total`, `path`, `tail`, `note`, `tracing` | `node.output(source)` |
 | `node.output_window` 🪟 | *a bare string*, `node` string, `source` string | `node`, `source` | `node.output_window(source)` |
@@ -207,10 +208,10 @@ Two verbs are **not** in this table:
 | `firmware.build_failed` | — | — | *none* — the build worker telling the store it failed |
 | `firmware.built` | — | `built` | *none* — the build worker telling the store it finished |
 | `firmware.delete` | *a bare string*, `path` string | `deleted` | `wb.firmware.delete(build)` |
-| `firmware.details` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `card_required`, `notes` | `wb.firmware.details(build)` |
+| `firmware.details` | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board`, `native`, `on_disk`, `path`, `settings_path`, `bytes`, `modified`, `in_use`, `kind`, `bootable`, `flash_mb`, `coproc_at_reset`, `card_required`, `dialect`, `notes` | `wb.firmware.details(build)` |
 | `firmware.download` | *a bare string*, `role` string, `version` string, `board` string | `downloading`, `role`, `version`, `board`, `job` | `wb.firmware.download(role, version, board=None)` |
 | `firmware.failed` | *a bare string*, `reason` string | — | *none* — the firmware starter reporting a failure |
-| `firmware.import` | *a bare string*, `path` string, `role` string, `board` string, `label` string, `version` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None, label="")` |
+| `firmware.import` | *a bare string*, `path` string, `role` string, `board` string, `label` string, `version` string, `dialect` string | `version`, `role`, `board`, `path`, `bytes` | `wb.firmware.import_(path, role, board=None, label="")` |
 | `firmware.installed` | — | `cache`, `installed` | `wb.firmware.installed` |
 | `firmware.library` | — | `builds`, `count` | `wb.firmware.library` |
 | `firmware.needed` | — | `roles` | `wb.firmware.needed()` |
@@ -220,7 +221,7 @@ Two verbs are **not** in this table:
 | `firmware.start` | — | `starting` | `wb.firmware.start()` |
 | `firmware.started` | — | `running`, `playing` | *none* — the firmware starter reporting back |
 | `firmware.state` | — | `running`, `nodes`, `total`, `starting` | `wb.firmware.state()  /  wb.firmware.wait_started()` |
-| `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `card_required` bool, `coproc_at_reset` bool, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=\|new_role=\|coproc_at_reset=\|notes=)` |
+| `firmware.update` | *a bare string*, `version` string, `role` string, `board` string, `label` string, `new_role` string, `new_board` string, `card_required` bool, `coproc_at_reset` bool, `dialect` string, `notes` string | `role`, `version`, `board`, `path`, `renamed`, `repinned`, `settings` | `wb.firmware.update(build, label=\|new_role=\|coproc_at_reset=\|notes=)` |
 | `firmware.window` 🪟 | *a bare string*, `version` string, `role` string, `board` string | `role`, `version`, `board` | `wb.firmware.window(build)` |
 | `firmware.wipe` | — | `wiped`, `root`, `cards` | `wb.firmware.wipe()` |
 

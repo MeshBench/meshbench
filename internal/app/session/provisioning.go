@@ -36,7 +36,7 @@ func ProvisioningFor(n scenario.Node) []state.ProvisionLine {
 // to anything at all and the nodes were told the same thing regardless - which
 // is worse than the panel not existing.
 func (s *Sim) provisionLines(n scenario.Node) []state.ProvisionLine {
-	return provisioningWith(*s.provisioning(), n)
+	return withDialect(n, provisioningWith(*s.provisioning(), n))
 }
 
 // provisionLinesFor is the script for one cell of an experiment: the session's
@@ -44,7 +44,7 @@ func (s *Sim) provisionLines(n scenario.Node) []state.ProvisionLine {
 func (s *Sim) provisionLinesFor(n scenario.Node, arm ExpArm) []state.ProvisionLine {
 	prov := *s.provisioning()
 	arm.ApplyOver(&prov)
-	return provisioningWith(prov, n)
+	return withDialect(n, provisioningWith(prov, n))
 }
 
 // provisioningWith is the script under a stated set of settings.

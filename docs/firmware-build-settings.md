@@ -104,6 +104,26 @@ the card with nothing saying why.
 **Verbs:** `node.card {node, fitted, file, wipe}`, and `firmware.wipe` for all
 of them at once.
 
+## Takes MeshCore's console commands
+
+On by default. Provisioning, and every setting an experiment arm pins, is
+MeshCore's command line typed at the node's console: `set name`, `set lat`,
+`region put`, and so on. A firmware that is not MeshCore refuses each line, and
+the only trace was a line in its console:
+
+```
+set name Deck  Error: unknown config: name Deck
+```
+
+Off, a node running this build is sent none of it. The Provisioning panel says
+so in place of the script, and `experiment.start` refuses an arm that would pin
+a setting onto such a node, because a setting that did not apply makes two
+cells that differ by nothing.
+
+The verbs call it `dialect`: `meshcore`, `none`, or another firmware's name.
+`firmware.import` takes it too, so a third-party image is never provisioned on
+its first run.
+
 ## Notes
 
 `notes`

@@ -115,15 +115,19 @@ machine LoadPlatformDescription @%[1]s/usbd.repl
 
 %[5]s
 %[9]sradiospi.lora Connect
-%[8]s%[7]sstart
-`, SupportDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
+%[8]s%[7]s%[10]s`, SupportDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
 		renode.UnregisterStockSPI(), renode.RenodeTrace(),
-		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB), idle)
+		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB), idle, e.renodeStart())
 	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
 		return "", err
 	}
 	return script, nil
 }
+
+// EnvRenodeLockstep runs a Renode board from the engine's ticks, a millisecond
+// of virtual time per millisecond asked for, rather than letting it run free
+// on the host clock.
+const EnvRenodeLockstep = "MESHBENCH_RENODE_LOCKSTEP"
 
 // startRenode boots this node's script, and holds its console open.
 func (e *EmulatedNode) startRenode(ctx context.Context, bridge string) error {

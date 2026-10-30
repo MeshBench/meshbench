@@ -36,6 +36,7 @@
       "flash_mb",
       "coproc_at_reset",
       "card_required",
+      "dialect",
       "notes"
     ],
     "answers": "Answered from the library, so a published build nobody has fetched is described too: `on_disk` is then false and `path` and `bytes` are empty. `in_use` counts the nodes pinned to it, `kind`, `bootable` and `flash_mb` are read from a board image and say nothing about a native build, `settings_path` is where its settings would be written whether any exist or not, and `modified` is absent for a build not on this machine. A label naming more than one build is refused rather than guessed at.",
@@ -90,6 +91,11 @@
         "name": "coproc_at_reset",
         "type": "bool",
         "what": "start this build's coprocessors enabled, which the part does not do - for a firmware that traps inside its own exception vector and cannot be seen past"
+      },
+      {
+        "name": "dialect",
+        "type": "string",
+        "what": "the console vocabulary the build speaks: meshcore for MeshCore's own, none for no console, or another name; absent leaves it alone. Anything but meshcore means nodes running this build are not provisioned, and an experiment arm that pins settings onto one is refused"
       },
       {
         "name": "notes",

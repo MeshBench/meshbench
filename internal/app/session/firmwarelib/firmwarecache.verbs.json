@@ -89,6 +89,11 @@
         "name": "version",
         "type": "string",
         "what": "an older name for `label`, read only when `label` is absent, because scripts written against it are already out in the world"
+      },
+      {
+        "name": "dialect",
+        "type": "string",
+        "what": "the console vocabulary the image speaks: meshcore, absent included, for MeshCore's own; none for a firmware with no console; or the name of another. A node running a build that is not MeshCore's is not sent provisioning, which it would refuse line by line"
       }
     ],
     "returns": [
