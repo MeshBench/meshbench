@@ -153,7 +153,7 @@ func (s *Sim) settleForReply(w *state.World) {
 }
 
 // pausedNote is what a console adds under a command accepted while the clock
-// is stopped (#521). The firmware's own "OK - Advert sent" is true from its
+// is stopped. The firmware's own "OK - Advert sent" is true from its
 // side: it queued the packet. Nothing goes on the air until the engine steps,
 // and only MeshBench knows the run is paused, so the note is ours.
 const pausedNote = "the run is paused: anything this sends is queued and goes on the air when it plays"

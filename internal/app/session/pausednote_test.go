@@ -9,8 +9,7 @@ import (
 )
 
 // A command accepted on a paused run says so under the firmware's reply, and
-// only then: not while playing, and not for a held call replayed inside a step
-// (#521).
+// only then: not while playing, and not for a held call replayed inside a step.
 func TestThePausedNoteAppliesOnlyWhenPaused(t *testing.T) {
 	s := &Sim{}
 	if got := s.pausedFor(&state.World{}); got != pausedNote {
