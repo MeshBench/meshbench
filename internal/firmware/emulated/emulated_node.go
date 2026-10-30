@@ -121,7 +121,10 @@ type EmulatedNode struct {
 	// to dial a socket file. Exactly one of the two is set.
 	ButtonPort int
 	ButtonPins []int
-	Buttons    *peripheral.ButtonSender
+	// LampPins are the board's lamps, whose outputs the machine reports back
+	// on the same channel - Renode only, for now (#600).
+	LampPins []int
+	Buttons  *peripheral.ButtonSender
 
 	// KbdAddr and TouchAddr are where a keyboard and a touch panel answer on
 	// the board's I2C bus, or zero where it carries neither.
@@ -174,6 +177,16 @@ type EmulatedNode struct {
 
 	// Emulator selects QEMU or Renode.
 	Emulator Emulator
+
+	// GDBPort, when set, starts the emulator's GDB stub on that port. QEMU's
+	// listens on loopback; Renode's StartGdbServer takes no address and
+	// listens on every interface, so anyone who can reach the port can read
+	// and write the board while it is open. Source-level debugging of the
+	// real firmware binary, the same as a probe on a board. GDBWait holds the
+	// CPU at reset until a debugger lets it go, so a fault during boot can be
+	// caught.
+	GDBPort int
+	GDBWait bool
 
 	// Renode wiring. Platform is its base description; the rest is where the
 	// radio hangs off and which pins carry chip select and DIO1. Chip select
@@ -307,6 +320,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 		fmt.Sprintf("%s=%d", EnvNoiseSeed, noiseSeedFor(e.RunSeed, e.NodeName, e.BoardName, e.Position)))
 
 	if e.Emulator == Renode {
+		e.radioEnv = append(e.radioEnv, "MESHBENCH_FLASH_KEEP="+e.keptStorage())
 		if err := e.startRenode(ctx, bridge); err != nil {
 			return err
 		}
@@ -397,6 +411,7 @@ func (e *EmulatedNode) Start(ctx context.Context, bridge string) (err error) {
 		args = append(args, "-m", fmt.Sprintf("%dM", e.PSRAMMB))
 	}
 	args = append(args, qemuDebugArgs(e.Dir)...)
+	args = append(args, e.qemuGDBArgs()...)
 	e.qemu = exec.CommandContext(ctx, qemuBin, args...)
 	e.qemu.Env = e.radioEnv
 	e.qemu.Stdout, e.qemu.Stderr = emuLog, emuLog

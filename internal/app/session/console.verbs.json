@@ -46,11 +46,12 @@
       "node",
       "sent",
       "note",
+      "paused",
       "queued",
       "at_ms",
       "now_ms"
     ],
-    "answers": "The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.",
+    "answers": "The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.",
     "example": {
       "params": {
         "command": "get name",

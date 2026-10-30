@@ -211,6 +211,10 @@ func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
 	if len(m.items) == 0 {
 		return
 	}
+	if sh.menuDismissed(gtx) {
+		sh.openMenu = -1
+		return
+	}
 	for i := range m.items {
 		if m.items[i].click.Clicked(gtx) {
 			sh.openMenu = -1
@@ -348,8 +352,18 @@ func (sh *Shell) menuDrop(t *theme.Theme, gtx layout.Context) {
 	if x+box.X > gtx.Constraints.Max.X {
 		x = gtx.Constraints.Max.X - box.X
 	}
-	off := op.Offset(image.Pt(x, gtx.Dp(t.RowHeight()))).Push(gtx.Ops)
+	top := gtx.Dp(t.RowHeight())
+	// The scrim: everything below the bar, so a press anywhere else closes
+	// the menu. The bar itself stays live, so pressing another title moves
+	// to that menu rather than only closing this one.
+	scrim := clip.Rect{Min: image.Pt(0, top), Max: gtx.Constraints.Max}.Push(gtx.Ops)
+	event.Op(gtx.Ops, &sh.menuScrim)
+	scrim.Pop()
+	off := op.Offset(image.Pt(x, top)).Push(gtx.Ops)
 	defer off.Pop()
+	area := clip.Rect{Max: box}.Push(gtx.Ops)
+	event.Op(gtx.Ops, &sh.menuBox)
+	area.Pop()
 	paint.FillShape(gtx.Ops, theme.Alpha(t.P.Panel, 0.98), clip.Rect{Max: box}.Op())
 	comp.Border(gtx, box, 2, 1, t.P.Rule)
 	in := op.Offset(image.Pt(pad, pad)).Push(gtx.Ops)

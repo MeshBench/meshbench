@@ -282,6 +282,26 @@ func partRow(b hw.Board, part hw.Part, st *state.NodeStat) Row {
 		r.Verdict, r.Observed = NotModelled, "no watcher on this pin"
 		r.Why = "The pin is declared and nothing watches it, so \"off\" and " +
 			"\"not modelled\" would look the same. This says which it is."
+		if engine.LampsWatched(b) {
+			r.Why = "The pin's output is followed from inside the machine, so " +
+				"this is the level the firmware drove it to, and how often."
+			switch {
+			case st == nil || !st.Running:
+				r.Verdict, r.Observed = Undeclared, "not powered"
+			case st.Lamps == nil:
+				r.Verdict, r.Observed = NotModelled, "no watcher on this pin"
+			default:
+				l, seen := st.Lamps[part.Pin]
+				switch {
+				case !seen:
+					r.Verdict, r.Observed = Silent, "never driven"
+				case l.Lit:
+					r.Verdict, r.Observed = Agrees, fmt.Sprintf("lit, changed %d times", l.Changes)
+				default:
+					r.Verdict, r.Observed = Agrees, fmt.Sprintf("off, changed %d times", l.Changes)
+				}
+			}
+		}
 	case hw.Ball:
 		r.Why = "Four lines that pulse as the ball turns; the firmware counts " +
 			"the changes rather than reading a position."

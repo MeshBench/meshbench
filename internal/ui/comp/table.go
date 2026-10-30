@@ -65,6 +65,10 @@ type Table struct {
 	SortDesc bool
 	// FilterHint is what the search box says when it is empty.
 	FilterHint string
+	// OwnFilter is set by a caller that draws Filter in a box of its own, so
+	// the table does not draw it again: one editor laid out twice is two boxes
+	// showing the same text, each with a caret.
+	OwnFilter bool
 	// OnCell is called when a Menu column's cell is clicked, with the row's
 	// key and the column index.
 	OnCell func(key string, col int)
@@ -164,7 +168,7 @@ func (tb *Table) Layout(t *theme.Theme, gtx layout.Context, onSelect func(key st
 		// drew. The filtering worked; there was simply no way to type into it,
 		// so every table in the interface looked as though it had no search.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return tb.search(t, gtx)
+			return tb.searchRow(t, gtx)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return tb.header(t, gtx) }),
 		layout.Rigid(HRule(t)),

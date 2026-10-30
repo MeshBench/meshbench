@@ -475,6 +475,24 @@ GPS feed emits a sentence a real second rather than a simulated one, and a
 native node is handed a seeded identity on its command line while an emulated
 one generates its own on first boot.
 
+**Renode lockstep, a first step (#774).** With `MESHBENCH_RENODE_LOCKSTEP=1`
+an nRF52 board under Renode no longer runs free. A clock entry in the
+machine's own virtual time ticks the chip once a millisecond and holds the CPU
+there until the engine asks for the next one. Renode's virtual time comes from
+the instructions executed and idle time is skipped, so the CPU and the chip
+step with the engine. The machine's random numbers, which the RNG peripheral
+answers and MeshCore draws its jitter from, are seeded from the node.
+Measured: two RAK_4631 repeaters, two idle runs, gave byte-identical event logs
+and identical chip counters.
+
+It does not yet make the run reproducible, and `sim.state` still says so.
+Console input reaches Renode's UART over a socket, on the wall clock, so the
+lines provisioning types at boot and any `console.type` land wherever the
+machine happens to be. A third run with every core busy diverged for that
+reason. It also costs about five times real time for two boards on this
+machine. Gating the console by virtual time, and the QEMU half (`-icount` and
+a hold in the fork's SX1262 device), are what remain.
+
 **Consequence.** A run containing an emulated node can be compared with nothing
 but itself, so a firmware A/B with an emulated arm is not measuring what it
 appears to. That is now said rather than left to be discovered: `sim.state`

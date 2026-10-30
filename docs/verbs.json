@@ -679,6 +679,53 @@
         "what": "announce to the neighbours only"
       }
     },
+    "companion.cli": {
+      "what": "run a command on another node over the air, as an operator's phone administers a repeater it cannot plug into: the text goes as a remote-admin message (TXT_TYPE_CLI_DATA), the recipient runs it on its own command line, and its answer comes back the same way",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the connected companion to send from; refused when nothing is connected to it, or when it has not answered anything since it was connected"
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "required": true,
+          "what": "the node to run it, by contact name or by public key in hex as the companion holds it; refused when the companion holds no such contact and the key is too short to address one"
+        },
+        {
+          "name": "command",
+          "type": "string",
+          "required": true,
+          "what": "the command line to run there, as it would be typed at that node's serial console; refused when absent or blank"
+        },
+        {
+          "name": "at_ms",
+          "type": "number",
+          "what": "an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced"
+        }
+      ],
+      "returns": [
+        "node",
+        "to",
+        "command",
+        "note",
+        "queued",
+        "at_ms",
+        "now_ms"
+      ],
+      "answers": "The recipient runs the command only for a sender logged in to it as admin, so log in first (`console.cli` with `login \u003ccontact\u003e \u003cpassword\u003e`). Nothing is acked: the answer is the reply itself, which arrives later and is read from `companion.state` as `cli_replies`. A command from a sender that is not logged in gets no reply at all.",
+      "example": {
+        "params": {
+          "command": "get radio",
+          "node": "Phone",
+          "to": "West Lomond"
+        },
+        "what": "ask a repeater over the air what radio settings it holds"
+      }
+    },
     "companion.configure": {
       "what": "change a node's own settings the way a phone would, sending only the fields that were asked for, and reporting which ones went",
       "params": [
@@ -1009,9 +1056,10 @@
         "channels",
         "recent",
         "name",
-        "freq_khz"
+        "freq_khz",
+        "cli_replies"
       ],
-      "answers": "`contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not.",
+      "answers": "`contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not. `cli_replies` lists the answers to remote commands sent with `companion.cli`, oldest first, each with the key prefix it came `from` and its `text`.",
       "example": {
         "params": {
           "node": "West Lomond"
@@ -1045,11 +1093,12 @@
         "node",
         "reply",
         "failed",
+        "paused",
         "queued",
         "at_ms",
         "now_ms"
       ],
-      "answers": "`failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback.",
+      "answers": "`failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.",
       "example": {
         "params": {
           "command": "?",
@@ -1106,11 +1155,12 @@
         "node",
         "sent",
         "note",
+        "paused",
         "queued",
         "at_ms",
         "now_ms"
       ],
-      "answers": "The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.",
+      "answers": "The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.",
       "example": {
         "params": {
           "command": "get name",
@@ -2964,6 +3014,55 @@
         "runnable": true
       }
     },
+    "node.debug": {
+      "what": "make a running node debuggable and say how to attach: a native node is held rather than marked down while a breakpoint stops it, and an emulated board is restarted with its emulator's GDB stub",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to debug; refused when absent, unknown, or not running firmware"
+        },
+        {
+          "name": "wait",
+          "type": "bool",
+          "what": "for an emulated board, hold its CPU at reset until a debugger continues, so boot can be stepped through; refused for a native node, which has already booted by the time anything can attach"
+        },
+        {
+          "name": "port",
+          "type": "number",
+          "what": "for an emulated board, the port its GDB stub listens on; absent picks a free one"
+        },
+        {
+          "name": "off",
+          "type": "bool",
+          "what": "stop debugging: a native node is given its tick deadline back, an emulated board is restarted without the stub"
+        }
+      ],
+      "returns": [
+        "node",
+        "debugging",
+        "backend",
+        "pid",
+        "binary",
+        "symbols",
+        "gdb_port",
+        "wait",
+        "debugger",
+        "image",
+        "attach",
+        "vscode",
+        "note"
+      ],
+      "answers": "`attach` is a debugger command line and `vscode` a launch configuration to paste. A native node has `pid`, `binary` and `symbols`: `debug` with DWARF, `symbols` with a symbol table only, `stripped` with neither. An emulated board has `gdb_port`, `wait`, the `debugger` for its architecture and the `image` it runs, which has no symbols: the debugger wants the firmware.elf the same build produced. From the first call, `sim.state` reports the run as not reproducible, because a debugger stopping a node moves its clock.",
+      "example": {
+        "params": {
+          "node": "West Lomond"
+        },
+        "what": "attach gdb to a native repeater"
+      }
+    },
     "node.energy": {
       "what": "run a year of sun and battery at one named node, at the duty cycle the run measured for it rather than one typed into a form, for the node window that has a name and no selection to work from",
       "params": [
@@ -4251,6 +4350,41 @@
         },
         "what": "make the mesh advertise, and let adverts cross a country",
         "runnable": true
+      }
+    },
+    "radio.deliver": {
+      "what": "hand a node's radio one frame directly, as received or as a chosen kind of failed reception, to test the firmware's receive path without the channel deciding anything",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "what": "the node whose radio receives it; it needs firmware running"
+        },
+        {
+          "name": "hex",
+          "type": "string",
+          "what": "the frame, header first, as hex digits"
+        },
+        {
+          "name": "as",
+          "type": "string",
+          "what": "ok (the default), crc_error, header_error, no_crc (the header said the payload has no CRC), next_before_read or next_during_read (the next frame's header arriving in continuous receive before or during the firmware's read of this one)"
+        }
+      ],
+      "returns": [
+        "node",
+        "as",
+        "bytes",
+        "delivered"
+      ],
+      "answers": "`delivered` is false when the node has no firmware or its chip does not read that kind, which is an answer rather than a refusal. The next_* kinds need a frame already received and not yet read, so they follow an ok delivery.",
+      "example": {
+        "params": {
+          "as": "no_crc",
+          "hex": "1500348b2db7",
+          "node": "West Lomond"
+        },
+        "what": "a frame whose header said it carries no CRC"
       }
     },
     "radio.preset": {

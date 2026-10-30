@@ -52,9 +52,15 @@ lora: Radio.VirtualSX1262 @ radiospi
     %d -> lora@0
 `, renode.EasyDMASPI(e.SPIBase), e.SPIBase, engineHost, enginePort, e.IrqPort,
 		e.IrqPin, e.NssPort, e.NssPin)
-	wiring += renode.Panel(e.SPIBase, e.PanelPort, e.PanelWidth, e.PanelHgt,
-		e.PanelCS, e.PanelDC, e.NssPort)
-	wiring += renode.Inputs(e.ButtonPort, e.HasMeter)
+	// A colour panel has a select line of its own; an I2C display has an
+	// address instead.
+	if e.PanelCS != 0 {
+		wiring += renode.Panel(e.SPIBase, e.PanelPort, e.PanelWidth, e.PanelHgt,
+			e.PanelCS, e.PanelDC, e.NssPort)
+	} else {
+		wiring += renode.Oled(e.PanelPort, e.PanelAddr, e.PanelWidth, e.PanelHgt, e.PanelOffset)
+	}
+	wiring += renode.Inputs(e.ButtonPort, e.HasMeter, e.LampPins)
 	if err := os.WriteFile(repl, []byte(wiring), 0o644); err != nil {
 		return "", err
 	}
@@ -80,6 +86,7 @@ i @%[1]s/peripherals/VirtualSX1262Engine.cs
 i @%[1]s/peripherals/VirtualSX1262.cs
 i @%[1]s/peripherals/MeshBenchInputs.cs
 i @%[1]s/peripherals/MeshBenchPanel.cs
+i @%[1]s/peripherals/MeshBenchOled.cs
 i @%[1]s/peripherals/NRF52840_Temp.cs
 i @%[1]s/peripherals/NRF52840_Clock.cs
 i @%[1]s/peripherals/NRF52840_SAADC.cs
@@ -108,15 +115,19 @@ machine LoadPlatformDescription @%[1]s/usbd.repl
 
 %[5]s
 %[9]sradiospi.lora Connect
-%[8]s%[7]sstart
-`, SupportDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
+%[8]s%[7]s%[10]s`, SupportDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
 		renode.UnregisterStockSPI(), renode.RenodeTrace(),
-		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB), idle)
+		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB), idle, e.renodeStart())
 	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
 		return "", err
 	}
 	return script, nil
 }
+
+// EnvRenodeLockstep runs a Renode board from the engine's ticks, a millisecond
+// of virtual time per millisecond asked for, rather than letting it run free
+// on the host clock.
+const EnvRenodeLockstep = "MESHBENCH_RENODE_LOCKSTEP"
 
 // startRenode boots this node's script, and holds its console open.
 func (e *EmulatedNode) startRenode(ctx context.Context, bridge string) error {

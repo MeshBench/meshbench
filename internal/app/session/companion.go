@@ -13,6 +13,7 @@
 package session
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -141,7 +142,46 @@ func registerCompanion(st *state.Store, s *Sim) {
 			out["name"] = c.self.Name
 			out["freq_khz"] = c.self.FreqKHz
 		}
+		// The answers to remote commands, oldest first: the only place a
+		// script can read what companion.cli got back.
+		replies := []map[string]any{}
+		for _, m := range c.messages {
+			if m.CLI {
+				replies = append(replies, map[string]any{
+					"from": hex.EncodeToString(m.SenderKey), "text": m.Text,
+				})
+			}
+		}
+		out["cli_replies"] = replies
 		return out, nil
+	})
+
+	// A command for another node to run, over the air. The firmware has done
+	// this end to end all along - a repeater takes TXT_TYPE_CLI_DATA from a
+	// logged-in admin and answers in kind - and this only originates it, so
+	// a study can provision a mesh the way an operator does rather than over
+	// every node's serial port.
+	s.handleInput(st, "companion.cli", func(w *state.World, p any) (any, error) {
+		node, _ := stringField(p, "node")
+		to, _ := namedField(p, "to")
+		command, _ := namedField(p, "command")
+		if strings.TrimSpace(to) == "" || strings.TrimSpace(command) == "" {
+			return nil, fmt.Errorf("companion.cli needs to and command")
+		}
+		c, _, err := s.companionFor(node)
+		if err != nil {
+			return nil, err
+		}
+		if err := silentCompanion(c, node); err != nil {
+			return nil, err
+		}
+		said, err := s.remoteCommand(node, to, command)
+		if err != nil {
+			return nil, err
+		}
+		c.note("cmd " + to + ": " + command)
+		s.publishCompanions(w)
+		return map[string]any{"node": node, "to": to, "command": command, "note": said}, nil
 	})
 
 	s.handleInput(st, "companion.send", func(w *state.World, p any) (any, error) {

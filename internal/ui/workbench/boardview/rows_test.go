@@ -232,9 +232,9 @@ func TestABoardWithNoRecordedPanelStillHasARadio(t *testing.T) {
 // reporting that as silence sends somebody looking for a fault in a firmware
 // that is behaving perfectly.
 //
-// The RAK4631 is the one left. Its display is on I2C, and Renode's TWIM model
-// answers an address with a NACK, so there is nowhere to put an SSD1306 yet -
-// where the two SPI panels beside it are drawn.
+// Every Renode board in the catalogue has its panel drawn now (the RAK4631's
+// SSD1306 was the last, #602), so the case is made by hand: the same board
+// with a controller nothing models, an e-paper one.
 func TestAnUndrawablePanelBlamesUsRatherThanTheFirmware(t *testing.T) {
 	b, err := hw.BoardByName("RAK_4631")
 	if err != nil {
@@ -243,24 +243,29 @@ func TestAnUndrawablePanelBlamesUsRatherThanTheFirmware(t *testing.T) {
 	if b.Renode == nil || b.Hardware == nil || b.Hardware.Screen == nil {
 		t.Fatal("this test needs a Renode board that declares a screen")
 	}
+	panel := *b.Hardware
+	screen := *panel.Screen
+	screen.Controller = "UC8151"
+	panel.Screen = &screen
+	b.Hardware = &panel
 	running := &state.NodeStat{Name: "n", Board: b.Name, Running: true}
-	var screen *Row
+	var row *Row
 	rows := wiringRows(b, running)
 	for i := range rows {
 		if rows[i].Group == "Display" {
-			screen = &rows[i]
+			row = &rows[i]
 			break
 		}
 	}
-	if screen == nil {
+	if row == nil {
 		t.Fatal("a board that declares a screen produced no display row")
 	}
-	if screen.Verdict == Silent {
+	if row.Verdict == Silent {
 		t.Errorf("a panel with no model behind it read as %v, which says the "+
 			"firmware chose not to draw", Silent)
 	}
-	if screen.Verdict != NotModelled {
-		t.Errorf("read %v (%q), want %v", screen.Verdict, screen.Observed, NotModelled)
+	if row.Verdict != NotModelled {
+		t.Errorf("read %v (%q), want %v", row.Verdict, row.Observed, NotModelled)
 	}
 }
 

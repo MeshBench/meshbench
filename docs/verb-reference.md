@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 260 verbs: 222 a script may call and
+The store registers 263 verbs: 225 a script may call and
 38 the workbench calls on itself, which the socket refuses. Of those,
-260 say what they are for and 0 do not yet; the ones that
+263 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -489,6 +489,31 @@ Report or change what is in one node's card slot: whether a card is fitted, whic
 ```
 
 **Client** `node.card(fitted=|file=|wipe=)`
+
+### `node.debug`
+
+Make a running node debuggable and say how to attach: a native node is held rather than marked down while a breakpoint stops it, and an emulated board is restarted with its emulator's GDB stub.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | required, primary | the node to debug; refused when absent, unknown, or not running firmware |
+| `wait` | bool | optional | for an emulated board, hold its CPU at reset until a debugger continues, so boot can be stepped through; refused for a native node, which has already booted by the time anything can attach |
+| `port` | number | optional | for an emulated board, the port its GDB stub listens on; absent picks a free one |
+| `off` | bool | optional | stop debugging: a native node is given its tick deadline back, an emulated board is restarted without the stub |
+
+**Answers** `node`, `debugging`, `backend`, `pid`, `binary`, `symbols`, `gdb_port`, `wait`, `debugger`, `image`, `attach`, `vscode`, `note`. `attach` is a debugger command line and `vscode` a launch configuration to paste. A native node has `pid`, `binary` and `symbols`: `debug` with DWARF, `symbols` with a symbol table only, `stripped` with neither. An emulated board has `gdb_port`, `wait`, the `debugger` for its architecture and the `image` it runs, which has no symbols: the debugger wants the firmware.elf the same build produced. From the first call, `sim.state` reports the run as not reproducible, because a debugger stopping a node moves its clock.
+
+**Example** - attach gdb to a native repeater
+
+```json
+{"id":1,"method":"node.debug","params":{"node":"West Lomond"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `node.debug(wait=, port=, off=)`
 
 ### `node.energy`
 
@@ -2080,7 +2105,7 @@ Run one meshcore-cli line at a companion node, which has no text console of its 
 | `command` | string | required | the line, in meshcore-cli's own vocabulary; refused when absent or blank, and `?` lists what this build answers |
 | `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `node`, `reply`, `failed`, `queued`, `at_ms`, `now_ms`. `failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback.
+**Answers** `node`, `reply`, `failed`, `paused`, `queued`, `at_ms`, `now_ms`. `failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.
 
 **Example** - list the meshcore-cli commands this build answers
 
@@ -2124,7 +2149,7 @@ Run a line at a node's own firmware console, which answers what the node says ra
 | `command` | string | required | the line to type, sent with a carriage return and newline after it; refused when it is absent or empty |
 | `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `node`, `sent`, `note`, `queued`, `at_ms`, `now_ms`. The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.
+**Answers** `node`, `sent`, `note`, `paused`, `queued`, `at_ms`, `now_ms`. The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.
 
 **Example** - ask a node what it believes it is called
 
@@ -2223,6 +2248,31 @@ Make a node announce itself, which is how the rest of the mesh comes to hold it 
 Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
 
 **Client** `node.companion.advert(flood=False)`
+
+### `companion.cli`
+
+Run a command on another node over the air, as an operator's phone administers a repeater it cannot plug into: the text goes as a remote-admin message (TXT_TYPE_CLI_DATA), the recipient runs it on its own command line, and its answer comes back the same way.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | required, primary | the connected companion to send from; refused when nothing is connected to it, or when it has not answered anything since it was connected |
+| `to` | string | required | the node to run it, by contact name or by public key in hex as the companion holds it; refused when the companion holds no such contact and the key is too short to address one |
+| `command` | string | required | the command line to run there, as it would be typed at that node's serial console; refused when absent or blank |
+| `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
+
+**Answers** `node`, `to`, `command`, `note`, `queued`, `at_ms`, `now_ms`. The recipient runs the command only for a sender logged in to it as admin, so log in first (`console.cli` with `login <contact> <password>`). Nothing is acked: the answer is the reply itself, which arrives later and is read from `companion.state` as `cli_replies`. A command from a sender that is not logged in gets no reply at all.
+
+**Example** - ask a repeater over the air what radio settings it holds
+
+```json
+{"id":1,"method":"companion.cli","params":{"command":"get radio","node":"Phone","to":"West Lomond"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `node.companion.remote(to, command)`
 
 ### `companion.configure`
 
@@ -2431,7 +2481,7 @@ Read what a client attached to this node would be showing, which is what the nod
 |---|---|---|---|
 | `node` | string | required, primary | the connected node; refused when nothing is connected to it |
 
-**Answers** `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz`. `contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not.
+**Answers** `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz`, `cli_replies`. `contacts`, `messages` and `channels` are counts rather than the things themselves, and `recent` is the session's own note lines. `name` and `freq_khz` appear only once the node has answered a device query, so their absence means it has not. `cli_replies` lists the answers to remote commands sent with `companion.cli`, oldest first, each with the key prefix it came `from` and its `text`.
 
 **Example** - ask what the client sees
 
@@ -2523,6 +2573,55 @@ Not made by the test suite: this call needs more than the two-node headless sess
 **Client** `wb.endpoints.stray()`
 
 Planned, not written: no client defines `wb.endpoints` yet - the TCP and serial endpoints a node is served on. Call the verb itself in the meantime.
+
+### `radio.deliver`
+
+Hand a node's radio one frame directly, as received or as a chosen kind of failed reception, to test the firmware's receive path without the channel deciding anything.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | optional | the node whose radio receives it; it needs firmware running |
+| `hex` | string | optional | the frame, header first, as hex digits |
+| `as` | string | optional | ok (the default), crc_error, header_error, no_crc (the header said the payload has no CRC), next_before_read or next_during_read (the next frame's header arriving in continuous receive before or during the firmware's read of this one) |
+
+**Answers** `node`, `as`, `bytes`, `delivered`. `delivered` is false when the node has no firmware or its chip does not read that kind, which is an answer rather than a refusal. The next_* kinds need a frame already received and not yet read, so they follow an ok delivery.
+
+**Example** - a frame whose header said it carries no CRC
+
+```json
+{"id":1,"method":"radio.deliver","params":{"as":"no_crc","hex":"1500348b2db7","node":"West Lomond"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `node.deliver(frame_hex, as_='ok')`
+
+### `radio.preset`
+
+Put the nodes on one of the community's agreed modem settings, which decides sensitivity and airtime and therefore every number downstream of them, or list the settings there are to choose from.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `preset` | string | optional, primary | the preset's label, exactly as it is listed; a label no preset has is refused, and absent lists the labels instead of changing anything |
+| `node` | string | optional | one node to move, named rather than passed bare; absent moves every node in the network |
+
+**Answers** `preset`, `nodes`. `nodes` is how many were moved, and zero is the answer where `node` named nobody. Called with no preset at all it answers instead with `presets`, the labels available. The frequency is part of a preset, so a change rebuilds the engine and remeasures every link on a worker.
+
+**Example** - put the whole network on the settings its neighbours use
+
+```json
+{"id":1,"method":"radio.preset","params":"EU/UK (Narrow)"}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.radio.presets  /  wb.radio.apply(preset, node=)`
+
+Planned, not written: no client defines `wb.radio` yet - the preset list and applying one. Call the verb itself in the meantime.
 
 ### `sdr.serve`
 
@@ -3956,31 +4055,6 @@ Name every building pull already on this disk, so moving between environments is
 **Client** `wb.rf.environments`
 
 Planned, not written: no client defines `wb.rf` yet - the radio model: which physics, what realism, how much excess loss. Call the verb itself in the meantime.
-
-### `radio.preset`
-
-Put the nodes on one of the community's agreed modem settings, which decides sensitivity and airtime and therefore every number downstream of them, or list the settings there are to choose from.
-
-**Takes**
-
-| parameter | type | | what |
-|---|---|---|---|
-| `preset` | string | optional, primary | the preset's label, exactly as it is listed; a label no preset has is refused, and absent lists the labels instead of changing anything |
-| `node` | string | optional | one node to move, named rather than passed bare; absent moves every node in the network |
-
-**Answers** `preset`, `nodes`. `nodes` is how many were moved, and zero is the answer where `node` named nobody. Called with no preset at all it answers instead with `presets`, the labels available. The frequency is part of a preset, so a change rebuilds the engine and remeasures every link on a worker.
-
-**Example** - put the whole network on the settings its neighbours use
-
-```json
-{"id":1,"method":"radio.preset","params":"EU/UK (Narrow)"}
-```
-
-Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
-
-**Client** `wb.radio.presets  /  wb.radio.apply(preset, node=)`
-
-Planned, not written: no client defines `wb.radio` yet - the preset list and applying one. Call the verb itself in the meantime.
 
 ### `rf.environment`
 

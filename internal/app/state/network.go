@@ -178,6 +178,17 @@ type NodeStat struct {
 	// report a board with no screen and a board with a blank one as the same
 	// thing.
 	Screen *Screen
+
+	// Lamps is each watched lamp's level, by flat pin, or nil where nothing
+	// watches this board's lamps - which is not the same as every lamp off.
+	Lamps map[int]Lamp
+}
+
+// Lamp is one watched light: whether it is lit, and how many times it has
+// changed, so a flash between two frames is still seen to have happened.
+type Lamp struct {
+	Lit     bool
+	Changes int
 }
 
 // Screen is one picture from a board's display.

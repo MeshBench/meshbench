@@ -23,6 +23,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
@@ -96,9 +97,10 @@ func (c *BoardControls) For(pin int) *widget.Clickable {
 	return b
 }
 
-// Lamps draws the board's lights, and says where a board has none.
+// Lamps draws the board's lights, and says where a board has none. watched
+// is each watched lamp's level by pin, or nil where nothing watches them.
 func (c *BoardControls) Lamps(t *theme.Theme, gtx layout.Context,
-	panel *hw.Panel) layout.Dimensions {
+	panel *hw.Panel, watched map[int]state.Lamp) layout.Dimensions {
 
 	parts := panel.PartsOfKind(hw.Lamp)
 	if len(parts) == 0 {
@@ -108,18 +110,26 @@ func (c *BoardControls) Lamps(t *theme.Theme, gtx layout.Context,
 	for i := range parts {
 		part := parts[i]
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return lamp(t, gtx, part)
+			return lamp(t, gtx, part, watched)
 		}))
 		children = append(children, layout.Rigid(layout.Spacer{Width: t.Sp.S}.Layout))
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
-// lamp is one light. Whether it is lit is not modelled: the pin is declared and
-// nothing watches it. Drawn as an outline rather than as an unlit lamp, because
-// "off" and "not modelled" are different facts and the second is about us.
-func lamp(t *theme.Theme, gtx layout.Context, part hw.Part) layout.Dimensions {
+// lamp is one light. Where nothing watches its pin it is drawn as an outline
+// rather than as an unlit lamp, because "off" and "not modelled" are different
+// facts and the second is about us. Watched, it is lit or unlit as the firmware
+// last drove it.
+func lamp(t *theme.Theme, gtx layout.Context, part hw.Part, watched map[int]state.Lamp) layout.Dimensions {
 	d := gtx.Dp(unit.Dp(10))
+	fill := t.P.Panel
+	if watched != nil {
+		fill = t.P.Rule
+		if watched[part.Pin].Lit {
+			fill = t.P.ScreenLit
+		}
+	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			size := image.Pt(d, d)
@@ -129,7 +139,7 @@ func lamp(t *theme.Theme, gtx layout.Context, part hw.Part) layout.Dimensions {
 			}.Op(gtx.Ops))
 			inner := image.Rect(1, 1, d-1, d-1)
 			ir := (d - 2) / 2
-			paint.FillShape(gtx.Ops, t.P.Panel, clip.RRect{
+			paint.FillShape(gtx.Ops, fill, clip.RRect{
 				Rect: inner, NE: ir, NW: ir, SE: ir, SW: ir,
 			}.Op(gtx.Ops))
 			return layout.Dimensions{Size: size}

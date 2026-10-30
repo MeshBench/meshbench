@@ -181,6 +181,9 @@ func fileExists(p string) bool {
 // under which a released bundle unpacks it.
 const radioLibName = "virtual-sx1262"
 
+// RadioLib is that name for FindTool, from outside this package.
+const RadioLib = radioLibName
+
 // radioLibFiles is what that library is actually called on disk here. A shared
 // library is named by its platform rather than by what it is.
 var radioLibFiles = func() []string {

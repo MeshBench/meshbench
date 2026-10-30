@@ -56,7 +56,7 @@ func (p *Panel) rail(t *theme.Theme, gtx layout.Context, b hw.Board,
 					}
 					return layout.Inset{Bottom: t.Sp.XXS}.Layout(gtx,
 						func(gtx layout.Context) layout.Dimensions {
-							return p.parts.Lamps(t, gtx, b.Hardware)
+							return p.parts.Lamps(t, gtx, b.Hardware, lampsOf(st))
 						})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -228,4 +228,13 @@ func indexItems(rows []Row) []indexItem {
 		out = append(out, indexItem{row: i})
 	}
 	return out
+}
+
+// lampsOf is a node's watched lamps, or nil where there is no node or nothing
+// watches them.
+func lampsOf(st *state.NodeStat) map[int]state.Lamp {
+	if st == nil {
+		return nil
+	}
+	return st.Lamps
 }

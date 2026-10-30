@@ -43,7 +43,7 @@ func (flatEarth) ElevationM(_, _ float64) (float64, bool) { return 0, true }
 // rather than hanging the probe for whoever is waiting on the column.
 func Probe(ctx context.Context, board, version string) (report BoardReport) {
 	report = untestedReport(board, version)
-	report.EmulatorFP = EmulatorFingerprint()
+	report.EmulatorFP = EmulatorFingerprint(board)
 	report.MeasuredAt = time.Now()
 
 	cacheDir := firmware.DefaultCacheDir()

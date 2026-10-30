@@ -180,6 +180,9 @@ func (e *Engine) AttachNativeProgress(ctx context.Context, seed uint64, progress
 				fail(fmt.Errorf("%s: %w", n.specRef().Name, err))
 				return
 			}
+			if d, ok := e.Debugging(n.specRef().Name); ok {
+				em.GDBPort, em.GDBWait = d.GDBPort, d.Wait
+			}
 			backend = em
 		} else {
 			key := string(role) + "@" + n.specRef().Firmware.Version

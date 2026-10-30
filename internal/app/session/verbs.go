@@ -47,6 +47,7 @@ func Register(st *state.Store, s *Sim) {
 	registerPresetsAndPlace(st, s)
 	registerCompanion(st, s)
 	registerMeshCLI(st, s)
+	registerNodeDebug(st, s)
 	registerRFMode(st, s)
 	registerRFRealism(st, s)
 	registerRFEnvironment(st, s)
@@ -324,6 +325,7 @@ func Register(st *state.Store, s *Sim) {
 	registerBudgetVerbs(st, s)
 
 	registerBenchVerbs(st, s)
+	registerRadioVerbs(st, s)
 	registerRunAndPlanVerbs(st, s)
 	registerImportFeedVerbs(st, s)
 	registerNodeFirmwareVerbs(st, s)

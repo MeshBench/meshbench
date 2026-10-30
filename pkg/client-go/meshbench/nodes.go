@@ -401,6 +401,20 @@ func (n Node) Inject(ctx context.Context) error {
 	return n.w.Do(ctx, "sim.inject", n.name)
 }
 
+// Deliver hands this node's radio one frame directly, as received or as a
+// kind of failed reception: "ok", "crc_error", "header_error", "no_crc",
+// "next_before_read" or "next_during_read". It reports false when the node has
+// no firmware or its chip does not read that kind, which is an answer, not a
+// refusal.
+func (n Node) Deliver(ctx context.Context, frameHex, as string) (bool, error) {
+	var got struct {
+		Delivered bool `json:"delivered"`
+	}
+	err := n.w.CallInto(ctx, "radio.deliver",
+		map[string]any{"node": n.name, "hex": frameHex, "as": as}, &got)
+	return got.Delivered, err
+}
+
 // Provisioning is what this node is told at boot, in the console's own words.
 func (n Node) Provisioning(ctx context.Context) ([]string, error) {
 	var out struct {

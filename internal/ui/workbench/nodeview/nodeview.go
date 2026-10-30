@@ -300,7 +300,8 @@ func nodeMenuFor(name string, s *state.Snapshot) []comp.MenuItem {
 	}
 	items := []comp.MenuItem{{Label: "Select on the map", Action: "nodes.select_many"}}
 	if running {
-		items = append(items, comp.MenuItem{Label: "Stop this node", Action: "node.stop"})
+		items = append(items, comp.MenuItem{Label: "Stop this node", Action: "node.stop"},
+			comp.MenuItem{Label: "Debug this node", Action: "node.debug"})
 	} else {
 		items = append(items, comp.MenuItem{Label: "Start this node", Action: "node.start"})
 	}
