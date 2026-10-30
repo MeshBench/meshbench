@@ -249,8 +249,25 @@ namespace Antmicro.Renode.Peripherals.Radio
             // carrier, the pin was still high when RxDone arrived, and a driver
             // that attaches on the rising edge never learned the packet existed.
             Put16(sb, 37, state.Dio1Mask);
+            // The console's line rate. Zero, which the engine reads as "not
+            // on a UART": the chip cannot see the console, and the board's
+            // UART is not this peripheral's to ask.
+            Put32(sb, 39, 0);
+            // What IrqMask kept out, only from a chip new enough to count it.
+            // An older one leaves the field zero, and zero there would read as
+            // "nothing suppressed" rather than "not counted", so the record
+            // stops short of it instead.
+            var length = StatsLength;
+            if(lib.Minor >= VirtualSX1262Lib.AbiIrqSuppressed)
+            {
+                Put32(sb, 43, counters.IrqSuppressed);
+            }
+            else
+            {
+                length = StatsLength - 4;
+            }
 
-            Send(RadioStats, sb, sb.Length);
+            Send(RadioStats, sb, length);
         }
 
         private static bool ReadAll(NetworkStream wire, byte[] buffer, int count)
@@ -327,8 +344,10 @@ namespace Antmicro.Renode.Peripherals.Radio
         private const byte ChannelBusy = 0x08;
         private const byte RadioStats = 0x09;
 
-        // The stats record, whose layout the engine reads on length.
-        private const int StatsLength = 39;
+        // The stats record, whose layout the engine reads on length: up to
+        // irq_suppressed, which ends at byte 47. Byte 47 itself, the
+        // capabilities, is left off - this host sends no failed frames.
+        private const int StatsLength = 47;
 
         private readonly VirtualSX1262Lib lib;
         private readonly IntPtr chip;

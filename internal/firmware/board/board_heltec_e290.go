@@ -20,6 +20,9 @@ var heltecE290Board = Board{
 		// Serial is the USB port on this board: its MeshCore variant is
 		// built with ARDUINO_USB_CDC_ON_BOOT.
 		ConsoleOnUSB: true,
+		// Watched booting, transmitting and hearing a neighbour by the board
+		// probe against v1.17.1 (#603).
+		Verified: true,
 	},
 	Hardware: &Panel{
 		Parts: []Part{

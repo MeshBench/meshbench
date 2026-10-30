@@ -90,6 +90,13 @@ const (
 // send path; anything else answers ERR_CODE_UNSUPPORTED_CMD.
 const txtTypePlain = 0
 
+// txtTypeCLIData marks a direct message whose text is a command for the
+// recipient to run (TXT_TYPE_CLI_DATA): MeshCore's remote administration, the
+// same command line a repeater's serial port takes, carried over the air to a
+// node the sender is logged in to. The answer comes back as a direct message
+// of the same type.
+const txtTypeCLIData = 1
+
 // AppStart is the handshake. The firmware answers with SelfInfo, and until
 // it has, nothing else is worth sending.
 func AppStart(appName string) []byte {
@@ -114,11 +121,23 @@ func SendChannelText(channelIdx uint8, at time.Time, text string) []byte {
 // SendContactText sends to one contact, addressed by the first six bytes of
 // its public key - which is what the firmware matches on.
 func SendContactText(pubKeyPrefix []byte, at time.Time, attempt uint8, text string) ([]byte, error) {
+	return sendTxt(txtTypePlain, pubKeyPrefix, at, attempt, text)
+}
+
+// SendCommandData sends a command for a contact to run, as remote admin does.
+// The recipient runs it only for a sender logged in to it as admin, and
+// answers with a CLI message; the firmware expects no ack and stamps it with
+// its own clock rather than this one, so replay protection holds.
+func SendCommandData(pubKeyPrefix []byte, at time.Time, text string) ([]byte, error) {
+	return sendTxt(txtTypeCLIData, pubKeyPrefix, at, 0, text)
+}
+
+func sendTxt(txtType uint8, pubKeyPrefix []byte, at time.Time, attempt uint8, text string) ([]byte, error) {
 	if len(pubKeyPrefix) < 6 {
 		return nil, fmt.Errorf("proto: contact key prefix is %d bytes, need 6", len(pubKeyPrefix))
 	}
 	b := make([]byte, 0, 13+len(text))
-	b = append(b, byte(CmdSendTxtMsg), txtTypePlain, attempt)
+	b = append(b, byte(CmdSendTxtMsg), txtType, attempt)
 	b = binary.LittleEndian.AppendUint32(b, uint32(at.Unix()))
 	b = append(b, pubKeyPrefix[:6]...)
 	return append(b, text...), nil
@@ -217,6 +236,10 @@ type Message struct {
 	At         time.Time
 	SNRdB      float64
 	PathLen    int
+
+	// CLI marks a reply to a remote command (TXT_TYPE_CLI_DATA) rather than
+	// something somebody wrote.
+	CLI bool
 
 	// Mine marks a message this client sent, rather than one the node
 	// received. It is still the firmware's doing - the frame went to the node

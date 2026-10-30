@@ -75,12 +75,20 @@ func registerConsole(st *state.Store, s *Sim) {
 		// ticker's own goroutine is waiting for yourself, and with
 		// fifty-eight firmware processes it blocked every verb for seconds.
 		s.settleForReply(w)
+		paused := s.pausedFor(w)
+		if paused != "" {
+			buf.Note(paused)
+		}
 		w.Console, w.ConsoleNode = buf.Snapshot(), name
 		_ = mark
-		return map[string]any{
+		out := map[string]any{
 			"node": name, "sent": cmd,
 			"note": "the reply lands when the engine next steps; read it with console.read",
-		}, nil
+		}
+		if paused != "" {
+			out["paused"] = paused
+		}
+		return out, nil
 	})
 
 	st.Handle("console.read", func(w *state.World, p any) (any, error) {

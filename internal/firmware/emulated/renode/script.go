@@ -64,6 +64,20 @@ func Panel(radioBase uint32, port, width, height, cs, dc int, dcPort string) str
 `, stockSPIName, port, width, height, cs, dc, dcPort, cs, cs, dc, dc)
 }
 
+// Oled is an I2C display on the first TWIM, at its address. offset is where
+// the glass starts in the controller's columns: 2 for an SH1106.
+func Oled(port int, addr uint8, width, height, offset int) string {
+	if port == 0 || addr == 0 || width <= 0 || height <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(`oled: Video.MeshBenchOled @ twi0 0x%X
+    port: %d
+    width: %d
+    height: %d
+    columnOffset: %d
+`, addr, port, width, height, offset)
+}
+
 func UnregisterStockSPI() string {
 	return "sysbus Unregister sysbus." + stockSPIName + "\n"
 }
@@ -178,7 +192,7 @@ const inputsBase = 0x4F000000
 // the same channel as the presses and lands in the converter the firmware
 // reads - which is what makes an nRF52 board report a voltage rather than the
 // one constant the model starts with.
-func Inputs(port int, hasMeter bool) string {
+func Inputs(port int, hasMeter bool, lampPins []int) string {
 	if port == 0 {
 		return ""
 	}
@@ -190,6 +204,16 @@ inputs: Miscellaneous.MeshBenchInputs @ sysbus 0x%X
 `, inputsBase, port)
 	if hasMeter {
 		s += "    meter: saadc\n"
+	}
+	// Each lamp's output, connected back to the same peripheral, which
+	// reports its level to the workbench (#600). Numbered by flat pin, which
+	// is how the peripheral names it in the message.
+	for _, pin := range lampPins {
+		port, local := "gpio0", pin
+		if pin >= 32 {
+			port, local = "gpio1", pin-32
+		}
+		s += fmt.Sprintf("\n%s:\n    %d -> inputs@%d\n", port, local, pin)
 	}
 	return s
 }

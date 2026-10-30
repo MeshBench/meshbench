@@ -25,11 +25,12 @@
       "node",
       "reply",
       "failed",
+      "paused",
       "queued",
       "at_ms",
       "now_ms"
     ],
-    "answers": "`failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback.",
+    "answers": "`failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.",
     "example": {
       "params": {
         "command": "?",

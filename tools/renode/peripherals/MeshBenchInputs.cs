@@ -16,9 +16,10 @@
 // TCP rather than a socket file because Renode offers nothing else, which is
 // the same reason its console is on a port.
 //
-// What it does not do is watch. Lamps are outputs, and reporting one means
-// following a GPIO the other way; neither machine does that yet, so both say
-// so rather than one of them guessing.
+// It also watches the board's lamps (#600). A lamp is an output the firmware
+// drives, and the platform description connects each declared lamp pin's
+// output to this peripheral; every change of level goes back over the same
+// socket as an eight-byte message tagged 'L', with the pin and the level.
 //
 using System;
 using System.Net.Sockets;
@@ -42,7 +43,7 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
     // .repl registers a peripheral and there is no lighter way to declare one.
     // Nothing reads or writes it: the guest does not know it is there, which is
     // correct - a person pressing a button is not something firmware can query.
-    public class MeshBenchInputs : IDoubleWordPeripheral, IKnownSize, IDisposable
+    public class MeshBenchInputs : IDoubleWordPeripheral, IKnownSize, IDisposable, IGPIOReceiver
     {
         // The two GPIO ports of an nRF52840 and, optionally, the converter its
         // cell is read through. Ports are required: a board with no buttons
@@ -63,6 +64,46 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
 
         public void WriteDoubleWord(long offset, uint value)
         {
+        }
+
+        // A lamp pin changed level. The number is the flat pin the platform
+        // description connected it as. Sent as it happens; a level seen before
+        // the workbench is connected is sent when it connects.
+        public void OnGPIO(int number, bool value)
+        {
+            lock(lampLock)
+            {
+                bool was;
+                if(lamps.TryGetValue(number, out was) && was == value)
+                {
+                    return;
+                }
+                lamps[number] = value;
+            }
+            SendLamp(number, value);
+        }
+
+        private void SendLamp(int pin, bool level)
+        {
+            var c = client;
+            if(c == null)
+            {
+                return;
+            }
+            var message = new byte[MessageLength];
+            message[0] = (byte)'L';
+            message[1] = (byte)pin;
+            message[2] = (byte)(level ? 1 : 0);
+            lock(sendLock)
+            {
+                try
+                {
+                    c.GetStream().Write(message, 0, message.Length);
+                }
+                catch(Exception)
+                {
+                }
+            }
         }
 
         public void Reset()
@@ -120,6 +161,17 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
                     continue;
                 }
                 this.Log(LogLevel.Info, "inputs: connected on port {0}", port);
+                // Whatever the lamps already are, so a light lit at boot is
+                // not lost to a workbench that connected after it.
+                var seen = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, bool>>();
+                lock(lampLock)
+                {
+                    seen.AddRange(lamps);
+                }
+                foreach(var kv in seen)
+                {
+                    SendLamp(kv.Key, kv.Value);
+                }
                 Read(client.GetStream());
                 if(running)
                 {
@@ -204,6 +256,11 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
             // Renode's monitor thread and not on the emulation one.
             line.OnGPIO(pin % PinsPerPort, level);
         }
+
+        private readonly System.Collections.Generic.Dictionary<int, bool> lamps =
+            new System.Collections.Generic.Dictionary<int, bool>();
+        private readonly object lampLock = new object();
+        private readonly object sendLock = new object();
 
         private const int MessageLength = 8;
         private const int PinsPerPort = 32;

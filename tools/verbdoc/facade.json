@@ -19,6 +19,7 @@
     "had an rf at all."
   ],
   "facade": {
+    "radio.deliver": "node.deliver(frame_hex, as_='ok')",
     "session.describe": "wb.describe()",
     "session.list": "meshbench.sessions()",
     "session.status": "wb.status()",
@@ -118,6 +119,7 @@
     "companion.configure": "node.companion.configure(...)",
     "companion.add_channel": "node.companion.add_channel(index)",
     "companion.raw": "node.companion.raw(bytes)",
+    "companion.cli": "node.companion.remote(to, command)",
     "bench.serve": "node.serve(kind='tcp'|'serial')",
     "bench.drop": "node.unserve()",
     "bench.refresh": "wb.endpoints",
@@ -405,6 +407,7 @@
       "title": "Serving to real clients",
       "prefixes": [
         "bench",
+        "radio",
         "sdr"
       ]
     },
