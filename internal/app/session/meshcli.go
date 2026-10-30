@@ -278,7 +278,12 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 			// working rather than the clock having stopped.
 			s.settleForReply(w)
 			say(out)
-			return map[string]any{"node": node, "reply": out}, nil
+			ans := map[string]any{"node": node, "reply": out}
+			if paused := s.pausedFor(w); paused != "" {
+				say("(" + paused + ")")
+				ans["paused"] = paused
+			}
+			return ans, nil
 		}
 		var have []string
 		for _, c := range meshcliCommands {

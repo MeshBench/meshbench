@@ -36,6 +36,24 @@ func TestTheBundleIsDeducedFromWhereTheBinaryIs(t *testing.T) {
 	}
 }
 
+// An unpacked Linux tarball is told from a build from source by the VARIANT
+// file packaging puts beside the binary. It used to look for radioserver,
+// which the tarball no longer ships, so a real 0.2.0 tarball install reported
+// itself as unpackaged and got the generic instruction (#447).
+func TestAnUnpackedTarballIsToldFromABuildFromSource(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "meshbench")
+	if got := update.Detect("linux", exe, ""); got != update.Loose {
+		t.Errorf("with nothing beside it, Detect = %q, want %q", got, update.Loose)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "VARIANT"), []byte("compact\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := update.Detect("linux", exe, ""); got != update.Tarball {
+		t.Errorf("with VARIANT beside it, Detect = %q, want %q", got, update.Tarball)
+	}
+}
+
 // The two Windows bundles are the same files in the same layout once they are
 // unpacked, and they are updated differently, so the one thing that tells them
 // apart is the note the installer lays down. It has to be looked for on disk
