@@ -47,6 +47,9 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **Menus close on Escape or a click outside them.** A dropdown stayed open
+  until its title was clicked again or an item picked. A click outside now
+  closes it without acting on whatever was underneath.
 - **The Nodes panel shows its filter once.** The panel drew the table's
   filter in its own box and the table drew it again underneath, so typing
   showed the text twice with two carets.
