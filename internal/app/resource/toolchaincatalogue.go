@@ -23,7 +23,7 @@ package resource
 const (
 	qemuBase   = "https://github.com/MeshBench/qemu/releases/download/v9.2.2-meshbench-sx1262-15/"
 	renodeBase = "https://github.com/MeshBench/renode/releases/download/meshbench-20260904-e7196ef/"
-	chipBase   = "https://github.com/MeshBench/virtual-sx1262/releases/download/v1.3.1/"
+	chipBase   = "https://github.com/MeshBench/virtual-sx1262/releases/download/v1.5.0/"
 )
 
 // qemuArm64LinuxIsUntried is the one platform the fork builds and this does not
@@ -52,7 +52,7 @@ const qemuArm64LinuxIsUntried = "the fork publishes an aarch64 Linux build and "
 // before it clocks the next.
 var toolReleases = []toolRelease{{
 	Name:    "virtual-sx1262",
-	Version: "v1.3.1",
+	Version: "v1.5.0",
 	MCU:     "",
 	Why: "the SX1262 itself, which both emulators load and a native node links; " +
 		"every emulated node needs it, ESP32 or nRF52",
@@ -60,22 +60,22 @@ var toolReleases = []toolRelease{{
 	Assets: map[string]toolAsset{
 		"linux/amd64": {
 			URL:    chipBase + "virtual-sx1262-linux-amd64.tar.gz",
-			SHA256: "7e04041afd4f0b2e063566042c136b6255e7adf6da27e19c02a8ac6737ee0fa0",
-			Bytes:  26335, Kind: tarGzip, Magic: elfAMD64,
+			SHA256: "bfa992792c080d992a49396e221a6038ee085d23a386289c293b87c7943f34ad",
+			Bytes:  44958, Kind: tarGzip, Magic: elfAMD64,
 			Root:   "virtual-sx1262-linux-amd64",
 			Binary: "virtual-sx1262-linux-amd64/lib/libvirtualsx1262.so",
 		},
 		"darwin/arm64": {
 			URL:    chipBase + "virtual-sx1262-macos-arm64.tar.gz",
-			SHA256: "167e471ba64416cace0296e5b2c40dabbe1ed80f523e200cc96890f5f96c0fbc",
-			Bytes:  19119, Kind: tarGzip, Magic: machARM64,
+			SHA256: "9503d1cb1dd28069ccdecbb2a1b6ac59d7e0d86f89ae2dd646d348dfe8d8afc1",
+			Bytes:  29339, Kind: tarGzip, Magic: machARM64,
 			Root:   "virtual-sx1262-macos-arm64",
 			Binary: "virtual-sx1262-macos-arm64/lib/libvirtualsx1262.dylib",
 		},
 		"windows/amd64": {
 			URL:    chipBase + "virtual-sx1262-windows-amd64.tar.gz",
-			SHA256: "90621299f0e2e85720900a7b75ebcdfd8fd7fe2db89432cdb9ff4505ff9ac67d",
-			Bytes:  146549, Kind: tarGzip, Magic: peAMD64,
+			SHA256: "ea5296f8f2607f76a82502b1f85f21fb3501038b2ed930033aafe18135ed83b4",
+			Bytes:  188504, Kind: tarGzip, Magic: peAMD64,
 			Root:   "virtual-sx1262-windows-amd64",
 			Binary: "virtual-sx1262-windows-amd64/lib/libvirtualsx1262.dll",
 		},

@@ -18,10 +18,17 @@
 //
 // The ABI is a contract, and the other side of it is
 // MeshBench/virtual-sx1262's include/virtual_sx1262.h. It is append-only:
-// never reorder a struct, never change what an entry point means. This
-// declares ABI 1.3, the version that added the byte-at-a-time SPI path, which
-// is the only one an emulator can use - Renode's ISPIPeripheral.Transmit is
-// called once per clocked byte and must answer that byte before the next.
+// never reorder a struct, never change what an entry point means. The floor is
+// ABI 1.3, the version that added the byte-at-a-time SPI path, which is the
+// only one an emulator can use - Renode's ISPIPeripheral.Transmit is called
+// once per clocked byte and must answer that byte before the next.
+//
+// The two structs below are laid out to the newest ABI this file knows, 1.7.
+// Append-only cuts one way: an older library writes a prefix of them and the
+// rest stays zero, which is safe, but a newer one may have appended fields
+// and would write past the end, which corrupts whatever is beyond rather than
+// failing. So a minor above the newest known is refused, and declaring it
+// means bringing both structs up to its header first (#747).
 //
 using System;
 using System.IO;
@@ -29,9 +36,10 @@ using System.Runtime.InteropServices;
 
 namespace Antmicro.Renode.Peripherals.Radio
 {
-    // Laid out to match vsx_state exactly. Sequential, and no field may be
-    // reordered or resized: a mismatch here does not fail, it reads one
-    // setting as another.
+    // Laid out to match vsx_state exactly, as of ABI 1.7. Sequential, and no
+    // field may be reordered or resized: a mismatch here does not fail, it
+    // reads one setting as another. The comment on each group is the minor
+    // that appended it; a library older than that leaves it zero.
     [StructLayout(LayoutKind.Sequential)]
     public struct VsxState
     {
@@ -47,8 +55,35 @@ namespace Antmicro.Renode.Peripherals.Radio
         public byte RxGainReg;
         public byte FemAtTx;       // 0 never transmitted, 1 module out, 2 module in
         public ushort Dio1Mask;
+        // 1.4
+        public byte CadSymbolNum;
+        public byte CadDetPeak;
+        public byte CadDetMin;
+        public byte CadExitMode;
+        // 1.5
+        public ushort SyncWord;
+        public byte LowDataRateOptimize;
+        // 1.6
+        public byte PacketType;
+        public byte FallbackMode;
+        public byte RegulatorMode;
+        public byte Dio2AsRfSwitch;
+        public byte Dio3AsTcxo;
+        public byte PaDutyCycle;
+        public byte PaHpMax;
+        public byte PaDeviceSel;
+        public byte SymbNumTimeout;
+        public byte StopTimerOnPreamble;
+        public byte TxContinuousWave;
+        public byte TxInfinitePreamble;
+        public byte HeaderImplicit;
+        public byte CrcOn;
+        public byte InvertIq;
+        public uint RxDutyRxPeriod;
+        public uint RxDutySleepPeriod;
     }
 
+    // vsx_counters, as of ABI 1.7.
     [StructLayout(LayoutKind.Sequential)]
     public struct VsxCounters
     {
@@ -58,6 +93,17 @@ namespace Antmicro.Renode.Peripherals.Radio
         public uint SpuriousRaises;
         public uint PreambleRaises;
         public uint FramesDropped;
+        // 1.4
+        public uint IrqSuppressed;
+        public uint CadRuns;
+        public uint CadDetections;
+        // 1.5
+        public uint SyncMismatches;
+        public uint ParamsRejected;
+        // 1.6
+        public ushort StatRxPackets;
+        public ushort StatCrcErrors;
+        public ushort StatHeaderErrors;
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -67,6 +113,17 @@ namespace Antmicro.Renode.Peripherals.Radio
     {
         public const int AbiMajor = 1;
         public const int AbiMinor = 3;
+        // The newest minor the structs above are laid out for.
+        // 1.8 added receive failures 4 to 6 and header registers, and nothing
+        // to either struct, so its layouts are 1.7's.
+        public const int AbiNewestMinor = 8;
+        // The minor that appended irq_suppressed to vsx_counters.
+        public const int AbiIrqSuppressed = 4;
+        // sizeof(vsx_state) and sizeof(vsx_counters) at AbiNewestMinor, as a C
+        // compiler lays them out. Checked on load, so a field mistyped here
+        // fails loudly rather than shifting every field after it.
+        public const int StateSize = 52;
+        public const int CountersSize = 52;
 
         public static VirtualSX1262Lib Open(string path)
         {
@@ -90,10 +147,30 @@ namespace Antmicro.Renode.Peripherals.Radio
                     "{0} is ABI {1}.{2}, and this peripheral needs {3}.{4} or a later minor",
                     path, major, minor, AbiMajor, AbiMinor));
             }
+            // A later minor may have appended to vsx_state or vsx_counters,
+            // and the library would write the longer struct into the shorter
+            // one declared here.
+            if(minor > AbiNewestMinor)
+            {
+                throw new InvalidOperationException(string.Format(
+                    "{0} is ABI {1}.{2}, newer than the {1}.{3} this peripheral's structs are laid out for: " +
+                    "bring VsxState and VsxCounters up to its header first",
+                    path, major, minor, AbiNewestMinor));
+            }
+            if(Marshal.SizeOf(typeof(VsxState)) != StateSize || Marshal.SizeOf(typeof(VsxCounters)) != CountersSize)
+            {
+                throw new InvalidOperationException(string.Format(
+                    "VsxState is {0} bytes and VsxCounters {1}, where the C header lays them out at {2} and {3}",
+                    Marshal.SizeOf(typeof(VsxState)), Marshal.SizeOf(typeof(VsxCounters)), StateSize, CountersSize));
+            }
+            lib.Minor = minor;
             return lib;
         }
 
         public string Path { get; private set; }
+
+        // The library's ABI minor, which says how much of each struct it fills.
+        public int Minor { get; private set; }
 
         public AbiVersionFn AbiVersion;
         public CreateFn Create;
