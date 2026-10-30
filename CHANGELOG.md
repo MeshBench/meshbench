@@ -23,6 +23,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **The RAK4631's display is drawn under Renode.** Its SSD1306 is on I2C,
+  and the TWIM model answered every address with a NACK. The TWIM now carries
+  devices registered at an address and moves each transfer's bytes through
+  EasyDMA, and a new SSD1306 model sends the controller's memory to the board
+  view. An address nobody claims is still a NACK. The published v1.17.1
+  repeater draws its own boot screen.
 - **An nRF52 board's lamps are watched.** Under Renode each declared lamp's
   output is followed and reported back, so the board view draws it lit or
   unlit and says how many times it changed, and `nodes.stats` carries `lamps`.
