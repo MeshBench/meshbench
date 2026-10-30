@@ -154,6 +154,7 @@ func (s *Sim) refreshCompanions(w *state.World) {
 		if c, ok := s.comps[w.ConsoleNode]; ok {
 			w.Console = c.Lines()
 		}
+		s.refreshConsoles(w)
 	}
 }
 

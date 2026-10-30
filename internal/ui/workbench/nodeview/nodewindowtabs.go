@@ -316,15 +316,12 @@ func (p *WindowPanel) activity(t *theme.Theme, gtx layout.Context, s *state.Snap
 
 // console is the scrollback and the box to type into.
 func (p *WindowPanel) console(t *theme.Theme, gtx layout.Context, s *state.Snapshot) layout.Dimensions {
-	lines := []string(nil)
-	if s != nil && s.ConsoleNode == p.Node {
-		lines = s.Console
-	}
+	lines := consoleOf(s, p.Node)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(lines) == 0 {
 				return layout.Center.Layout(gtx, comp.Text(t, t.Sz.Caption, t.P.Faint,
-					consoleEmptyState(s, p.Node)))
+					"nothing printed yet - start the node, or type a command"))
 			}
 			p.list.Axis = layout.Vertical
 			// Anchored at the end: a console is read from the bottom.
@@ -384,17 +381,22 @@ func atof(s string) float64 {
 	return v
 }
 
-// consoleEmptyState is what an empty console pane says.
+// consoleOf is one node's console as the snapshot carries it.
 //
-// One node's console is attached at a time, and this pane draws only the
-// attached one - so a running board that had printed its whole boot chain read
-// "nothing printed yet - start the node, or type a command", two lines under a
-// header saying "running". Saying which node has the console beats telling a
-// reader to do the thing they have already done.
-func consoleEmptyState(s *state.Snapshot, node string) string {
-	if s != nil && s.ConsoleNode != "" && s.ConsoleNode != node {
-		return s.ConsoleNode + " has the console at the moment - " +
-			"type a command here to take it"
+// From the list of panes, so every window shows its own node. With only the
+// single shared console, a second window said the first node "has the console"
+// and showed nothing, though its node's lines were all there to be shown.
+func consoleOf(s *state.Snapshot, node string) []string {
+	if s == nil {
+		return nil
 	}
-	return "nothing printed yet - start the node, or type a command"
+	for i := range s.Consoles {
+		if s.Consoles[i].Node == node {
+			return s.Consoles[i].Lines
+		}
+	}
+	if s.ConsoleNode == node {
+		return s.Console
+	}
+	return nil
 }

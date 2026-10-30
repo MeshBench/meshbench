@@ -58,7 +58,7 @@ func registerRegionsReadback(st *state.Store, s *Sim) {
 				w.Nodes[i].DefaultScope = scope
 			}
 		}
-		w.Console, w.ConsoleNode = buf.Snapshot(), name
+		showConsole(w, name, buf.Snapshot())
 		return map[string]any{"node": name, "regions": regions, "default_scope": scope}, nil
 	})
 }

@@ -205,14 +205,14 @@ func registerMeshCLI(st *state.Store, s *Sim) {
 				for _, l := range lines {
 					sess.note(l)
 				}
-				w.Console, w.ConsoleNode = sess.Lines(), node
+				showConsole(w, node, sess.Lines())
 				return
 			}
-			if w.ConsoleNode != node {
-				w.Console = nil
+			var had []string
+			if w.ConsoleNode == node {
+				had = w.Console
 			}
-			w.Console = append(w.Console, lines...)
-			w.ConsoleNode = node
+			showConsole(w, node, append(had, lines...))
 		}
 		// Help is local knowledge, so it answers whether or not anything is
 		// connected - asking what the commands are must not boot a node.

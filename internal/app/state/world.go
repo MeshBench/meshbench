@@ -162,6 +162,10 @@ type World struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// Consoles is every node console a window is showing, so two windows
+	// on two nodes each show their own rather than one saying the other
+	// "has the console".
+	Consoles []ConsolePane
 	// Outputs is every node-and-source pane something is currently looking
 	// at - what a serial port printed, what the emulator itself said, what
 	// the radio model logged. Separate from Console, which is the scrollback

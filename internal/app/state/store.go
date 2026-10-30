@@ -348,6 +348,7 @@ func (s *Store) publish() {
 		Provisioning:       s.world.Provisioning,
 		Console:            s.world.Console,
 		Outputs:            append([]OutputPane(nil), s.world.Outputs...),
+		Consoles:           append([]ConsolePane(nil), s.world.Consoles...),
 		Companions:         s.world.Companions,
 		RFMode:             s.world.RFMode,
 		KeepAbove:          s.world.KeepAbove,

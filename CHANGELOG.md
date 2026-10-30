@@ -21,6 +21,13 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+### Changed
+
+- **Every node window shows its own console.** A window on one node said
+  another "has the console" and showed nothing until typed at; each window now
+  follows its own node live, up to twelve at once, and one opened before the
+  run fills in when its node boots.
+
 ## [0.4.0] - 2026-10-30
 
 Driving firmware from outside, and more boards running under emulation. A

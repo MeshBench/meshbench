@@ -445,6 +445,14 @@ type FirmwareRow struct {
 //
 // A tail rather than the whole file, with Total saying what the file holds so
 // a pane can report the difference rather than implying it has everything.
+// ConsolePane is one node's console scrollback, for a window showing that
+// node. Keyed by node, so every open window draws its own node's console
+// rather than whichever one was last typed at.
+type ConsolePane struct {
+	Node  string
+	Lines []string
+}
+
 type OutputPane struct {
 	Node   string
 	Source string
