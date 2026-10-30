@@ -902,7 +902,10 @@ jobs:
     if: >-
       always() && (inputs.release ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
-    needs: [linux, macos, windows]
+    # windows-msi-verify, not just windows: the MSIs are built and read back
+    # after the windows job finishes, so without it this job would start
+    # before meshbench-windows-msi exists and refuse a zip with no .msi.
+    needs: [linux, macos, windows, windows-msi-verify]
     # Hosted, unlike every job above it, because this one builds nothing. It
     # downloads what they built, checks it, and hands it to gh - so the glibc
     # floor the lab-2204 label exists to pin does not apply here at all. That
