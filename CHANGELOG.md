@@ -34,6 +34,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Changed
 
+- **The Windows installer asks where to go and says when it has finished.**
+  It is built by the WiX toolset again, now on a Windows runner, which is the
+  only place WiX can build one: a Destination Folder page with a Change button,
+  a completion page, the brand on both, and the install location in Apps and
+  Features. Staging stays on Linux, and the tables are read back there before
+  the release takes the installers.
 - **`sim.state` says when the wall clock decided something.** `reproducible`
   is false, with the reason, once a node-writing verb ran at a playing clock
   without `at_ms`, a client outside the simulation wrote to a served
@@ -44,6 +50,40 @@ had changed in them - which is the gap this file exists to close.
 - **Menus close on Escape or a click outside them.** A dropdown stayed open
   until its title was clicked again or an item picked. A click outside now
   closes it without acting on whatever was underneath.
+- **The Nodes panel shows its filter once.** The panel drew the table's
+  filter in its own box and the table drew it again underneath, so typing
+  showed the text twice with two carets.
+- **Native nodes see CRC errors and a busy channel.** The chip model,
+  virtual-sx1262 v1.5.0, answers the four-byte status reads RadioLib sends in
+  full. Native MeshCore builds made on it no longer repeat a frame that failed
+  its CRC as a good one, and listen-before-talk sees preamble and header
+  detection. Emulated boards pin the same version.
+- **Renode's chip binding is safe with a newer chip library.** Its
+  `VsxState` and `VsxCounters` were laid out for virtual-sx1262 ABI 1.3 while
+  the version check accepted any later minor, so a 1.4+ library wrote past
+  the end of both. They now follow the 1.7 header, a library newer than that
+  is refused, and the sizes are checked against C's on load. Renode nodes also
+  report `irq_suppressed` from a chip that counts it.
+- **A Linux tarball install knows it is one.** The updater recognised the
+  tarball by a `radioserver` beside the binary, which no tarball has shipped
+  since the chip became a library, so every tarball install reported itself
+  as unpackaged and got a generic instruction instead of its own. It now looks
+  for `VARIANT`.
+- **Headless echoes every status line.** It printed the latest status line at
+  each look, so several lines said close together lost all but the last, and
+  a line said just before exit was lost. A failed update check left nothing in
+  the log at all.
+- **The compact macOS build carries the chip model and Renode's support
+  files.** Both were added after the compact image was cut, so a compact Mac
+  build could start no emulated board at all, and after fetching Renode still
+  no nRF52 one. They now go in first, and the compact tree is checked by
+  `verify-bundle.sh` like the other platforms' are.
+- **A board's cached capability row names the emulator it ran under.** On a
+  machine with both emulators set up, every nRF52 row was stamped with QEMU's
+  binary, so upgrading Renode retired none of them and upgrading QEMU retired
+  all of them. The fingerprint now follows the board, and also covers the chip
+  library and, for Renode, our peripherals. Rows cached by an earlier build
+  read as stale once.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.

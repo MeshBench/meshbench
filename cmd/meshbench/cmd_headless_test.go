@@ -135,3 +135,15 @@ func TestHeadlessPlayStartsFirmwareBeforeTheClock(t *testing.T) {
 		t.Fatalf("the clock said \"playing\" before firmware was reported running:\n%s", out)
 	}
 }
+
+// A log line is echoed as headless always has: simulated time, then the
+// message (#447).
+func TestTheEchoKeepsItsShape(t *testing.T) {
+	got := echoLine("01:57:49.123  t=   12.345s  could not find out whether a newer release exists")
+	if got != "   12.35s  could not find out whether a newer release exists" {
+		t.Errorf("echoed %q", got)
+	}
+	if got := echoLine("not a log line"); got != "not a log line" {
+		t.Errorf("an unexpected line was changed: %q", got)
+	}
+}
