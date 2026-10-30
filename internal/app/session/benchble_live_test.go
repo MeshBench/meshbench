@@ -12,7 +12,7 @@ import (
 )
 
 // A companion served over BLE is advertised on this machine's adapter, shows
-// as a BLE endpoint, and stops being advertised when it is dropped (#256).
+// as a BLE endpoint, and stops being advertised when it is dropped.
 // Needs an adapter and BlueZ, which the CI runners have not got.
 func TestLiveAServedNodeIsAdvertisedOverBLE(t *testing.T) {
 	if os.Getenv("MESHBENCH_LIVE") == "" {

@@ -1,4 +1,4 @@
-// Serving a node over this machine's Bluetooth adapter (#256).
+// Serving a node over this machine's Bluetooth adapter.
 //
 // The node is served over TCP as usual, and tools/ble/nus_peripheral.py is
 // started against that port: it registers MeshCore's companion service with
