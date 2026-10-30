@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/MeshBench/meshbench/internal/firmware"
 )
 
 // Debugging a node's firmware while the run goes on.
@@ -37,6 +39,15 @@ type Debug struct {
 // its clock; short enough that the window stays usable while it is stopped.
 var debugGrace = 2 * time.Second
 
+// heldTick is the tick a held node did not answer, and the firmware that did
+// not answer it. The firmware travels with the tick because a node restarted
+// while held is a new process that is never sent that tick, so it would never
+// answer it and would stay held for the rest of the run.
+type heldTick struct {
+	atMs uint32
+	fw   *firmware.Node
+}
+
 // SetDebug marks a node as being debugged, or with nil as not. It takes
 // effect for an emulated board when its firmware next starts, and for a
 // native node at once.
@@ -66,20 +77,20 @@ func (e *Engine) Debugging(name string) (Debug, bool) {
 func (e *Engine) Held(name string) (uint32, bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	at, ok := e.held[name]
-	return at, ok
+	h, ok := e.held[name]
+	return h.atMs, ok
 }
 
 // stillHeld is true when a node being debugged has not yet answered the tick
 // it was held at, and so is skipped this tick. Released, it rejoins.
 func (e *Engine) stillHeld(t ticked) bool {
 	e.mu.Lock()
-	at, held := e.held[t.name]
+	h, held := e.held[t.name]
 	e.mu.Unlock()
 	if !held {
 		return false
 	}
-	if !t.fw.Bridge.CaughtUp(at) {
+	if h.fw == t.fw && !t.fw.Bridge.CaughtUp(h.atMs) {
 		return true
 	}
 	e.mu.Lock()
@@ -100,9 +111,9 @@ func (e *Engine) waitDebugged(ctx context.Context, t ticked) error {
 	}
 	e.mu.Lock()
 	if e.held == nil {
-		e.held = map[string]uint32{}
+		e.held = map[string]heldTick{}
 	}
-	e.held[t.name] = t.atMs
+	e.held[t.name] = heldTick{atMs: t.atMs, fw: t.fw}
 	e.mu.Unlock()
 	return errHeld
 }

@@ -13,7 +13,7 @@ import (
 
 // A native node being debugged can be stopped, as a breakpoint stops it, and
 // the run goes on without it; let go, it rejoins rather than being marked
-// down (#191).
+// down.
 func TestLiveADebuggedNativeNodeSurvivesABreakpoint(t *testing.T) {
 	if os.Getenv("MESHBENCH_LIVE") == "" {
 		t.Skip("set MESHBENCH_LIVE=1")

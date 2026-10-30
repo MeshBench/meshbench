@@ -196,7 +196,7 @@ type Engine struct {
 	// debug is which nodes are being debugged, and held which of them a
 	// debugger is holding, at the tick they did not answer. See debug.go.
 	debug             map[string]Debug
-	held              map[string]uint32
+	held              map[string]heldTick
 	firmwareNewlyDown []FirmwareFailure
 	// classCounts is events by class, kept as they are recorded so the cards
 	// that show them never walk the log.

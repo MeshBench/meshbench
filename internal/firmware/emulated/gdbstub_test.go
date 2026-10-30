@@ -7,7 +7,7 @@ import (
 )
 
 // The GDB stub is asked for only when a port is given, on loopback for QEMU,
-// and holding the CPU at reset only when asked to (#191).
+// and holding the CPU at reset only when asked to.
 func TestTheGDBStubIsAskedForOnlyWhenWanted(t *testing.T) {
 	if got := (&EmulatedNode{}).qemuGDBArgs(); got != nil {
 		t.Errorf("no port, yet %v", got)

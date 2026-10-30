@@ -1,4 +1,4 @@
-// Attaching a debugger to a node's firmware (#191).
+// Attaching a debugger to a node's firmware.
 //
 // A native node is an ordinary process, so gdb, lldb and an IDE already work
 // on it; what was missing was which process, whether its binary has symbols,
@@ -36,6 +36,9 @@ func registerNodeDebug(st *state.Store, s *Sim) {
 		wait, _ := boolField(p, "wait")
 		port := 0
 		if v, ok := namedNum(p, "port"); ok {
+			if v < 1 || v > 65535 || v != float64(int(v)) {
+				return nil, fmt.Errorf("port %v is not a TCP port: it is a whole number from 1 to 65535", v)
+			}
 			port = int(v)
 		}
 		switch b := n.Firmware.Backend.(type) {
