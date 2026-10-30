@@ -436,6 +436,17 @@ class Node:
         """
         self._wb.call("sim.inject", self.name)
 
+    def deliver(self, frame_hex: str, as_: str = "ok") -> bool:
+        """Hand this node's radio one frame directly, as received or as a kind
+        of failed reception: ok, crc_error, header_error, no_crc,
+        next_before_read or next_during_read.
+
+        False when the node has no firmware or its chip does not read that
+        kind, which is an answer, not a refusal.
+        """
+        got = self._wb.call("radio.deliver", {"node": self.name, "hex": frame_hex, "as": as_}) or {}
+        return bool(got.get("delivered"))
+
     def provisioning(self) -> list[str]:
         """What this node is told at boot, in the console's own words."""
         return (self._wb.call("node.provisioning", self.name) or {}).get("commands", [])
