@@ -60,3 +60,29 @@ func (e *Engine) InjectFrame(nodeIndex int, frame []byte) {
 	}
 	e.startTransmission(nodeIndex, frame, now)
 }
+
+// DeliverFrame hands a frame straight to a node's radio, as received, without
+// the channel deciding anything: the bench for a firmware's receive path.
+// why is zero for a good frame, otherwise how the reception went wrong.
+// It reports false when the node has no firmware or its chip does not read
+// that kind, so a script cannot mistake a frame nobody was given for one that
+// was ignored.
+func (e *Engine) DeliverFrame(nodeIndex int, frame []byte, why firmware.FrameFailure) (bool, error) {
+	e.mu.Lock()
+	ok := nodeIndex >= 0 && nodeIndex < len(e.nodes)
+	var fw *firmware.Node
+	if ok {
+		fw = e.nodes[nodeIndex].Firmware
+	}
+	e.mu.Unlock()
+	if fw == nil || fw.Bridge == nil || len(frame) == 0 {
+		return false, nil
+	}
+	if why == 0 {
+		return true, fw.Bridge.Deliver(frame)
+	}
+	if !fw.Bridge.Takes(why) {
+		return false, nil
+	}
+	return true, fw.Bridge.DeliverFailed(frame, why)
+}

@@ -53,7 +53,11 @@ type Shell struct {
 	// openMenu is which menu is showing, or -1. Not zero: zero is the first
 	// menu, and a zero value that means "File is open" opens it on launch.
 	openMenu int
-	tr       transport
+	// menuScrim and menuBox are the pointer targets an open dropdown lays
+	// down: the scrim over the window below the bar, which closes it, and the
+	// dropdown's own box, which keeps a press on a heading from reaching it.
+	menuScrim, menuBox struct{}
+	tr                 transport
 	// rfChip is the counts line's physics toggle.
 	rfChip widget.Clickable
 	snap   *state.Snapshot

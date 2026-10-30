@@ -6,6 +6,7 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/io/input"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -139,5 +140,51 @@ func TestClickingAViewTabSwitchesTheView(t *testing.T) {
 	h.click(f32.Pt(90, 34))
 	if h.sh.View == before {
 		t.Fatalf("the view did not change from %v", before)
+	}
+}
+
+// Escape closes an open menu (#769).
+func TestEscapeClosesAMenu(t *testing.T) {
+	h := newHarness(t)
+	h.sh.SetMenu("View", []MenuItem{{Label: "Something", Action: "x"}})
+	h.frame()
+	h.click(f32.Pt(float32(h.sh.menus[1].x)+6, 8))
+	if h.sh.openMenu != 1 {
+		t.Fatalf("the menu did not open: %d", h.sh.openMenu)
+	}
+	h.r.Queue(key.Event{Name: key.NameEscape, State: key.Press})
+	h.frame()
+	if h.sh.openMenu != -1 {
+		t.Fatalf("Escape left menu %d open", h.sh.openMenu)
+	}
+}
+
+// A press anywhere outside an open menu closes it, and a press on another
+// title moves to that menu instead (#769).
+func TestAClickOutsideClosesAMenu(t *testing.T) {
+	h := newHarness(t)
+	h.sh.OnMenu = func(a string) { h.actions = append(h.actions, a) }
+	h.sh.SetMenu("View", []MenuItem{{Label: "Something", Action: "x", Section: "One"}})
+	h.sh.SetMenu("Simulation", []MenuItem{{Label: "Else", Action: "y"}})
+	h.frame()
+	h.click(f32.Pt(float32(h.sh.menus[1].x)+6, 8))
+	if h.sh.openMenu != 1 {
+		t.Fatalf("the menu did not open: %d", h.sh.openMenu)
+	}
+	// Inside the dropdown, on its heading: stays open.
+	h.click(f32.Pt(float32(h.sh.menus[1].x)+20, float32(h.th.RowHeight())+12))
+	if h.sh.openMenu != 1 {
+		t.Fatalf("a press inside the dropdown closed it")
+	}
+	h.click(f32.Pt(float32(h.sh.menus[2].x)+6, 8))
+	if h.sh.openMenu != 2 {
+		t.Fatalf("pressing the next title left %d open, want 2", h.sh.openMenu)
+	}
+	h.click(f32.Pt(900, 600))
+	if h.sh.openMenu != -1 {
+		t.Fatalf("a press in the body left menu %d open", h.sh.openMenu)
+	}
+	if len(h.actions) != 0 {
+		t.Errorf("closing the menu ran %v", h.actions)
 	}
 }

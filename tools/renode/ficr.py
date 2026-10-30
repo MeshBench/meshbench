@@ -19,6 +19,11 @@ REGS = {
     **{0x080 + 4 * i: 0x11111111 * (i + 1) for i in range(4)},   # ER[0..3]
     **{0x090 + 4 * i: 0x22222222 * (i + 1) for i in range(4)},   # IR[0..3]
 
+    # Flash geometry, which the SoftDevice checks every flash operation
+    # against: with these zero it forbids every erase and write.
+    0x010: 0x00001000,  # CODEPAGESIZE — 4 kB
+    0x014: 0x00000100,  # CODESIZE — 256 pages
+
     0x0A0: 0x00000000,  # DEVICEADDRTYPE — public
     0x0A4: 0xA1B2C3D4,  # DEVICEADDR[0]
     0x0A8: 0x0000E5F6,  # DEVICEADDR[1]

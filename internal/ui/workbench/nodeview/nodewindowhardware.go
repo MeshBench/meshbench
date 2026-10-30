@@ -181,7 +181,7 @@ func (p *WindowPanel) device(t *theme.Theme, gtx layout.Context,
 	return comp.Card(t, "", func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return p.board.Lamps(t, gtx, panel)
+				return p.board.Lamps(t, gtx, panel, lampsOf(st))
 			}),
 			layout.Rigid(layout.Spacer{Height: t.Sp.S}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -450,4 +450,13 @@ func partFact(part hw.Part) string {
 		return "none on this board"
 	}
 	return fmt.Sprintf("pin %d", part.Pin)
+}
+
+// lampsOf is a node's watched lamps, or nil where there is no node or nothing
+// watches them.
+func lampsOf(st *state.NodeStat) map[int]state.Lamp {
+	if st == nil {
+		return nil
+	}
+	return st.Lamps
 }

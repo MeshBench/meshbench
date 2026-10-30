@@ -90,6 +90,6 @@ func Load(board, version string) BoardReport {
 			return untestedReport(board, version)
 		}
 	}
-	r.Stale = r.EmulatorFP != EmulatorFingerprint()
+	r.Stale = r.EmulatorFP != EmulatorFingerprint(board)
 	return r
 }

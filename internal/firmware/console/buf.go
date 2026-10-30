@@ -116,6 +116,14 @@ func (c *Buf) Echo(line string) {
 	c.mu.Unlock()
 }
 
+// Note adds a line of MeshBench's own under the firmware's output, stamped
+// like the rest and bracketed so it cannot be read as something the node said.
+func (c *Buf) Note(line string) {
+	c.mu.Lock()
+	c.lines = append(c.lines, fmt.Sprintf("%8.3f  (%s)", float64(c.nowMs)/1000, line))
+	c.mu.Unlock()
+}
+
 // drawConsole is the selected node's serial console.
 //
 // A real UART. The point of running real firmware is that its own command

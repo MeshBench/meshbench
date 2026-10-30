@@ -1,6 +1,7 @@
 package emulated
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"hash/fnv"
 	"os"
@@ -14,9 +15,11 @@ import (
 // stands in for a flashed board.
 const (
 	nrf52FlashBytes = 1024 * 1024
-	nrf52UICRBase   = 0x10001000
-	nrf52UICRBytes  = 0x1000
-	nrf52FICRBase   = 0x10000000
+	// nrf52StorageBase is where the Adafruit core's InternalFS starts.
+	nrf52StorageBase = 0xED000
+	nrf52UICRBase    = 0x10001000
+	nrf52UICRBytes   = 0x1000
+	nrf52FICRBase    = 0x10000000
 )
 
 // SoftDeviceHex finds the fetched SoftDevice for a version, or "" if it is not
@@ -82,6 +85,13 @@ func (e *EmulatedNode) renodeFlash() (string, error) {
 			}
 		}
 		fmt.Fprintf(&b, "sysbus LoadBinary @%s 0x%X\n", path, r.addr)
+	}
+
+	// What the firmware stored last time, over the erased pages, when it was
+	// this same build: see NRF52840_NVMC.Keep. A different build is a board
+	// reflashed, and starts with nothing, as the QEMU boards do.
+	if kept := e.keptStorage(); fileExists(kept) {
+		fmt.Fprintf(&b, "sysbus LoadBinary @%s 0x%X\n", kept, nrf52StorageBase)
 	}
 
 	// SP and PC come from the vector table of whatever boots first, which is
@@ -175,6 +185,13 @@ func (e *EmulatedNode) ficrWrites() string {
 	regs := map[uint32]uint32{
 		0x060: uint32(id),
 		0x064: uint32(id >> 32),
+		// The flash's geometry: 256 pages of 4 kB. The SoftDevice checks
+		// every page it is asked to erase or write against these, and with
+		// both reading zero there was no flash at all - every
+		// sd_flash_page_erase answered NRF_ERROR_FORBIDDEN, LittleFS could not
+		// format, and nothing a node stored survived a reboot (#565).
+		0x010: 0x00001000, // CODEPAGESIZE
+		0x014: 0x00000100, // CODESIZE
 		0x0A0: 0x00000000, // DEVICEADDRTYPE - public
 		0x0A4: uint32(id ^ 0xA1B2C3D4),
 		0x0A8: uint32(id>>32) & 0xFFFF,
@@ -237,4 +254,14 @@ func SoftDeviceDir() string {
 		return filepath.Join("meshbench", "softdevice")
 	}
 	return filepath.Join(dir, "meshbench", "softdevice")
+}
+
+// keptStorage is where this node's filesystem is kept between starts, named for
+// the build so another build does not inherit it.
+func (e *EmulatedNode) keptStorage() string {
+	sum := sha256.Sum256([]byte(e.Image))
+	if b, err := os.ReadFile(e.Image); err == nil {
+		sum = sha256.Sum256(b)
+	}
+	return filepath.Join(e.Dir, fmt.Sprintf("storage-%x.bin", sum[:6]))
 }

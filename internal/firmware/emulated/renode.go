@@ -60,7 +60,7 @@ lora: Radio.VirtualSX1262 @ radiospi
 	} else {
 		wiring += renode.Oled(e.PanelPort, e.PanelAddr, e.PanelWidth, e.PanelHgt, e.PanelOffset)
 	}
-	wiring += renode.Inputs(e.ButtonPort, e.HasMeter)
+	wiring += renode.Inputs(e.ButtonPort, e.HasMeter, e.LampPins)
 	if err := os.WriteFile(repl, []byte(wiring), 0o644); err != nil {
 		return "", err
 	}
