@@ -148,15 +148,15 @@ internal/app/       orchestration, no toolkit
     nodelookup/         the node-finding verbs (search, near), wired in by init
     nodewipe/           node.wipe - one node back to factory, wired in by init
     sdr/                the rtl_tcp observer server, state off Sim via the seam
-    benchble/           a simulated node as a real BLE peripheral, so an
-                        unmodified companion app connects to it; embedded, so a
-                        built workbench carries it
     updates/            the update verbs - whether the release feed may be
                         asked, asking it, and fetching what it names, wired
                         in by init
     domains/            blank-imports the split-out domains so their init runs
   fixture/            the on-disk form of a whole setup
   resource/           what is downloaded at runtime, and what it cost the disk
+  benchble/           a simulated node as a real BLE peripheral, so an
+                      unmodified companion app connects to it; embedded, so a
+                      built workbench carries it
   update/             whether a newer release exists, and getting it onto the
                       disk beside this build rather than over it
   control/            the unix socket another process drives it by
