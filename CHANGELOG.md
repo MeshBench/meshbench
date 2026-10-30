@@ -33,6 +33,10 @@ had changed in them - which is the gap this file exists to close.
 - **A Heltec V4's console answers.** Its MeshCore build puts Serial on the
   ESP32-S3's USB port, and the board was wired to UART0, so typed commands
   went nowhere and nothing after the ROM banner was printed.
+- **An ESP32-S3 board that decrypts no longer hangs.** The emulator's DMA
+  never answered hardware AES, so a node decrypting a message - a repeater with
+  channel filter rules, a companion, a room server - stopped relaying and its
+  console went silent. QEMU moves to `sx1262-16`.
 
 ## [0.4.0] - 2026-10-30
 
