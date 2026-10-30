@@ -12,6 +12,8 @@ package boardcheck
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
@@ -78,16 +80,45 @@ func (r *BoardReport) set(c Capability, s State, detail string) {
 	r.Results[c] = Result{Capability: c, State: s, Detail: detail}
 }
 
-// EmulatorFingerprint identifies the emulator build in use, so a cached
-// report can tell whether it is still about the binary that produced it.
-// The size and mtime of the QEMU or Renode binary this run resolves to -
-// cheap, and it changes exactly when a rebuild would invalidate the report.
-func EmulatorFingerprint() string {
-	path := os.Getenv(emulated.EnvQEMU)
-	if path == "" {
-		path = os.Getenv("MESHBENCH_RENODE")
+// EmulatorFingerprint identifies what a board runs under on this machine, so
+// a cached report can tell whether it is still about the binaries that
+// produced it.
+//
+// Which emulator follows from the board, as it does when the board is run:
+// QEMU for the ESP32 boards and Renode for the nRF52 ones. It used to read
+// MESHBENCH_QEMU first and fall back to Renode, so on a machine set up for
+// both every nRF52 row was stamped with QEMU's binary - upgrading Renode
+// retired none of them and upgrading QEMU retired all of them (#551).
+//
+// The chip library is part of it too, because the chip decides what a board
+// demonstrates as much as the emulator does, and so for Renode are our C#
+// peripherals beside it. Each part is the size and mtime of the file the
+// lookup a boot does would find: cheap, and it changes exactly when a rebuild
+// or a fetch would invalidate the report.
+func EmulatorFingerprint(board string) string {
+	b, err := hw.BoardByName(board)
+	if err != nil {
+		return "unknown board"
 	}
-	if path == "" {
+	tool := "qemu-system-xtensa"
+	if b.Renode != nil {
+		tool = "renode"
+	}
+	parts := []string{
+		tool + "=" + fileFingerprint(emulated.FindTool(tool)),
+		"chip=" + fileFingerprint(emulated.FindTool(emulated.RadioLib)),
+	}
+	if b.Renode != nil {
+		parts = append(parts, "peripherals="+dirFingerprint(
+			filepath.Join(emulated.SupportDir(), "peripherals")))
+	}
+	return strings.Join(parts, ";")
+}
+
+// fileFingerprint is a file's path, size and mtime, or "unconfigured" when
+// the lookup found nothing.
+func fileFingerprint(path string, err error) string {
+	if err != nil {
 		return "unconfigured"
 	}
 	fi, err := os.Stat(path)
@@ -95,6 +126,24 @@ func EmulatorFingerprint() string {
 		return "unconfigured"
 	}
 	return fmt.Sprintf("%s@%d-%d", path, fi.Size(), fi.ModTime().Unix())
+}
+
+// dirFingerprint is the total size and newest mtime of a directory's files.
+func dirFingerprint(dir string) string {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return "unconfigured"
+	}
+	var size, newest int64
+	for _, e := range ents {
+		fi, err := e.Info()
+		if err != nil || fi.IsDir() {
+			continue
+		}
+		size += fi.Size()
+		newest = max(newest, fi.ModTime().Unix())
+	}
+	return fmt.Sprintf("%s@%d-%d", dir, size, newest)
 }
 
 // MatrixReports is the whole board list, agreeing with

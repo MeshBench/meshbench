@@ -34,6 +34,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Changed
 
+- **The Windows installer asks where to go and says when it has finished.**
+  It is built by the WiX toolset again, now on a Windows runner, which is the
+  only place WiX can build one: a Destination Folder page with a Change button,
+  a completion page, the brand on both, and the install location in Apps and
+  Features. Staging stays on Linux, and the tables are read back there before
+  the release takes the installers.
 - **`sim.state` says when the wall clock decided something.** `reproducible`
   is false, with the reason, once a node-writing verb ran at a playing clock
   without `at_ms`, a client outside the simulation wrote to a served
@@ -50,6 +56,12 @@ had changed in them - which is the gap this file exists to close.
   each look, so several lines said close together lost all but the last, and
   a line said just before exit was lost. A failed update check left nothing in
   the log at all.
+- **A board's cached capability row names the emulator it ran under.** On a
+  machine with both emulators set up, every nRF52 row was stamped with QEMU's
+  binary, so upgrading Renode retired none of them and upgrading QEMU retired
+  all of them. The fingerprint now follows the board, and also covers the chip
+  library and, for Renode, our peripherals. Rows cached by an earlier build
+  read as stale once.
 - **Adding a scheduled send no longer repeats the ones already said.** Any
   `schedule.add` made every one-shot send whose moment had passed go out
   again.

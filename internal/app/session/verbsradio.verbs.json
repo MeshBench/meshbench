@@ -1,0 +1,17 @@
+{
+  "radio.deliver": {
+    "what": "hand a node's radio one frame directly, as received or as a chosen kind of failed reception, to test the firmware's receive path without the channel deciding anything",
+    "params": [
+      {"name": "node", "type": "string", "what": "the node whose radio receives it; it needs firmware running"},
+      {"name": "hex", "type": "string", "what": "the frame, header first, as hex digits"},
+      {"name": "as", "type": "string", "what": "ok (the default), crc_error, header_error, no_crc (the header said the payload has no CRC), next_before_read or next_during_read (the next frame's header arriving in continuous receive before or during the firmware's read of this one)"}
+    ],
+    "returns": ["node", "as", "bytes", "delivered"],
+    "answers": "`delivered` is false when the node has no firmware or its chip does not read that kind, which is an answer rather than a refusal. The next_* kinds need a frame already received and not yet read, so they follow an ok delivery.",
+    "example": {
+      "params": {"node": "West Lomond", "hex": "1500348b2db7", "as": "no_crc"},
+      "what": "a frame whose header said it carries no CRC",
+      "runnable": false
+    }
+  }
+}
