@@ -120,7 +120,7 @@
     "companion.add_channel": "node.companion.add_channel(index)",
     "companion.raw": "node.companion.raw(bytes)",
     "companion.cli": "node.companion.remote(to, command)",
-    "bench.serve": "node.serve(kind='tcp'|'serial')",
+    "bench.serve": "node.serve(kind='tcp'|'serial'|'ble', name=)",
     "bench.drop": "node.unserve()",
     "bench.refresh": "wb.endpoints",
     "bench.stray": "wb.endpoints.stray()",

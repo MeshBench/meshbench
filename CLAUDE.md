@@ -148,6 +148,9 @@ internal/app/       orchestration, no toolkit
     nodelookup/         the node-finding verbs (search, near), wired in by init
     nodewipe/           node.wipe - one node back to factory, wired in by init
     sdr/                the rtl_tcp observer server, state off Sim via the seam
+    benchble/           a simulated node as a real BLE peripheral, so an
+                        unmodified companion app connects to it; embedded, so a
+                        built workbench carries it
     updates/            the update verbs - whether the release feed may be
                         asked, asking it, and fetching what it names, wired
                         in by init
@@ -228,8 +231,6 @@ tools/              what builds, generates and drives it, none of it shipped
   platformio/         a post-build hook, copied into a MeshCore checkout, that
                       hands a fresh image to a running workbench
   firmware-ab/        two firmware builds against the same traffic
-  ble/                a simulated node as a real BLE peripheral, so an
-                      unmodified companion app connects to it
   headless/           a harness for driving a headless session
   soak/               drives a running workbench and judges what it heard
   dissector/          the Wireshark Lua dissector, ours and the vendored one

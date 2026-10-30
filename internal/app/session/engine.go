@@ -214,6 +214,11 @@ type Sim struct {
 	// concurrent map write the Go runtime kills the process for.
 	servedMu sync.Mutex
 	served   map[string]*engine.CompanionLink
+	// bleNames is the advertised name of each node served over BLE, guarded
+	// by servedMu with the links it sits in front of. Each run carries its own
+	// number, so a peripheral that exits late clears only its own entry.
+	bleNames map[string]bleRun
+	bleGen   uint64
 
 	// domainState holds the per-domain state that used to live as a typed field
 	// here, for the domains split out of session that cannot name their own

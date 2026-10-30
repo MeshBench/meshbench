@@ -27,7 +27,9 @@ func (s *Sim) serve(name, kind string) (state.Endpoint, string, error) {
 		}
 		delete(s.comps, name)
 	}
-	// A second Serve replaces the first listener rather than leaking it.
+	// A second Serve replaces the first listener rather than leaking it, and
+	// whatever it was advertised over goes with it.
+	s.clearBLE(name, 0)
 	if old, ok := s.dropServedLink(name); ok {
 		_ = old.Close()
 	}
@@ -267,6 +269,13 @@ func (s *Sim) endpoints() []state.Endpoint {
 	s.eachServed(func(name string, l *engine.CompanionLink, addrs []string) {
 		out = append(out, endpointView(name, l, addrs))
 	})
+	// A node in front of a BLE peripheral is reached by its advertised name;
+	// the TCP port underneath is the peripheral's, not a client's.
+	for i := range out {
+		if local, ok := s.bleName(out[i].Node); ok {
+			out[i].Kind, out[i].Addr, out[i].Addrs = "ble", local, nil
+		}
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Node < out[j].Node })
 	return out
 }
@@ -274,6 +283,7 @@ func (s *Sim) endpoints() []state.Endpoint {
 // stopServing closes one node's endpoint whether or not a client has
 // attached, and reports how many links went.
 func (s *Sim) stopServing(name string) int {
+	s.clearBLE(name, 0)
 	l, ok := s.dropServedLink(name)
 	if !ok {
 		return 0

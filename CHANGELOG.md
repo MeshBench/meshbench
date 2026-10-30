@@ -23,6 +23,11 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **Serve a companion over Bluetooth.** `bench.serve` with `kind` `ble`, or
+  **serve BLE** in the companion bench, advertises the node on this machine's
+  adapter so a phone app finds it the way it finds a radio. Linux with BlueZ
+  only. The node runs its USB build behind it, so this tests a client against
+  a simulated mesh, not MeshCore's own BLE transport.
 - **A build says whether it takes MeshCore's console commands.** A firmware
   that is not MeshCore is no longer sent provisioning it refuses line by line,
   and an experiment arm that would pin a setting onto one is refused before
@@ -92,6 +97,10 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **The BLE peripheral speaks BLE's framing.** It passed the node's serial
+  framing through and split it into 20-byte notifications, where a BLE client
+  reads exactly one frame per notification. It also stopped five seconds after
+  the node last said anything.
 - **A board probe says when GitHub's rate limit stopped it.** Out of
   unauthenticated API allowance, it reported that the firmware catalogue
   could not be reached; it now says the allowance is used up, until when, and
