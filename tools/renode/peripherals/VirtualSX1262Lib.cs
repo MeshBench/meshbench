@@ -114,7 +114,9 @@ namespace Antmicro.Renode.Peripherals.Radio
         public const int AbiMajor = 1;
         public const int AbiMinor = 3;
         // The newest minor the structs above are laid out for.
-        public const int AbiNewestMinor = 7;
+        // 1.8 added receive failures 4 to 6 and header registers, and nothing
+        // to either struct, so its layouts are 1.7's.
+        public const int AbiNewestMinor = 8;
         // The minor that appended irq_suppressed to vsx_counters.
         public const int AbiIrqSuppressed = 4;
         // sizeof(vsx_state) and sizeof(vsx_counters) at AbiNewestMinor, as a C
