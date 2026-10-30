@@ -52,6 +52,14 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **Emulated nRF52 boards keep what they store.** The factory registers never
+  said how big the flash was, so the SoftDevice refused every erase and write
+  with `NRF_ERROR_FORBIDDEN`: the filesystem could not be formatted, and
+  `IdentityStore::save()` failed on every boot. And Renode rebuilt flash from
+  the image at every start, so nothing would have survived a restart anyway.
+  The filesystem's pages are now kept in the node's directory and loaded back
+  when the same build starts again. A preference set over the console
+  survives a restart.
 - **Menus close on Escape or a click outside them.** A dropdown stayed open
   until its title was clicked again or an item picked. A click outside now
   closes it without acting on whatever was underneath.
