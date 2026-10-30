@@ -14,7 +14,6 @@
 package comp
 
 import (
-	"github.com/MeshBench/meshbench/internal/app/state"
 	"image"
 	"image/color"
 
@@ -24,6 +23,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 
+	"github.com/MeshBench/meshbench/internal/app/state"
 	hw "github.com/MeshBench/meshbench/internal/firmware/board"
 	"github.com/MeshBench/meshbench/internal/ui/theme"
 )
