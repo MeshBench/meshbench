@@ -254,6 +254,9 @@ func Register(st *state.Store, s *Sim) {
 			if w.ConsoleNode != "" {
 				w.Console = s.consoleLines(w.ConsoleNode, w.Console)
 			}
+			// And every other console a window is showing, so each window
+			// keeps up with its own node rather than only the last one typed at.
+			s.refreshConsoles(w)
 			// And the output pane, for the same reason. Its source is a file
 			// the emulator is still writing, so a pane that read it once shows
 			// a board that stopped talking the moment it was opened.

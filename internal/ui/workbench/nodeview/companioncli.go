@@ -19,10 +19,7 @@ import (
 
 // cliPane is the command line, over the same session the client uses.
 func (c *companionTab) cliPane(t *theme.Theme, gtx layout.Context, s *state.Snapshot, cs state.Companion) layout.Dimensions {
-	lines := []string(nil)
-	if s != nil && s.ConsoleNode == c.node {
-		lines = s.Console
-	}
+	lines := consoleOf(s, c.node)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(lines) == 0 {

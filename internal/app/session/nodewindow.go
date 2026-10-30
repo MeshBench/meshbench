@@ -46,8 +46,12 @@ func registerNodeWindow(st *state.Store, s *Sim) {
 		// and its window is still worth opening for the other tabs.
 		attached := false
 		if buf, err := s.consoleFor(name); err == nil {
-			w.Console, w.ConsoleNode = buf.Snapshot(), name
+			showConsole(w, name, buf.Snapshot())
 			attached = true
+		} else {
+			// Kept in the list anyway, so the tick attaches it once the
+			// node has firmware to listen to.
+			putConsole(w, name, nil)
 		}
 		return map[string]any{"node": name, "tab": shown, "console": attached}, nil
 	})

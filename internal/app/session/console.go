@@ -79,7 +79,7 @@ func registerConsole(st *state.Store, s *Sim) {
 		if paused != "" {
 			buf.Note(paused)
 		}
-		w.Console, w.ConsoleNode = buf.Snapshot(), name
+		showConsole(w, name, buf.Snapshot())
 		_ = mark
 		out := map[string]any{
 			"node": name, "sent": cmd,
@@ -100,7 +100,7 @@ func registerConsole(st *state.Store, s *Sim) {
 		if err != nil {
 			return nil, err
 		}
-		w.Console, w.ConsoleNode = buf.Snapshot(), name
+		showConsole(w, name, buf.Snapshot())
 		// The scrollback itself, not a count of it.
 		//
 		// It reported only how many lines there were, which is exactly the

@@ -164,6 +164,10 @@ type Snapshot struct {
 	// Console is one node's firmware scrollback.
 	Console     []string
 	ConsoleNode string
+	// Consoles is every node console a window is showing, so two windows
+	// on two nodes each show their own rather than one saying the other
+	// "has the console".
+	Consoles []ConsolePane
 	// Outputs is every node-and-source pane something is currently looking
 	// at: a board's serial port, the emulator's own log, the radio model's.
 	//
