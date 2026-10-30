@@ -115,10 +115,9 @@ machine LoadPlatformDescription @%[1]s/usbd.repl
 
 %[5]s
 %[9]sradiospi.lora Connect
-%[8]s%[7]sstart
-`, SupportDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
+%[8]s%[7]s%[10]s`, SupportDir(), firmware.SafeNodeName(e.NodeName), e.Platform, repl, flash,
 		renode.UnregisterStockSPI(), renode.RenodeTrace(),
-		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB), idle)
+		renode.ConsoleTerminal(conPort, e.ConsoleOnUSB), idle, e.renodeStart())
 	if err := os.WriteFile(script, []byte(body), 0o644); err != nil {
 		return "", err
 	}

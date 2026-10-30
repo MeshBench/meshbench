@@ -7,6 +7,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
@@ -65,6 +66,9 @@ func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 	busy := e.channelBusy(now)
 	sent := make([]ticked, 0, len(targets))
 	for _, t := range targets {
+		if e.stillHeld(t) {
+			continue
+		}
 		// What the channel sounds like here, before the node decides whether to
 		// talk. MeshCore asks its radio this in Dispatcher::checkSend, and the
 		// answer has to arrive before the tick it applies to - a node told after
@@ -81,7 +85,9 @@ func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 	}
 	for _, t := range sent {
 		if err := e.waitTicked(ctx, t); err != nil {
-			e.markFirmwareDown(t.name, t.fw, err.Error())
+			if !errors.Is(err, errHeld) {
+				e.markFirmwareDown(t.name, t.fw, err.Error())
+			}
 			continue
 		}
 		// The radio reports how the firmware has configured it in the same
@@ -100,6 +106,9 @@ func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 // the end of the tick: deferring inside the loop would hold three hundred
 // timers open until every node had answered.
 func (e *Engine) waitTicked(ctx context.Context, t ticked) error {
+	if _, ok := e.Debugging(t.name); ok {
+		return e.waitDebugged(ctx, t)
+	}
 	wctx, cancel := context.WithTimeout(ctx, e.firmwareTickTimeout())
 	defer cancel()
 	return t.fw.Bridge.WaitAdvance(wctx, t.atMs)

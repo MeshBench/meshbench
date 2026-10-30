@@ -3003,6 +3003,55 @@
         "runnable": true
       }
     },
+    "node.debug": {
+      "what": "make a running node debuggable and say how to attach: a native node is held rather than marked down while a breakpoint stops it, and an emulated board is restarted with its emulator's GDB stub",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "required": true,
+          "primary": true,
+          "what": "the node to debug; refused when absent, unknown, or not running firmware"
+        },
+        {
+          "name": "wait",
+          "type": "bool",
+          "what": "for an emulated board, hold its CPU at reset until a debugger continues, so boot can be stepped through; refused for a native node, which has already booted by the time anything can attach"
+        },
+        {
+          "name": "port",
+          "type": "number",
+          "what": "for an emulated board, the port its GDB stub listens on; absent picks a free one"
+        },
+        {
+          "name": "off",
+          "type": "bool",
+          "what": "stop debugging: a native node is given its tick deadline back, an emulated board is restarted without the stub"
+        }
+      ],
+      "returns": [
+        "node",
+        "debugging",
+        "backend",
+        "pid",
+        "binary",
+        "symbols",
+        "gdb_port",
+        "wait",
+        "debugger",
+        "image",
+        "attach",
+        "vscode",
+        "note"
+      ],
+      "answers": "`attach` is a debugger command line and `vscode` a launch configuration to paste. A native node has `pid`, `binary` and `symbols`: `debug` with DWARF, `symbols` with a symbol table only, `stripped` with neither. An emulated board has `gdb_port`, `wait`, the `debugger` for its architecture and the `image` it runs, which has no symbols: the debugger wants the firmware.elf the same build produced. From the first call, `sim.state` reports the run as not reproducible, because a debugger stopping a node moves its clock.",
+      "example": {
+        "params": {
+          "node": "West Lomond"
+        },
+        "what": "attach gdb to a native repeater"
+      }
+    },
     "node.energy": {
       "what": "run a year of sun and battery at one named node, at the duty cycle the run measured for it rather than one typed into a form, for the node window that has a name and no selection to work from",
       "params": [

@@ -23,6 +23,13 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **Debug a node's firmware while the run goes on.** `node.debug`, and
+  "Debug this node" on a node's row menu, say how to attach gdb or VS Code to
+  a running node. A native node gets its process, binary and whether it has
+  symbols, and a breakpoint now holds it rather than getting it marked down:
+  the rest of the mesh carries on, and it rejoins when let go. An emulated
+  board is restarted with QEMU's or Renode's GDB stub, optionally held at
+  reset so boot can be stepped through. See `docs/debugging-firmware.md`.
 - **Run a command on another node over the air.** `companion.cli` sends a
   command from a connected companion to a node it is logged in to, as
   MeshCore's remote admin does (`TXT_TYPE_CLI_DATA`). The node's own firmware
