@@ -128,7 +128,7 @@ func Detect(goos, exe, appImage string) Artefact {
 	// This looked for radioserver, which the tarball stopped shipping when the
 	// chip became a library, so every tarball install read as unpackaged and
 	// was handed the generic instruction rather than its own (#447).
-	if exe != "" && (besideBinary(exe, "VARIANT") || besideBinary(exe, "radioserver")) {
+	if exe != "" && (besideBinary(exe, variantFile) || besideBinary(exe, "radioserver")) {
 		return Tarball
 	}
 	return Loose
