@@ -590,27 +590,11 @@ jobs:
     # No fork guard here: this workflow only triggers on tag pushes and
     # workflow_dispatch, both of which need write access to this repo.
     runs-on: [self-hosted, linux, x64, lab-2204]
-    # This runner sets no locale, and two tools in this job read one. icotool
-    # says so outright - "icotool: cannot set locale: No such file or
-    # directory" - and WiX then refuses a plainly relative Directory/@Name:
-    #
-    #   meshbench.wxs(135) : error WIX0389: The Directory/@Name attribute's
-    #   value, 'MeshBench', is not a relative path.
-    #
-    # 'MeshBench' is relative by any reading, so that is WiX's own path
-    # handling and not the authoring. It is a known shape on Linux
-    # (wixtoolset/issues#7154, Ubuntu 22.04, closed "not planned") and it turns
-    # up in minimal environments - that issue, and the Docker SDK images in the
-    # discussion beside it - which is what a runner with no locale is.
-    #
-    # C.UTF-8 rather than a generated en_GB: glibc has carried it built in
-    # since 2.35, which is exactly this runner's floor, so nothing has to be
-    # installed for it to exist.
-    #
-    # v0.0.5's installer was built by wixl, which had no such trouble. WiX
-    # arrived with the dialogs, wixl building none, and the Windows job has
-    # failed before reaching the MSI on every run since - so this is the first
-    # time WiX has actually run here.
+    # This runner sets no locale, and icotool reads one: "icotool: cannot set
+    # locale: No such file or directory". C.UTF-8, which glibc has carried
+    # built in since 2.35 - this runner's floor - so nothing is installed for
+    # it. (WiX met the same missing locale here before it was moved to the
+    # windows-msi job, which is where it can actually build.)
     env:
       LANG: C.UTF-8
       LC_ALL: C.UTF-8
@@ -630,19 +614,16 @@ jobs:
       - name: Dependencies
         run: |
           sudo apt-get update
-          # msitools is msiinfo and msibuild: one reads the built package for
-          # verify-msi.sh and the other puts back the single row WiX will not
-          # author. wixl used to build the installer and no longer does - it
-          # builds no dialogs, and the installer was asked for two.
           # icoutils is for the one file Windows wants that the repository does
           # not carry: an .ico holding every size, built from the committed
           # PNGs the same way macos-app.sh builds the .icns. python3-pil
-          # composes the two dialog bitmaps from the same committed artwork -
-          # ImageMagick would have done, but 22.04 carries version 6, whose
-          # command is `convert` and not `magick`, and a build that works where
-          # it was written and fails where it runs is the worst kind.
+          # composes the installer's two dialog bitmaps from the same committed
+          # artwork - ImageMagick would have done, but 22.04 carries version 6,
+          # whose command is `convert` and not `magick`. The installer itself
+          # is built in the windows-msi job and read back in
+          # windows-msi-verify, which installs msitools for that.
           sudo apt-get install -y --no-install-recommends \
-            gcc-mingw-w64-x86-64 zip msitools icoutils python3-pil
+            gcc-mingw-w64-x86-64 zip icoutils python3-pil
 
 
       - name: Build
@@ -673,6 +654,7 @@ jobs:
               { echo "::error::version '$VERSION' is not X.Y.Z or X.Y.Z-dev.N"; exit 1; } ;;
           esac
           go run ./tools/licgen -text dist/meshbench/LICENCES
+          mkdir -p dist/msi
           GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
           go build -trimpath \
             -ldflags "-H windowsgui -X gioui.org/app.ID=io.github.meshbench.meshbench \
@@ -734,8 +716,11 @@ jobs:
             https://github.com/googlefonts/noto-emoji/raw/v2.051/fonts/NotoColorEmoji.ttf
           echo compact > dist/meshbench/VARIANT
           (cd dist && zip -qr meshbench-windows-x86_64-compact.zip meshbench)
-          packaging/windows-msi.sh dist/meshbench "$VERSION" \
-            "dist/meshbench-windows-x86_64-compact.msi"
+          # The installer's half of the compact pair: the tree as it stands,
+          # and what the WiX build needs from this side. The .msi itself is
+          # built on Windows by the windows-msi job (#508).
+          cp -a dist/meshbench dist/msi/stage-compact
+          packaging/windows-msi.sh dist/msi/stage-compact "$VERSION" dist/msi/extra-compact
 
           # Now the emulators, making the same tree the bundled variant.
           . packaging/emulator-pins.env
@@ -789,25 +774,18 @@ jobs:
           ls -la dist/*.zip
           file dist/meshbench/meshbench.exe
 
-      - name: The installer
+      - name: The installer's half from here
         # An MSI as well as the zip rather than instead of it. The zip is a
         # complete build and stays the download for a memory stick, a build
         # agent, or anyone who wants no installer.
         #
-        # What the installer adds is a deliberate location. This bundle finds
-        # the emulators and the chip model beside meshbench.exe, so a user who
-        # unpacks the zip into Downloads and then moves the one executable
-        # somewhere tidy - which is the natural thing to do with a single
-        # executable - has broken emulation and will not be told why. The
-        # installer puts the whole directory somewhere on purpose, and brings
-        # an entry in Apps and Features, an uninstall, and an upgrade that
-        # replaces the previous version instead of accumulating beside it.
-        #
-        # Still no Windows runner: WiX reads packaging/meshbench.wxs and
-        # writes the .msi here, beside the mingw cross-build that made the
-        # .exe. The script checks the tables of what it built before it
-        # returns, because an installer that is wrong about upgrading looks
-        # exactly like one that is right until somebody installs two versions.
+        # What the installer adds is a deliberate location, an entry in Apps
+        # and Features, an uninstall, an upgrade that replaces the previous
+        # version - and, since #508, a wizard that asks where to go and says
+        # when it has finished. That needs the WiX toolset, which builds an MSI
+        # only on Windows, so this step prepares and the windows-msi job
+        # builds: the icon and the dialog bitmaps need icotool and Pillow,
+        # which are here, and the database needs msi.dll, which is there.
         run: |
           set -e
           VERSION="${{ inputs.version }}"
@@ -817,9 +795,18 @@ jobs:
               *)  VERSION="0.0.0-dev-$(git rev-parse --short HEAD)" ;;
             esac
           fi
-          packaging/windows-msi.sh dist/meshbench "$VERSION" \
-            "dist/meshbench-windows-x86_64-bundled.msi"
-          ls -la dist/*.msi
+          cp -a dist/meshbench dist/msi/stage-bundled
+          packaging/windows-msi.sh dist/msi/stage-bundled "$VERSION" dist/msi/extra-bundled
+          ls dist/msi
+
+      # Both staged trees and what goes with them, for the Windows runner. Not
+      # a release asset: the release takes the MSIs once verify-msi.sh has read
+      # them back.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: msi-stage
+          retention-days: 1
+          path: dist/msi
 
       - uses: actions/upload-artifact@v7
         if: inputs.release || startsWith(github.ref, 'refs/tags/v')
@@ -827,9 +814,84 @@ jobs:
           name: meshbench-windows
           # As the Linux upload above.
           retention-days: ${{ inputs.release && 1 || 3 }}
+          path: dist/*.zip
+
+  windows-msi:
+    timeout-minutes: 30
+    # The installer, built where WiX can build one. WiX writes the MSI
+    # database through Windows' own msi.dll and refuses everywhere else - on
+    # Linux every Directory/@Name is "not a relative path", and with the
+    # names removed it dies on "Unable to load shared library 'msi.dll'"
+    # (#508). wixl runs on Linux and builds no dialogs, so a double-clicked
+    # installer showed a progress bar and closed without a word.
+    #
+    # windows-latest is a hosted runner, which this public repository pays
+    # nothing for. Only the WiX build runs here; staging is on Linux above,
+    # and the check is on Linux below, where msitools reads the tables.
+    needs: windows
+    if: inputs.windows || startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with: { name: msi-stage, path: msi }
+      - name: WiX
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          wix extension add -g WixToolset.UI.wixext/5.0.2
+          wix --version
+      - name: Build both installers
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          packaging/windows-msi.ps1 -Stage msi/stage-compact -Extra msi/extra-compact `
+            -Out dist/meshbench-windows-x86_64-compact.msi
+          packaging/windows-msi.ps1 -Stage msi/stage-bundled -Extra msi/extra-bundled `
+            -Out dist/meshbench-windows-x86_64-bundled.msi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: msi-unverified
+          retention-days: 1
           path: |
-            dist/*.zip
             dist/*.msi
+            dist/*.msi.files
+
+  windows-msi-verify:
+    timeout-minutes: 15
+    # What Windows will act on, read back out of each database rather than out
+    # of the source: the upgrade code and version, the file count, ALLUSERS,
+    # the dialogs, and where an upgrade goes. Only what passes is offered to
+    # the release, as meshbench-windows-msi.
+    needs: windows-msi
+    if: inputs.windows || startsWith(github.ref, 'refs/tags/v')
+    runs-on: [self-hosted, linux, x64, lab-2204]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with: { name: msi-stage, path: msi }
+      - uses: actions/download-artifact@v8
+        with: { name: msi-unverified, path: dist }
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends msitools
+      - name: Read both back
+        run: |
+          set -e
+          for v in compact bundled; do
+            . "msi/extra-$v/msi.env"
+            msi="dist/meshbench-windows-x86_64-$v.msi"
+            # The count of what WiX harvested, taken on the Windows runner.
+            files=$(cat "$msi.files")
+            packaging/verify-msi.sh "$msi" "$MSIVERSION" "$UPGRADE" "$((files + 1))"
+          done
+      - uses: actions/upload-artifact@v7
+        if: inputs.release || startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: meshbench-windows-msi
+          retention-days: ${{ inputs.release && 1 || 3 }}
+          path: dist/*.msi
 
   release:
     timeout-minutes: 20
@@ -855,7 +917,10 @@ jobs:
     if: >-
       always() && (inputs.release ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
-    needs: [linux, macos, windows]
+    # windows-msi-verify, not just windows: the MSIs are built and read back
+    # after the windows job finishes, so without it this job would start
+    # before meshbench-windows-msi exists and refuse a zip with no .msi.
+    needs: [linux, macos, windows, windows-msi-verify]
     # Hosted, unlike every job above it, because this one builds nothing. It
     # downloads what they built, checks it, and hands it to gh - so the glibc
     # floor the lab-2204 label exists to pin does not apply here at all. That
@@ -884,8 +949,11 @@ jobs:
       tag: ${{ steps.publish.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
+      # The release artefacts only: the MSI stage and the unverified MSIs are
+      # working files between jobs, and only meshbench-windows-msi has been
+      # read back.
       - uses: actions/download-artifact@v8
-        with: { path: incoming }
+        with: { path: incoming, pattern: 'meshbench-*' }
 
       # This job is the one that still needs gh: creating and uploading a
       # release is a write, and reimplementing that over curl would be a worse
@@ -954,7 +1022,7 @@ jobs:
           if ls dist/*windows*.zip >/dev/null 2>&1 && ! ls dist/*windows*.msi >/dev/null 2>&1; then
             echo "::error::a Windows zip was built and no .msi came with it;"\
                  "the installer is packaging/meshbench.wxs, built by the"\
-                 "windows job's installer step"
+                 "windows-msi job and read back by windows-msi-verify"
             exit 1
           fi
           # The project's own licence is checked by the linux job, which has
