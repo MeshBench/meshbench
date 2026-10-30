@@ -21,6 +21,16 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-30
+
+Driving firmware from outside, and more boards running under emulation. A
+script can hand a node's radio one frame, run a command on another node over
+the air, or attach a debugger to a running node; a companion can be served
+over Bluetooth; and nRF52 boards under Renode keep their flash, light their
+lamps, draw the RAK4631's display and can run in lockstep with the engine.
+Native nodes now see CRC errors and a busy channel, which the chip model had
+hidden from them.
+
 ### Added
 
 - **Serve a companion over Bluetooth.** `bench.serve` with `kind` `ble`, or
@@ -1064,7 +1074,8 @@ First release: one binary per platform.
 - The radio model reachable over TCP where there is no unix socket.
 - Two data races found by `-race` and fixed.
 
-[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/MeshBench/meshbench/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/MeshBench/meshbench/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MeshBench/meshbench/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/MeshBench/meshbench/compare/v0.0.11...v0.1.0
