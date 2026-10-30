@@ -47,6 +47,9 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **The Nodes panel shows its filter once.** The panel drew the table's
+  filter in its own box and the table drew it again underneath, so typing
+  showed the text twice with two carets.
 - **Native nodes see CRC errors and a busy channel.** The chip model,
   virtual-sx1262 v1.5.0, answers the four-byte status reads RadioLib sends in
   full. Native MeshCore builds made on it no longer repeat a frame that failed
