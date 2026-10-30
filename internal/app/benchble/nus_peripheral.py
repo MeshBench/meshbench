@@ -2,11 +2,10 @@
 """Expose a simulated MeshCore node as a real BLE peripheral.
 
 Registers a Nordic UART Service with BlueZ over D-Bus and advertises it, so an
-unmodified companion app (MeshCIM, the official clients) discovers and connects
+unmodified companion app discovers and connects
 to a simulated node exactly as it would to hardware.
 
-UUIDs are MeshCore's own, taken from MeshCIM's ble_mesh_transport.dart rather
-than assumed:
+UUIDs are MeshCore's own, as its firmware advertises them:
 
     service  6E400001-B5A3-F393-E0A9-E50E24DCCA9E
     rx       6E400002-...   central -> peripheral (write)
