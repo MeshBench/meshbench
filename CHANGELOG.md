@@ -47,6 +47,17 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **Native nodes see CRC errors and a busy channel.** The chip model,
+  virtual-sx1262 v1.5.0, answers the four-byte status reads RadioLib sends in
+  full. Native MeshCore builds made on it no longer repeat a frame that failed
+  its CRC as a good one, and listen-before-talk sees preamble and header
+  detection. Emulated boards pin the same version.
+- **Renode's chip binding is safe with a newer chip library.** Its
+  `VsxState` and `VsxCounters` were laid out for virtual-sx1262 ABI 1.3 while
+  the version check accepted any later minor, so a 1.4+ library wrote past
+  the end of both. They now follow the 1.7 header, a library newer than that
+  is refused, and the sizes are checked against C's on load. Renode nodes also
+  report `irq_suppressed` from a chip that counts it.
 - **A Linux tarball install knows it is one.** The updater recognised the
   tarball by a `radioserver` beside the binary, which no tarball has shipped
   since the chip became a library, so every tarball install reported itself
