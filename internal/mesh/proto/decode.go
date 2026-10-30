@@ -251,7 +251,8 @@ func decodeMessage(channel, v3 bool, b []byte) (*Message, error) {
 		i++
 	}
 	if len(b) > i {
-		i++ // txt_type
+		m.CLI = b[i] == txtTypeCLIData
+		i++
 	}
 	if len(b) >= i+4 {
 		m.At = time.Unix(int64(binary.LittleEndian.Uint32(b[i:])), 0).UTC()

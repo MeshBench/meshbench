@@ -36,6 +36,7 @@
 // rather than one worth pretending away.
 //
 using System;
+using System.IO;
 using Antmicro.Renode.Core;
 using Antmicro.Renode.Core.Structure.Registers;
 using Antmicro.Renode.Logging;
@@ -47,6 +48,7 @@ namespace Antmicro.Renode.Peripherals.MTD
     {
         public NRF52840_NVMC(IMachine machine) : base(machine)
         {
+            keepPath = Environment.GetEnvironmentVariable("MESHBENCH_FLASH_KEEP");
             DefineRegisters();
         }
 
@@ -65,8 +67,17 @@ namespace Antmicro.Renode.Peripherals.MTD
                 .WithReservedBits(1, 31)
             ;
 
+            // Flash going back to read-only is where a write or an erase has
+            // finished, so that is where the filesystem is kept: see Keep.
             Registers.Config.Define(this)
-                .WithEnumField<DoubleWordRegister, ConfigMode>(0, 2, out config, name: "WEN")
+                .WithEnumField<DoubleWordRegister, ConfigMode>(0, 2, out config, name: "WEN",
+                    changeCallback: (was, now) =>
+                    {
+                        if(was != ConfigMode.ReadOnly && now == ConfigMode.ReadOnly)
+                        {
+                            Keep();
+                        }
+                    })
                 .WithReservedBits(2, 30)
             ;
 
@@ -166,7 +177,37 @@ namespace Antmicro.Renode.Peripherals.MTD
             }
         }
 
+        // Keep writes the filesystem's pages to the node's own directory, so
+        // what the firmware stored is there when the node next starts (#565).
+        // Renode builds flash from the image at every start, so without this
+        // a board kept its preferences and identity only until it was stopped.
+        // The region is the Adafruit core's InternalFS on the nRF52840, which
+        // is where every nRF52 MeshCore build keeps its files.
+        private void Keep()
+        {
+            if(string.IsNullOrEmpty(keepPath))
+            {
+                return;
+            }
+            try
+            {
+                var bytes = sysbus.ReadBytes(KeepStart, (int)KeepSize);
+                var tmp = keepPath + ".tmp";
+                File.WriteAllBytes(tmp, bytes);
+                File.Copy(tmp, keepPath, true);
+                File.Delete(tmp);
+            }
+            catch(Exception e)
+            {
+                this.Log(LogLevel.Warning, "could not keep the filesystem at {0}: {1}", keepPath, e.Message);
+            }
+        }
+
+        private readonly string keepPath;
         private IEnumRegisterField<ConfigMode> config;
+
+        private const ulong KeepStart = 0xED000;
+        private const ulong KeepSize = 0x7000;
 
         private const ulong PageSize = 0x1000;
         private const ulong FlashStart = 0x0;

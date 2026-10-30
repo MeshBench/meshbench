@@ -55,6 +55,12 @@ var directCommands = []cliCommand{
 		}
 		return s.request(node, "req_status", to, "", proto.StatusRequest(key))
 	}},
+	{"cmd", "c", "<contact> <command>", "run a command on a node you are logged in to", func(s *Sim, node string, a []string) (string, error) {
+		if len(a) < 2 {
+			return "", fmt.Errorf("cmd <contact name or key> <command>")
+		}
+		return s.remoteCommand(node, a[0], strings.Join(a[1:], " "))
+	}},
 	{"scope", "", "<scope>", "the region floods go out under; * for none", func(s *Sim, node string, a []string) (string, error) {
 		if len(a) != 1 {
 			return "", fmt.Errorf("scope <name>, or scope * to send unscoped")
@@ -79,6 +85,23 @@ func init() {
 	for _, c := range directCommands {
 		delete(meshcliRest, c.name)
 	}
+}
+
+// remoteCommand sends a command for another node to run, as an operator's
+// phone administers a repeater it cannot plug into (TXT_TYPE_CLI_DATA). The
+// recipient runs it only for a sender logged in as admin, and its answer comes
+// back as a CLI message, which the transcript prints and companion.state
+// lists.
+func (s *Sim) remoteCommand(node, who, command string) (string, error) {
+	to, key, err := s.contactKey(node, who, 6)
+	if err != nil {
+		return "", err
+	}
+	frame, err := proto.SendCommandData(key, time.Now(), command)
+	if err != nil {
+		return "", err
+	}
+	return s.request(node, "cmd", to, command, frame)
 }
 
 // request sends one frame that the firmware answers with RESP_CODE_SENT, and

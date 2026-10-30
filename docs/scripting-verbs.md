@@ -1,8 +1,8 @@
 # Every verb, and the call that covers it
 
 The wire underneath [scripting-api.md](scripting-api.md). The store registers
-**222**<!--verbdoc:public--> public verbs a script can call and
-**38**<!--verbdoc:internal--> internal callbacks it cannot, **260**<!--verbdoc:total-->
+**224**<!--verbdoc:public--> public verbs a script can call and
+**38**<!--verbdoc:internal--> internal callbacks it cannot, **262**<!--verbdoc:total-->
 in total, plus the two the socket answers itself, with what each reads, what
 each returns, and which façade call reaches it.
 
@@ -77,8 +77,8 @@ Two verbs are **not** in this table:
 
 ## What this table shows about the surface
 
-- **222**<!--verbdoc:public--> public verbs, plus **38**<!--verbdoc:internal-->
-  the workbench keeps to itself, **260**<!--verbdoc:total--> registered in
+- **224**<!--verbdoc:public--> public verbs, plus **38**<!--verbdoc:internal-->
+  the workbench keeps to itself, **262**<!--verbdoc:total--> registered in
   total. The façade covers the public verbs, over roughly 60 calls once
   objects and properties absorb them.
 - **The naming is not regular.** `node.*` and `nodes.*` are both node verbs and
@@ -228,9 +228,9 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `console.cli` | *a bare string*, `node` string, `command` string, `at_ms` number | `node`, `reply`, `failed`, `queued`, `at_ms`, `now_ms` | `node.companion.cli(line)` |
+| `console.cli` | *a bare string*, `node` string, `command` string, `at_ms` number | `node`, `reply`, `failed`, `paused`, `queued`, `at_ms`, `now_ms` | `node.companion.cli(line)` |
 | `console.read` | *a bare string*, `node` string | `node`, `lines`, `tail` | `node.console.read()  /  node.console.tail` |
-| `console.type` | `node` string, `command` string, `at_ms` number | `node`, `sent`, `note`, `queued`, `at_ms`, `now_ms` | `node.console.send(line)` |
+| `console.type` | `node` string, `command` string, `at_ms` number | `node`, `sent`, `note`, `paused`, `queued`, `at_ms`, `now_ms` | `node.console.send(line)` |
 | `fleet.replies` | — | `replies` | *none* — the reply collector, called only by its own goroutine |
 | `fleet.send` | *a bare string*, `command` string, `node` string, `kind` string | `command`, `sent_to`, `replies`, `warning` | `wb.fleet.send(command, kind=\|node=)` - *planned*, no client defines `wb.fleet` yet; call the verb |
 
@@ -240,6 +240,7 @@ Two verbs are **not** in this table:
 |---|---|---|---|
 | `companion.add_channel` | *a bare string*, `node` string, `index` number, `at_ms` number | `asked_for_channel`, `queued`, `at_ms`, `now_ms` | `node.companion.add_channel(index)` |
 | `companion.advert` | *a bare string*, `node` string, `flood` bool, `at_ms` number | `advert`, `flood`, `queued`, `at_ms`, `now_ms` | `node.companion.advert(flood=False)` |
+| `companion.cli` | *a bare string*, `node` string, `to` string, `command` string, `at_ms` number | `node`, `to`, `command`, `note`, `queued`, `at_ms`, `now_ms` | `node.companion.remote(to, command)` |
 | `companion.configure` | *a bare string*, `node` string, `name` string, `lat` number, `lon` number, `tx_dbm` number, `freq_khz` number, `bw_khz` number, `sf` number, `cr` number, `path_hash` number, `at_ms` number | `set`, `queued`, `at_ms`, `now_ms` | `node.companion.configure(...)` |
 | `companion.connect` | *a bare string*, `node` string, `at_ms` number | `connected`, `took_port`, `note`, `queued`, `at_ms`, `now_ms` | `node.companion.connect()` |
 | `companion.disconnect` | *a bare string*, `node` string | `disconnected` | `node.companion.disconnect()` |
@@ -248,7 +249,7 @@ Two verbs are **not** in this table:
 | `companion.refresh` | *a bare string*, `node` string, `at_ms` number | `node`, `queued`, `at_ms`, `now_ms` | `node.companion.refresh()` |
 | `companion.scope` | *a bare string*, `node` string, `scope` string, `at_ms` number | `node`, `scope`, `queued`, `at_ms`, `now_ms` | `node.companion.scope = name` |
 | `companion.send` | *a bare string*, `node` string, `text` string, `channel` number, `path_hash` number, `at_ms` number | `sent`, `channel`, `queued`, `at_ms`, `now_ms` | `node.companion.send(text, channel=, path_hash=)` |
-| `companion.state` | *a bare string*, `node` string | `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz` | `node.companion  (properties)` |
+| `companion.state` | *a bare string*, `node` string | `node`, `contacts`, `messages`, `channels`, `recent`, `name`, `freq_khz`, `cli_replies` | `node.companion  (properties)` |
 
 ### Serving to real clients
 
@@ -258,6 +259,8 @@ Two verbs are **not** in this table:
 | `bench.refresh` | — | — | `wb.endpoints` |
 | `bench.serve` | `node` string, `kind` string, `name` string | `node`, `addr` | `node.serve(kind='tcp'\|'serial'\|'ble', name=)` |
 | `bench.stray` | — | `at` | `wb.endpoints.stray()` - *planned*, no client defines `wb.endpoints` yet; call the verb |
+| `radio.deliver` | `node` string, `hex` string, `as` string | `node`, `as`, `bytes`, `delivered` | `node.deliver(frame_hex, as_='ok')` |
+| `radio.preset` | *a bare string*, `preset` string, `node` string | `preset`, `nodes` | `wb.radio.presets  /  wb.radio.apply(preset, node=)` - *planned*, no client defines `wb.radio` yet; call the verb |
 | `sdr.serve` | *a bare string*, `node` string | `node`, `addr`, `rate_hz` | `node.serve_sdr()` |
 | `sdr.stop` | *a bare string*, `node` string | `stopped` | `node.unserve_sdr()` |
 
@@ -367,7 +370,6 @@ Two verbs are **not** in this table:
 | `environ.fetch` | *a bare string*, `source` string | `source`, `started` | `wb.rf.fetch_environment(source)` - *planned*, no client defines `wb.rf` yet; call the verb |
 | `environ.fetched` | *a bare string*, `note` string | — | *none* — the building fetch reporting success |
 | `environ.list` | — | `dirs`, `current` | `wb.rf.environments` - *planned*, no client defines `wb.rf` yet; call the verb |
-| `radio.preset` | *a bare string*, `preset` string, `node` string | `preset`, `nodes` | `wb.radio.presets  /  wb.radio.apply(preset, node=)` - *planned*, no client defines `wb.radio` yet; call the verb |
 | `rf.environment` | *a bare string*, `dir` string, `on` bool | `environment` | `wb.rf.environment = dir` - *planned*, no client defines `wb.rf` yet; call the verb |
 | `rf.excess_loss` | *a bare string*, `db` number | `db`, `links` | `wb.rf.excess_loss_db = n` - *planned*, no client defines `wb.rf` yet; call the verb |
 | `rf.mode` | *a bare string*, `mode` string | `mode` | `wb.rf.mode = 'calculated'\|'waveform'` - *planned*, no client defines `wb.rf` yet; call the verb |

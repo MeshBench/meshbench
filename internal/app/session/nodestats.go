@@ -179,6 +179,16 @@ func (s *Sim) nodeStats(events []state.Event) []state.NodeStat {
 					}
 				}
 			}
+			if lp, ok := n.Firmware.Backend.(interface {
+				Lamps() (map[int]bool, map[int]int, bool)
+			}); ok {
+				if lit, changes, watched := lp.Lamps(); watched {
+					st.Lamps = make(map[int]state.Lamp, len(lit))
+					for pin, on := range lit {
+						st.Lamps[pin] = state.Lamp{Lit: on, Changes: changes[pin]}
+					}
+				}
+			}
 			st.Radio = state.RadioState{
 				Reported: r.Configured, GainReg: r.RxGainReg,
 				Boosted: r.RxBoosted(), TxPowerDBm: r.TxPowerDBm,

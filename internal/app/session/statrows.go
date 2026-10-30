@@ -7,7 +7,11 @@
 // node.radio.
 package session
 
-import "github.com/MeshBench/meshbench/internal/app/state"
+import (
+	"strconv"
+
+	"github.com/MeshBench/meshbench/internal/app/state"
+)
 
 func statRows(stats []state.NodeStat) []map[string]any {
 	out := make([]map[string]any, 0, len(stats))
@@ -45,6 +49,16 @@ func statRows(stats []state.NodeStat) []map[string]any {
 			// the costs above are: it did not count, so there is no zero.
 			"irq_suppressed": suppressedOrNil(n),
 		})
+		// The board's lamps, by pin, where something watches them. Absent
+		// rather than empty where nothing does, because "every lamp off" and
+		// "not watched" are different answers.
+		if n.Lamps != nil {
+			lamps := make(map[string]any, len(n.Lamps))
+			for pin, l := range n.Lamps {
+				lamps[strconv.Itoa(pin)] = map[string]any{"lit": l.Lit, "changes": l.Changes}
+			}
+			out[len(out)-1]["lamps"] = lamps
+		}
 	}
 	return out
 }
