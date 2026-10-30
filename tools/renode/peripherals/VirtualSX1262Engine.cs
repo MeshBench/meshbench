@@ -187,7 +187,7 @@ namespace Antmicro.Renode.Peripherals.Radio
             Send(Ack, ack, ack.Length);
         }
 
-        // Lockstep (#774). The machine runs, but a clock entry in its own
+        // Lockstep. The machine runs, but a clock entry in its own
         // virtual time calls OnVirtualMillisecond once a millisecond, on the
         // CPU's thread, and that is where the chip is ticked and where the CPU
         // waits until the engine has asked for the next millisecond. So the
@@ -408,8 +408,8 @@ namespace Antmicro.Renode.Peripherals.Radio
         }
 
         // Lockstep runs the machine from the tick instead of letting it run
-        // free; see Advance. Set from MESHBENCH_RENODE_LOCKSTEP, and the
-        // script then never starts the machine itself.
+        // free; see Advance. Set from MESHBENCH_RENODE_LOCKSTEP, which also
+        // decides the script: a seeded machine, its idle time skipped.
         public static readonly bool Lockstep =
             Environment.GetEnvironmentVariable("MESHBENCH_RENODE_LOCKSTEP") == "1";
 

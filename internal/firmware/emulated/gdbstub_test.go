@@ -47,7 +47,7 @@ func TestTheDebuggerFollowsTheArchitecture(t *testing.T) {
 }
 
 // In lockstep the machine's random numbers are seeded from the node and idle
-// time is skipped, or the same tick would not run the same firmware (#774).
+// time is skipped, or the same tick would not run the same firmware.
 func TestALocksteppedRenodeScriptIsSeeded(t *testing.T) {
 	t.Setenv(EnvRenodeLockstep, "1")
 	a := (&EmulatedNode{NodeName: "a", RunSeed: 1}).renodeStart()

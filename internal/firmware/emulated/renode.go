@@ -126,7 +126,7 @@ machine LoadPlatformDescription @%[1]s/usbd.repl
 
 // EnvRenodeLockstep runs a Renode board from the engine's ticks, a millisecond
 // of virtual time per millisecond asked for, rather than letting it run free
-// on the host clock (#774).
+// on the host clock.
 const EnvRenodeLockstep = "MESHBENCH_RENODE_LOCKSTEP"
 
 // startRenode boots this node's script, and holds its console open.
