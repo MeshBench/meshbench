@@ -21,6 +21,11 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-30
+
+Custom firmware on ESP32-S3 boards: a Heltec V4's console answers, and a
+node that decrypts no longer hangs the emulator.
+
 ### Changed
 
 - **Every node window shows its own console.** A window on one node said
@@ -1091,7 +1096,8 @@ First release: one binary per platform.
 - The radio model reachable over TCP where there is no unix socket.
 - Two data races found by `-race` and fixed.
 
-[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/MeshBench/meshbench/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/MeshBench/meshbench/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/MeshBench/meshbench/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/MeshBench/meshbench/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/MeshBench/meshbench/compare/v0.1.0...v0.2.0
