@@ -54,7 +54,17 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 			touch = part.Addr
 		}
 		meter, hasMeter := batteryMeter(board)
-		if len(pins) > 0 || kbd != 0 || touch != 0 || hasMeter {
+		// Lamps are watched where the machine can follow an output, which is
+		// Renode; QEMU's half needs a device in its fork (#600).
+		var lamps []int
+		if board.Renode != nil {
+			for _, part := range p.PartsOfKind(hw.Lamp) {
+				if part.Pin != hw.PinNone {
+					lamps = append(lamps, part.Pin)
+				}
+			}
+		}
+		if len(pins) > 0 || kbd != 0 || touch != 0 || hasMeter || len(lamps) > 0 {
 			// Renode cannot dial a socket file, so its boards get the same
 			// channel on a loopback port. Which one a board uses is decided
 			// here and nowhere else: everything above and below this line is
@@ -67,6 +77,7 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 			node.ButtonPath = bs.Path()
 			node.ButtonPort = bs.Port()
 			node.ButtonPins = pins
+			node.LampPins = lamps
 			node.KbdAddr, node.TouchAddr = kbd, touch
 			if hasMeter {
 				node.BatChannel, node.BatRaw, node.HasMeter = meter.channel, meter.raw, true
@@ -152,6 +163,12 @@ func withParts(node *emulated.EmulatedNode, board hw.Board, spec scenario.Node,
 	}
 	return node, nil
 }
+
+// LampsWatched reports whether the machine that would run this board reports
+// its lamps' levels: Renode does, by following each lamp's output; QEMU does
+// not yet. Beside ScreenModelled for the same reason: the board view's
+// Observed column is the one a person trusts.
+func LampsWatched(board hw.Board) bool { return board.Renode != nil }
 
 // ScreenModelled reports whether the machine that would run this board has a
 // display model to put behind its declared screen.

@@ -54,7 +54,7 @@ lora: Radio.VirtualSX1262 @ radiospi
 		e.IrqPin, e.NssPort, e.NssPin)
 	wiring += renode.Panel(e.SPIBase, e.PanelPort, e.PanelWidth, e.PanelHgt,
 		e.PanelCS, e.PanelDC, e.NssPort)
-	wiring += renode.Inputs(e.ButtonPort, e.HasMeter)
+	wiring += renode.Inputs(e.ButtonPort, e.HasMeter, e.LampPins)
 	if err := os.WriteFile(repl, []byte(wiring), 0o644); err != nil {
 		return "", err
 	}

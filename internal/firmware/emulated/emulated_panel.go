@@ -83,3 +83,16 @@ func (e *EmulatedNode) SetMeter(channel int, raw uint16) error {
 	e.BatRaw = raw
 	return e.Buttons.Analog(channel, raw)
 }
+
+// Lamps is each watched lamp pin's level and how many times it changed, or
+// false where nothing watches this board's lamps.
+func (e *EmulatedNode) Lamps() (lit map[int]bool, changes map[int]int, watched bool) {
+	if e.Buttons == nil || len(e.LampPins) == 0 {
+		return nil, nil, false
+	}
+	lit, changes = e.Buttons.Lamps()
+	if lit == nil {
+		lit, changes = map[int]bool{}, map[int]int{}
+	}
+	return lit, changes, true
+}

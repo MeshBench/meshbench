@@ -23,6 +23,11 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **An nRF52 board's lamps are watched.** Under Renode each declared lamp's
+  output is followed and reported back, so the board view draws it lit or
+  unlit and says how many times it changed, and `nodes.stats` carries `lamps`.
+  A RAK4631 repeater's two LEDs flash three times at boot. ESP32 boards under
+  QEMU still draw lamps as not modelled; that half needs the QEMU fork.
 - **Two more boards emulate.** Heltec E290 and Heltec Wireless Tracker V2
   passed the board probe against v1.17.1 (build, boot, radio, transmit,
   receive and flood), so they are offered for emulation.
