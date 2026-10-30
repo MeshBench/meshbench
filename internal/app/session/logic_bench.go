@@ -27,7 +27,9 @@ func (s *Sim) serve(name, kind string) (state.Endpoint, string, error) {
 		}
 		delete(s.comps, name)
 	}
-	// A second Serve replaces the first listener rather than leaking it.
+	// A second Serve replaces the first listener rather than leaking it, and
+	// whatever it was advertised over goes with it.
+	s.clearBLE(name, 0)
 	if old, ok := s.dropServedLink(name); ok {
 		_ = old.Close()
 	}
@@ -281,6 +283,7 @@ func (s *Sim) endpoints() []state.Endpoint {
 // stopServing closes one node's endpoint whether or not a client has
 // attached, and reports how many links went.
 func (s *Sim) stopServing(name string) int {
+	s.clearBLE(name, 0)
 	l, ok := s.dropServedLink(name)
 	if !ok {
 		return 0

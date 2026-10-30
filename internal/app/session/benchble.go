@@ -1,6 +1,6 @@
 // Serving a node over this machine's Bluetooth adapter.
 //
-// The node is served over TCP as usual, and tools/ble/nus_peripheral.py is
+// The node is served over TCP as usual, and internal/app/benchble/nus_peripheral.py is
 // started against that port: it registers MeshCore's companion service with
 // BlueZ and advertises it, so a phone finds the simulated node the way it
 // finds a radio. The peripheral holds no simulation state. It turns each frame
@@ -24,9 +24,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MeshBench/meshbench/internal/app/benchble"
 	"github.com/MeshBench/meshbench/internal/app/state"
 	"github.com/MeshBench/meshbench/internal/firmware"
-	"github.com/MeshBench/meshbench/tools/ble"
 )
 
 // bleReady is how long BlueZ gets to register the service and advertisement.
@@ -61,7 +61,7 @@ func (s *Sim) serveBLE(name, local string) (state.Endpoint, string, error) {
 		return state.Endpoint{}, "", err
 	}
 	script := filepath.Join(dir, "nus_peripheral.py")
-	if err := os.WriteFile(script, ble.Peripheral, 0o644); err != nil {
+	if err := os.WriteFile(script, benchble.Peripheral, 0o644); err != nil {
 		return state.Endpoint{}, "", err
 	}
 	// Not tied to a request's context: it lives as long as the endpoint, and
@@ -87,10 +87,10 @@ func (s *Sim) serveBLE(name, local string) (state.Endpoint, string, error) {
 		}
 		return state.Endpoint{}, "", fmt.Errorf("the BLE peripheral did not come up: %s", lastLine(why))
 	}
-	s.setBLE(name, local)
+	gen := s.setBLE(name, local)
 	go func() {
 		_ = cmd.Wait()
-		s.setBLE(name, "")
+		s.clearBLE(name, gen)
 	}()
 	ep.Kind, ep.Addr, ep.Addrs = "ble", local, nil
 	return ep, moved, nil
@@ -135,25 +135,40 @@ func lastLine(s string) string {
 	return s
 }
 
-// setBLE records the advertised name a node is served under, or with "" that
-// it is not.
-func (s *Sim) setBLE(name, local string) {
+// bleRun is one peripheral advertising a node.
+type bleRun struct {
+	local string
+	gen   uint64
+}
+
+// setBLE records the advertised name a node is served under, and returns the
+// number that names this run.
+func (s *Sim) setBLE(name, local string) uint64 {
 	s.servedMu.Lock()
 	defer s.servedMu.Unlock()
-	if local == "" {
-		delete(s.bleNames, name)
-		return
-	}
 	if s.bleNames == nil {
-		s.bleNames = map[string]string{}
+		s.bleNames = map[string]bleRun{}
 	}
-	s.bleNames[name] = local
+	s.bleGen++
+	s.bleNames[name] = bleRun{local: local, gen: s.bleGen}
+	return s.bleGen
+}
+
+// clearBLE forgets that a node is served over BLE: whatever run it is with gen
+// zero, as a re-serve or a drop does, or only run gen, as a peripheral that
+// has exited does, so it cannot clear a newer run's name.
+func (s *Sim) clearBLE(name string, gen uint64) {
+	s.servedMu.Lock()
+	defer s.servedMu.Unlock()
+	if r, ok := s.bleNames[name]; ok && (gen == 0 || r.gen == gen) {
+		delete(s.bleNames, name)
+	}
 }
 
 // bleName is the name a node is advertised under, if it is.
 func (s *Sim) bleName(name string) (string, bool) {
 	s.servedMu.Lock()
 	defer s.servedMu.Unlock()
-	n, ok := s.bleNames[name]
-	return n, ok
+	r, ok := s.bleNames[name]
+	return r.local, ok
 }

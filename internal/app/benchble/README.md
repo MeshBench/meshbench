@@ -4,7 +4,7 @@ Exposes a simulated node as a **real** BLE peripheral, so an unmodified
 companion app discovers and connects to it exactly as it would to hardware.
 
 ```bash
-python3 tools/ble/nus_peripheral.py --name MSIM-GB7XYZ --bridge 127.0.0.1:7801
+python3 internal/app/benchble/nus_peripheral.py --name MSIM-GB7XYZ --bridge 127.0.0.1:7801
 ```
 
 The workbench starts it for you: `bench.serve` with `kind` `ble`, or **serve
@@ -34,7 +34,7 @@ REGISTERED OK
 The framing logic has a bus-free check that runs anywhere:
 
 ```bash
-python3 tools/ble/nus_peripheral.py --selftest   # -> selftest OK
+python3 internal/app/benchble/nus_peripheral.py --selftest   # -> selftest OK
 ```
 
 ## UUIDs

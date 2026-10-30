@@ -914,7 +914,7 @@ that can simply be left out.
 ### 3.7 BLE is ours, not the firmware's
 
 The Bluetooth companion is a host-side BlueZ GATT server presenting the Nordic
-UART Service (`tools/ble/nus_peripheral.py`, verified against a real adapter on
+UART Service (`internal/app/benchble/nus_peripheral.py`, verified against a real adapter on
 elite). It is genuinely connectable from a real phone — but it is *our*
 implementation of the companion protocol, not MeshCore's BLE code being
 exercised. Removing the SoftDevice removed the firmware's Bluetooth stack along
