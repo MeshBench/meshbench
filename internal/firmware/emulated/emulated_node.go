@@ -178,10 +178,13 @@ type EmulatedNode struct {
 	// Emulator selects QEMU or Renode.
 	Emulator Emulator
 
-	// GDBPort, when set, starts the emulator's GDB stub on that loopback
-	// port: source-level debugging of the real firmware binary, the same as a
-	// probe on a board. GDBWait holds the CPU at reset until a debugger lets
-	// it go, so a fault during boot can be caught.
+	// GDBPort, when set, starts the emulator's GDB stub on that port. QEMU's
+	// listens on loopback; Renode's StartGdbServer takes no address and
+	// listens on every interface, so anyone who can reach the port can read
+	// and write the board while it is open. Source-level debugging of the
+	// real firmware binary, the same as a probe on a board. GDBWait holds the
+	// CPU at reset until a debugger lets it go, so a fault during boot can be
+	// caught.
 	GDBPort int
 	GDBWait bool
 

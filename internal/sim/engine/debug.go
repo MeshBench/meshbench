@@ -25,7 +25,8 @@ import (
 
 // Debug is how a node is to be run for a debugger.
 type Debug struct {
-	// GDBPort is where an emulated board's GDB stub listens, on loopback.
+	// GDBPort is where an emulated board's GDB stub listens: on loopback
+	// under QEMU, on every interface under Renode.
 	// Zero for a native node, which a debugger attaches to by its PID.
 	GDBPort int
 	// Wait holds an emulated board's CPU at reset until a debugger lets it
