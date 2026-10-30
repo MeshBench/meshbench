@@ -109,7 +109,11 @@ type BuildChange struct {
 
 	CoprocAtReset *bool
 	CardRequired  *bool
-	Notes         *string
+	// Dialect is the console vocabulary the build speaks: "meshcore", "none",
+	// or another name. A node running anything but MeshCore's is not sent
+	// provisioning.
+	Dialect *string
+	Notes   *string
 }
 
 // Update renames a build, moves it to another board or role, or changes how it
@@ -130,6 +134,9 @@ func (f Firmware) Update(ctx context.Context, id BuildID, c BuildChange) (BuildD
 	}
 	if c.CardRequired != nil {
 		p["card_required"] = *c.CardRequired
+	}
+	if c.Dialect != nil {
+		p["dialect"] = *c.Dialect
 	}
 	if c.Notes != nil {
 		p["notes"] = *c.Notes

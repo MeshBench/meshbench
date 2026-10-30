@@ -268,6 +268,9 @@ class BuildDetails:
     #: This firmware will not get far without storage in the board's slot, so
     #: every node running it is given a card whatever its own slot was set to.
     card_required: bool = False
+    #: The console vocabulary the build speaks: "meshcore", "none", or another
+    #: name. Anything but "meshcore" is not sent provisioning.
+    dialect: str = "meshcore"
     notes: str = ""
 
     def __str__(self) -> str:

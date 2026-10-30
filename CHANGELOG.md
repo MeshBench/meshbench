@@ -23,6 +23,12 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **A build says whether it takes MeshCore's console commands.** A firmware
+  that is not MeshCore is no longer sent provisioning it refuses line by line,
+  and an experiment arm that would pin a setting onto one is refused before
+  the run rather than producing cells that differ by nothing. `dialect` on
+  `firmware.import`, `firmware.update` and `firmware.details`, and a switch
+  in the build's window.
 - **Renode boards can run in lockstep with the engine.** With
   `MESHBENCH_RENODE_LOCKSTEP=1`, an nRF52 board's CPU and chip advance one
   millisecond of virtual time per millisecond the engine asks for, with the

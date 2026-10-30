@@ -46,6 +46,12 @@ func registerExperimentControl(st *state.Store, s *session.Sim, e *experiment) {
 			e.mu.Unlock()
 			return nil, fmt.Errorf("experiment.start needs at least one sender")
 		}
+		// Before the run, not in a log afterwards: a cell whose settings did
+		// not apply compares two configurations that were the same.
+		if why := s.RefuseUnprovisionable(e.Arms, s.Nodes()); why != "" {
+			e.mu.Unlock()
+			return nil, fmt.Errorf("refused: %s", why)
+		}
 		// Refused rather than started alongside the last run's tail. Waiting
 		// here is not open to us, and starting anyway is what raced stale cells
 		// into a new run's table.

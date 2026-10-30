@@ -69,7 +69,7 @@ export class Firmware {
    *  answers. */
   async update(build, {
     board = "", role = "", label, newRole, newBoard,
-    coprocAtReset, cardRequired, notes,
+    coprocAtReset, cardRequired, dialect, notes,
   } = {}) {
     const p = buildID(build, { board, role });
     if (label !== undefined) p.label = label;
@@ -77,6 +77,7 @@ export class Firmware {
     if (newBoard !== undefined) p.new_board = newBoard;
     if (coprocAtReset !== undefined) p.coproc_at_reset = coprocAtReset;
     if (cardRequired !== undefined) p.card_required = cardRequired;
+    if (dialect !== undefined) p.dialect = dialect;
     if (notes !== undefined) p.notes = notes;
     const moved = (await this._wb.call("firmware.update", p)) || {};
     // Read back under whatever it is called now, which is not what it was

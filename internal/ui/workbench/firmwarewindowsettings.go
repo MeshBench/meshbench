@@ -62,9 +62,32 @@ func (p *firmwareWindowPanel) howItRuns(t *theme.Theme, gtx layout.Context,
 						"cards."))
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return p.console.LayoutSwitch(t, gtx)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: t.Sp.XS, Bottom: t.Sp.S}.Layout(gtx,
+				comp.Text(t, t.Sz.Caption, t.P.Faint,
+					"Provisioning, and any setting an experiment pins, is MeshCore's "+
+						"command line typed at the node. Off, a node running this build "+
+						"is sent none of it, and an arm that would pin a setting onto it "+
+						"is refused before the run rather than applying nothing."))
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return p.notes.Layout(t, gtx)
 		}),
 	)
+}
+
+// dialectWanted is what the console switch asks for: MeshCore's own, or
+// whatever other vocabulary the build already declared, or "none".
+func (p *firmwareWindowPanel) dialectWanted(r state.FirmwareRow) string {
+	if p.console.Bool.Value {
+		return firmware.DialectMeshCore
+	}
+	if !r.Settings.SpeaksMeshCore() {
+		return r.Settings.Dialect
+	}
+	return "none"
 }
 
 // facts is where the build actually is and what it actually contains.
@@ -164,6 +187,7 @@ func (p *firmwareWindowPanel) changed(r state.FirmwareRow) bool {
 	return p.renaming(r) ||
 		p.coproc.Bool.Value != r.Settings.CoprocAtReset ||
 		p.card.Bool.Value != r.Settings.CardRequired ||
+		p.console.Bool.Value != r.Settings.SpeaksMeshCore() ||
 		comp.FieldText(&p.notes) != r.Settings.Notes
 }
 
@@ -183,6 +207,7 @@ func (p *firmwareWindowPanel) act(gtx layout.Context, r state.FirmwareRow) {
 			"label": name, "new_role": p.roleWant, "new_board": p.boardWant,
 			"coproc_at_reset": p.coproc.Bool.Value,
 			"card_required":   p.card.Bool.Value,
+			"dialect":         p.dialectWanted(r),
 			"notes":           comp.FieldText(&p.notes),
 		}
 		// A board of "" is the host build, and an absent new_board means
