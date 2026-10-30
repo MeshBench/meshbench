@@ -47,6 +47,11 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **The compact macOS build carries the chip model and Renode's support
+  files.** Both were added after the compact image was cut, so a compact Mac
+  build could start no emulated board at all, and after fetching Renode still
+  no nRF52 one. They now go in first, and the compact tree is checked by
+  `verify-bundle.sh` like the other platforms' are.
 - **A board's cached capability row names the emulator it ran under.** On a
   machine with both emulators set up, every nRF52 row was stamped with QEMU's
   binary, so upgrading Renode retired none of them and upgrading QEMU retired

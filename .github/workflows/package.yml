@@ -392,6 +392,8 @@ jobs:
         with: { go-version: '1.27' }
 
       - name: Build the bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -e
           VERSION="${{ inputs.version }}"
@@ -402,12 +404,48 @@ jobs:
             esac
           fi
           packaging/macos-app.sh "$VERSION"
+          . packaging/emulator-pins.env
+          APP=$(ls -d dist/macos/*.app | head -1)
+          # What the compact build carries beside the binary, in before it is
+          # cut, as on Linux and Windows. These used to arrive with the
+          # emulators in the next step, after the compact image had been made,
+          # so a compact Mac build could fetch Renode and still start no nRF52
+          # board (no renode-support), and could start no board at all (no
+          # chip model).
+          #
+          # The chip model. A real file rather than a link: it is small and
+          # resolves nothing from its own path.
+          tools/fetch-release-asset.sh MeshBench/virtual-sx1262 "$CHIPMODEL_RELEASE" \
+            "/$CHIPMODEL_ASSET_DARWIN_ARM64\$" "$APP/Contents/MacOS"
+          tar xzf "$APP/Contents/MacOS/$CHIPMODEL_ASSET_DARWIN_ARM64" -C "$APP/Contents/MacOS"
+          mv "$APP/Contents/MacOS/virtual-sx1262-macos-arm64/lib/libvirtualsx1262.dylib" \
+            "$APP/Contents/MacOS/"
+          rm -rf "$APP/Contents/MacOS/virtual-sx1262-macos-arm64" \
+            "$APP/Contents/MacOS/$CHIPMODEL_ASSET_DARWIN_ARM64"
+          # Renode's platform descriptions and our own peripherals, beside the
+          # binary where SupportDir looks first. Without them a build that has
+          # Renode can start an ESP32 board and not an nRF52 one.
+          mkdir -p "$APP/Contents/MacOS/renode-support/peripherals"
+          cp tools/renode/*.repl "$APP/Contents/MacOS/renode-support/"
+          cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
+            "$APP/Contents/MacOS/renode-support/peripherals/"
+          # The Wireshark dissectors, beside the binary where capture.wireshark
+          # looks for them. They are Lua that Wireshark loads at run time rather
+          # than anything linked in, so they have to travel as files: without
+          # them the verb still streams frames and Wireshark still opens, on
+          # undissected UDP, which reads as a broken capture rather than as two
+          # missing scripts.
+          mkdir -p "$APP/Contents/MacOS/tools/dissector"
+          cp tools/dissector/meshbench.lua tools/dissector/meshcore_dissector.lua \
+            "$APP/Contents/MacOS/tools/dissector/"
           # The application on its own is the compact variant, and right now
           # that is exactly what this tree is - the emulators arrive in the
-          # next step. Cutting the image here is the whole of the second
-          # packaging pass on this platform.
-          APP=$(ls -d dist/macos/*.app | head -1)
+          # next step. Checked against what a compact build must carry, signed
+          # again because files were added after macos-app.sh signed it, then
+          # cut.
           echo compact > "$APP/Contents/MacOS/VARIANT"
+          packaging/verify-bundle.sh "$APP/Contents/MacOS" darwin-arm64
+          codesign --force --deep --sign - "$APP"
           packaging/macos-dmg.sh "$VERSION" dist/macos "dist/MeshBench-arm64-compact.dmg"
           ls -la dist/*.dmg
 
@@ -459,31 +497,8 @@ jobs:
             find "$EMU" -maxdepth 3 | head -30
             exit 1
           fi
-          # The chip model. A real file rather than a link: it is small and
-          # resolves nothing from its own path.
-          tools/fetch-release-asset.sh MeshBench/virtual-sx1262 "$CHIPMODEL_RELEASE" \
-            "/$CHIPMODEL_ASSET_DARWIN_ARM64\$" "$APP/Contents/MacOS"
-          tar xzf "$APP/Contents/MacOS/$CHIPMODEL_ASSET_DARWIN_ARM64" -C "$APP/Contents/MacOS"
-          mv "$APP/Contents/MacOS/virtual-sx1262-macos-arm64/lib/libvirtualsx1262.dylib" \
-            "$APP/Contents/MacOS/"
-          rm -rf "$APP/Contents/MacOS/virtual-sx1262-macos-arm64" \
-            "$APP/Contents/MacOS/$CHIPMODEL_ASSET_DARWIN_ARM64"
-          # Renode's platform descriptions and our own peripherals, beside the
-          # binary where SupportDir looks first. Without them this bundle can
-          # start an ESP32 board and not an nRF52 one.
-          mkdir -p "$APP/Contents/MacOS/renode-support/peripherals"
-          cp tools/renode/*.repl "$APP/Contents/MacOS/renode-support/"
-          cp tools/renode/peripherals/*.cs tools/renode/peripherals/*.repl \
-            "$APP/Contents/MacOS/renode-support/peripherals/"
-          # The Wireshark dissectors, beside the binary where capture.wireshark
-          # looks for them. They are Lua that Wireshark loads at run time rather
-          # than anything linked in, so they have to travel as files: without
-          # them the verb still streams frames and Wireshark still opens, on
-          # undissected UDP, which reads as a broken capture rather than as two
-          # missing scripts.
-          mkdir -p "$APP/Contents/MacOS/tools/dissector"
-          cp tools/dissector/meshbench.lua tools/dissector/meshcore_dissector.lua \
-            "$APP/Contents/MacOS/tools/dissector/"
+          # The chip model, renode-support and the dissectors are already
+          # here: they went in before the compact image was cut.
           # This tree stopped being the compact one the moment the emulators
           # landed in it, so it has to say so before anything reads the label.
           # verify-bundle checks a tree against what it claims to be, and with
