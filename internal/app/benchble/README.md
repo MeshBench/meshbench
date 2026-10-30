@@ -19,8 +19,8 @@ BLE it is not: each notification is exactly one frame and each write is
 exactly one frame, which is how MeshCore's own BLE transport and every app
 reading it work. So the node's output is deframed and sent one frame per
 notification, and each write is framed before it goes to the node. A client
-should negotiate an MTU large enough for a whole frame (MeshCIM asks for
-512); BlueZ cuts a notification longer than the MTU.
+should negotiate an MTU large enough for a whole frame (512 is plenty);
+BlueZ cuts a notification longer than the MTU.
 
 Registration verified on elite against a real adapter:
 
@@ -39,8 +39,8 @@ python3 internal/app/benchble/nus_peripheral.py --selftest   # -> selftest OK
 
 ## UUIDs
 
-Taken from MeshCIM's `ble_mesh_transport.dart`, not assumed — the app is the
-authority on what it looks for.
+MeshCore's own, as its firmware advertises them and the companion apps look
+for them.
 
 | | |
 |---|---|
