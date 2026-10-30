@@ -19,6 +19,7 @@
     "had an rf at all."
   ],
   "facade": {
+    "radio.deliver": "node.deliver(frame_hex, as_='ok')",
     "session.describe": "wb.describe()",
     "session.list": "meshbench.sessions()",
     "session.status": "wb.status()",
@@ -404,6 +405,7 @@
       "title": "Serving to real clients",
       "prefixes": [
         "bench",
+        "radio",
         "sdr"
       ]
     },

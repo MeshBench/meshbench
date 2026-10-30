@@ -76,6 +76,9 @@ const (
 	// older than that reads the code as a CRC error and would raise RxDone for
 	// a frame it never locked onto, so the code goes only where this is set.
 	capNoLock = 0x02
+	// capRxFaults is the bit by which it says its chip reads FailedNoCRC,
+	// FailedNextBeforeRead and FailedNextDuringRead (virtual-sx1262 ABI 1.8).
+	capRxFaults = 0x04
 )
 
 // FrameFailure is where a frame the receiver locked onto went wrong, numbered
@@ -94,6 +97,18 @@ const (
 	// chip model withdraws the HeaderValid it raised from the carrier's length,
 	// because that was its stand-in for a header it cannot decode.
 	FailedNoLock FrameFailure = 3
+	// FailedNoCRC is a frame whose header said its payload carries no CRC. The
+	// part checks nothing and raises RxDone alone, so the firmware sees a good
+	// frame unless it reads the header's CRC flag.
+	FailedNoCRC FrameFailure = 4
+	// FailedNextBeforeRead is the next frame's header arriving in continuous
+	// receive after the last frame's RxDone and before the firmware read it:
+	// the chip reports the new length with the old start pointer. A model to
+	// test a driver against, not documented behaviour of the part.
+	FailedNextBeforeRead FrameFailure = 5
+	// FailedNextDuringRead is the same, arriving after the firmware's first
+	// buffer status read.
+	FailedNextDuringRead FrameFailure = 6
 )
 
 // ErrClosed is returned once a bridge has been shut down.
@@ -143,6 +158,8 @@ type Bridge struct {
 	// it does not know, so it is sent only to a node that has asked for it.
 	takesFailed bool
 	takesNoLock bool
+	// takesRxFaults is whether its chip reads failures 4 to 6.
+	takesRxFaults bool
 
 	// done is closed when the bridge is. Anything waiting on the node must
 	// select on it: a node whose process has gone will never ack, and a wait
@@ -310,6 +327,7 @@ func (b *Bridge) read(c net.Conn) {
 				b.stats = st
 				b.takesFailed = n >= 48 && buf[47]&capFrameFailed != 0
 				b.takesNoLock = n >= 48 && buf[47]&capNoLock != 0
+				b.takesRxFaults = n >= 48 && buf[47]&capRxFaults != 0
 				b.mu.Unlock()
 			}
 
@@ -339,6 +357,20 @@ func (b *Bridge) Deliver(frame []byte) error {
 	return nil
 }
 
+// Takes reports whether the node has said its chip reads this failure. Before
+// the first radio stats record nothing is known, and the answer is no.
+func (b *Bridge) Takes(why FrameFailure) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	switch why {
+	case FailedNoLock:
+		return b.takesFailed && b.takesNoLock
+	case FailedNoCRC, FailedNextBeforeRead, FailedNextDuringRead:
+		return b.takesFailed && b.takesRxFaults
+	}
+	return b.takesFailed
+}
+
 // DeliverFailed tells the firmware's chip that a frame it locked onto failed,
 // and where. Nothing is decoded from it; the frame rides along because a CRC
 // failure leaves the corrupt bytes in the chip's buffer, as the part does.
@@ -346,10 +378,7 @@ func (b *Bridge) Deliver(frame []byte) error {
 // A node that has not said it takes the kind is told nothing, which is what it
 // was always told.
 func (b *Bridge) DeliverFailed(frame []byte, why FrameFailure) error {
-	b.mu.Lock()
-	takes := b.takesFailed && (why != FailedNoLock || b.takesNoLock)
-	b.mu.Unlock()
-	if !takes {
+	if !b.Takes(why) {
 		return nil
 	}
 	if err := b.send(kindFrameFailed, append([]byte{byte(why)}, frame...)); err != nil {

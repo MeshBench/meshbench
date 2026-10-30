@@ -3,9 +3,9 @@
 Generated. Run `tools/verbdoc/verbdoc.py` to rewrite it and
 `tools/verbdoc/verbdoc.py --check` to fail when it is stale.
 
-The store registers 260 verbs: 222 a script may call and
+The store registers 261 verbs: 223 a script may call and
 38 the workbench calls on itself, which the socket refuses. Of those,
-260 say what they are for and 0 do not yet; the ones that
+261 say what they are for and 0 do not yet; the ones that
 do not are marked, and what is printed for them is read out of the handler
 rather than said by it.
 
@@ -2522,6 +2522,55 @@ Not made by the test suite: this call needs more than the two-node headless sess
 
 Planned, not written: no client defines `wb.endpoints` yet - the TCP and serial endpoints a node is served on. Call the verb itself in the meantime.
 
+### `radio.deliver`
+
+Hand a node's radio one frame directly, as received or as a chosen kind of failed reception, to test the firmware's receive path without the channel deciding anything.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `node` | string | optional | the node whose radio receives it; it needs firmware running |
+| `hex` | string | optional | the frame, header first, as hex digits |
+| `as` | string | optional | ok (the default), crc_error, header_error, no_crc (the header said the payload has no CRC), next_before_read or next_during_read (the next frame's header arriving in continuous receive before or during the firmware's read of this one) |
+
+**Answers** `node`, `as`, `bytes`, `delivered`. `delivered` is false when the node has no firmware or its chip does not read that kind, which is an answer rather than a refusal. The next_* kinds need a frame already received and not yet read, so they follow an ok delivery.
+
+**Example** - a frame whose header said it carries no CRC
+
+```json
+{"id":1,"method":"radio.deliver","params":{"as":"no_crc","hex":"1500348b2db7","node":"West Lomond"}}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `node.deliver(frame_hex, as_='ok')`
+
+### `radio.preset`
+
+Put the nodes on one of the community's agreed modem settings, which decides sensitivity and airtime and therefore every number downstream of them, or list the settings there are to choose from.
+
+**Takes**
+
+| parameter | type | | what |
+|---|---|---|---|
+| `preset` | string | optional, primary | the preset's label, exactly as it is listed; a label no preset has is refused, and absent lists the labels instead of changing anything |
+| `node` | string | optional | one node to move, named rather than passed bare; absent moves every node in the network |
+
+**Answers** `preset`, `nodes`. `nodes` is how many were moved, and zero is the answer where `node` named nobody. Called with no preset at all it answers instead with `presets`, the labels available. The frequency is part of a preset, so a change rebuilds the engine and remeasures every link on a worker.
+
+**Example** - put the whole network on the settings its neighbours use
+
+```json
+{"id":1,"method":"radio.preset","params":"EU/UK (Narrow)"}
+```
+
+Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
+
+**Client** `wb.radio.presets  /  wb.radio.apply(preset, node=)`
+
+Planned, not written: no client defines `wb.radio` yet - the preset list and applying one. Call the verb itself in the meantime.
+
 ### `sdr.serve`
 
 Offer what one node's antenna hears as an rtl_tcp source, so real SDR software can be pointed at the simulated spectrum rather than at a drawing of it.
@@ -3954,31 +4003,6 @@ Name every building pull already on this disk, so moving between environments is
 **Client** `wb.rf.environments`
 
 Planned, not written: no client defines `wb.rf` yet - the radio model: which physics, what realism, how much excess loss. Call the verb itself in the meantime.
-
-### `radio.preset`
-
-Put the nodes on one of the community's agreed modem settings, which decides sensitivity and airtime and therefore every number downstream of them, or list the settings there are to choose from.
-
-**Takes**
-
-| parameter | type | | what |
-|---|---|---|---|
-| `preset` | string | optional, primary | the preset's label, exactly as it is listed; a label no preset has is refused, and absent lists the labels instead of changing anything |
-| `node` | string | optional | one node to move, named rather than passed bare; absent moves every node in the network |
-
-**Answers** `preset`, `nodes`. `nodes` is how many were moved, and zero is the answer where `node` named nobody. Called with no preset at all it answers instead with `presets`, the labels available. The frequency is part of a preset, so a change rebuilds the engine and remeasures every link on a worker.
-
-**Example** - put the whole network on the settings its neighbours use
-
-```json
-{"id":1,"method":"radio.preset","params":"EU/UK (Narrow)"}
-```
-
-Not made by the test suite: this call needs more than the two-node headless session the runnable examples go to.
-
-**Client** `wb.radio.presets  /  wb.radio.apply(preset, node=)`
-
-Planned, not written: no client defines `wb.radio` yet - the preset list and applying one. Call the verb itself in the meantime.
 
 ### `rf.environment`
 

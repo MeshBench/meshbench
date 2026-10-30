@@ -123,7 +123,12 @@ func Detect(goos, exe, appImage string) Artefact {
 	if strings.HasPrefix(filepath.ToSlash(exe), "/usr/") {
 		return Deb
 	}
-	if exe != "" && besideBinary(exe, "radioserver") {
+	// The tarball is told by what packaging puts beside the binary: VARIANT,
+	// which every packaged tree carries and a build from source does not.
+	// This looked for radioserver, which the tarball stopped shipping when the
+	// chip became a library, so every tarball install read as unpackaged and
+	// was handed the generic instruction rather than its own (#447).
+	if exe != "" && (besideBinary(exe, variantFile) || besideBinary(exe, "radioserver")) {
 		return Tarball
 	}
 	return Loose

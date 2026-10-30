@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/MeshBench/meshbench/internal/app/session"
@@ -70,7 +72,17 @@ func runHeadless(ctx context.Context, args []string) error {
 	defer func() { _ = srv.Close() }()
 
 	if !*quiet {
-		go echoStatus(ctx, st)
+		echoed := make(chan struct{})
+		go func() {
+			echoStatus(ctx, st)
+			close(echoed)
+		}()
+		// The last lines said are the ones most worth reading, so the echo
+		// is let finish before the process goes.
+		defer func() {
+			cancel()
+			<-echoed
+		}()
 	}
 	fmt.Fprintln(os.Stderr, "meshbench", version.Detail(), "headless")
 
@@ -139,25 +151,66 @@ func runHeadless(ctx context.Context, args []string) error {
 // because the snapshot never blocks a verb - and a log that could delay the
 // thing it is logging is worse than no log.
 //
-// By the sentence, not by the sequence number. Status is the last line said
-// and stays said; the sequence moves on every publish, which for a playing run
-// is every tick. Keying on it printed "running to 2.0 s" seventeen times for
-// one command.
+// By the line, not by the sequence number: the sequence moves on every
+// publish, which for a playing run is every tick, and keying on it printed
+// "running to 2.0 s" seventeen times. Each line of the log is printed once.
 func echoStatus(ctx context.Context, st *state.Store) {
 	t := time.NewTicker(100 * time.Millisecond)
 	defer t.Stop()
-	last := ""
+	// Every line said, not the latest one at each look. Echoing Status alone
+	// dropped all but the last of several lines said between two looks, and a
+	// line said just before the process exited - which is how a failed
+	// update check left nothing at all in the log (#447).
+	var last string
+	echo := func() {
+		s := st.Snapshot()
+		if s == nil {
+			return
+		}
+		lines := s.FullLog
+		from := 0
+		if last != "" {
+			from = len(lines)
+			for i := len(lines) - 1; i >= 0; i-- {
+				if lines[i] == last {
+					from = i + 1
+					break
+				}
+			}
+		}
+		for _, l := range lines[from:] {
+			fmt.Fprintln(os.Stderr, echoLine(l))
+		}
+		if len(lines) > 0 {
+			last = lines[len(lines)-1]
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
+			echo()
 			return
 		case <-t.C:
-			s := st.Snapshot()
-			if s == nil || s.Status == "" || s.Status == last {
-				continue
-			}
-			last = s.Status
-			fmt.Fprintf(os.Stderr, "%8.2fs  %s\n", float64(s.NowMs)/1000, s.Status)
+			echo()
 		}
 	}
+}
+
+// echoLine turns a log line, "15:04:05.000  t=   1.234s  message", into the
+// shape headless has always echoed: the simulated time, then the message.
+func echoLine(l string) string {
+	i := strings.Index(l, "t=")
+	if i < 0 {
+		return l
+	}
+	rest := strings.TrimLeft(l[i+2:], " ")
+	j := strings.Index(rest, "s  ")
+	if j < 0 {
+		return l
+	}
+	secs, err := strconv.ParseFloat(rest[:j], 64)
+	if err != nil {
+		return l
+	}
+	return fmt.Sprintf("%8.2fs  %s", secs, rest[j+3:])
 }

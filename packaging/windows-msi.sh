@@ -1,43 +1,48 @@
 #!/usr/bin/env bash
-# Build the Windows installer from an assembled bundle, on Linux.
+# Get a Windows installer ready to build: everything the WiX step needs that is
+# made from the repository rather than harvested from the staged tree.
 #
-#   packaging/windows-msi.sh <bundle-dir> <version> <output.msi>
+#   packaging/windows-msi.sh <stage-dir> <version> <extra-dir>
 #
-# <bundle-dir> is the directory meshbench.exe sits in, the same one the zip is
-# made from, and everything in it goes into the installer. That is the point:
-# the emulators and the SX1262 model are found beside the binary, so an
-# installer that carried the binary alone would produce a build that cannot
-# emulate a board and cannot say why.
+# The installer itself is built by the WiX toolset, on Windows, by
+# packaging/windows-msi.ps1. WiX cannot build an MSI anywhere else: it needs
+# Windows' own msi.dll to write the database, and on Linux it dies on
+# "Unable to load shared library 'msi.dll'" after refusing every
+# Directory/@Name (#508). wixl, which does run here, builds no dialogs. So the
+# work is split: this half runs on Linux with the tools that only Linux has
+# (icotool, Pillow), the build runs on a Windows runner, and verify-msi.sh
+# reads the result back on Linux with msitools.
 #
-# No Windows runner. wixl reads the WiX source and writes the .msi here, beside
-# the mingw cross-build that produced the .exe. What that costs is the
-# installer's user interface: wixl builds no dialogs, so msiexec shows a
-# progress bar and takes its answers from the command line instead. Those
-# answers - a location, per-user, a desktop shortcut - are written out for
-# somebody installing this in docs/install.md.
+# What lands in <extra-dir>: the icon, the two dialog bitmaps, the note the
+# installer adds beside the binary, and msi.env, which carries the version the
+# MSI is stamped with, the product and upgrade codes, and how many files the
+# stage holds here. The check uses the count windows-msi.ps1 takes of the tree
+# WiX actually harvested instead, because the tree crosses to the Windows
+# runner as an artifact and the emulators' symlinks arrive as the files they
+# point at - a count taken on this side came out short.
 set -euo pipefail
 
 stage=${1:?the directory meshbench.exe sits in}
 version=${2:?the release version}
-out=${3:?the .msi to write}
+extra=${3:?the directory to write into}
 
 here=$(cd "$(dirname "$0")" && pwd)
 
 missing=""
-for t in wixl wixl-heat msiinfo msibuild icotool python3; do
+for t in icotool python3; do
   command -v "$t" >/dev/null || missing="$missing $t"
 done
 if [ -n "$missing" ]; then
-  echo "::error::windows-msi: missing:$missing - wixl and wixl-heat are the" \
-       "'wixl' package on Debian and Ubuntu rather than 'msitools', which is" \
-       "where msiinfo lives; icotool is 'icoutils'" >&2
+  echo "::error::windows-msi: missing:$missing - icotool is 'icoutils'" >&2
   exit 1
 fi
+# The dialog bitmaps are composed with Pillow, which python3 does not carry by
+# itself. Checked here rather than met as a traceback minutes into a release.
+python3 -c 'import PIL' 2>/dev/null || {
+  echo "::error::windows-msi: python3 cannot import PIL - install python3-pil" >&2
+  exit 1
+}
 
-# Windows Installer compares three numeric fields and ignores anything after
-# them, so a development version has no version to compare and is given the
-# lowest one. Every real release is a plain X.Y.Z and passes through.
-msiversion=$version
 # A development build's suffix is not an MSI version, but its base is: the
 # pre-release of 0.0.11 installs as 0.0.11, so the MSI ordering it takes part
 # in is the one the tag means. A version that is not X.Y.Z at all is 0.0.0.
@@ -55,76 +60,26 @@ import uuid, sys
 print(uuid.uuid5(uuid.UUID('$upgrade'), sys.argv[1]).urn[9:].upper())
 " "$msiversion")
 
-# wixl reads every File Source relative to the directory it is run from, and
-# hands an absolute one to g_file_get_child, which rejects it with a GLib
-# assertion and then says it cannot find the file. So the two source trees are
-# linked into one working directory and named relatively from there.
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
-extra=$work/extra
 mkdir -p "$extra"
-ln -s "$(cd "$stage" && pwd)" "$work/stage"
-out=$(cd "$(dirname "$out")" && pwd)/$(basename "$out")
-
 # Windows wants one icon file holding every size, the way macOS wants one
-# .icns. Built here from the committed PNGs for the same reason macos-app.sh
-# builds the .icns there: one set of source images, and no second copy of the
-# mark to go stale.
+# .icns, built from the committed PNGs so there is no second copy of the mark.
 icotool -c -o "$extra/meshbench.ico" \
   "$here/icons/meshbench-16.png" "$here/icons/meshbench-32.png" \
   "$here/icons/meshbench-48.png" "$here/icons/meshbench-64.png" \
   "$here/icons/meshbench-128.png" "$here/icons/meshbench-256.png"
-
+# The two bitmaps the dialogs are drawn on; see dialog-bitmaps.py.
+python3 "$here/dialog-bitmaps.py" \
+  "$here/../docs/brand/meshbench-card.png" \
+  "$here/icons/meshbench-256.png" \
+  "$extra"
 sed "s/<version>/$version/" "$here/installed-by-msi.txt" \
   > "$extra/installed-by-msi.txt"
 
-# Everything in the bundle, as components. Sorted, so the source that goes
-# into a build is the same from one run to the next and a diff of two builds
-# is about what changed rather than about what order find walked in.
-(cd "$stage" && find . -type f | sed 's|^\./||' | LC_ALL=C sort) |
-  wixl-heat --var var.Stage --directory-ref INSTALLDIR \
-    --component-group Bundle --prefix "" --win64 > "$work/bundle.wxs"
-
-files=$(grep -c '<File ' "$work/bundle.wxs")
-echo "windows-msi: $files files from $stage"
-
-# wixl-heat names each directory with a fresh random id every run, and wixl
-# derives each component's GUID from that, so the same tree built twice comes
-# out as two different installers. Renumbered here in the order they appear -
-# which the sorted harvest above makes stable - so a rebuild of a version
-# produces the same package, and two builds can be compared for what actually
-# changed. Only the directory ids are touched; the component and file ids are
-# already hashes of the paths.
-python3 - "$work/bundle.wxs" <<'PY'
-import re
-import sys
-
-path = sys.argv[1]
-seen = {}
-def stable(m):
-    return seen.setdefault(m.group(0), "dir%04d" % (len(seen) + 1))
-with open(path) as f:
-    src = f.read()
-with open(path, "w") as f:
-    f.write(re.sub(r"dir[0-9A-F]{32}", stable, src))
-PY
-
-(cd "$work" && wixl -a x64 -o "$out" \
-  -D "ProductCode=$product" -D "Version=$msiversion" \
-  -D Stage=stage -D Extra=extra -D Win64=yes \
-  "$here/meshbench.wxs" bundle.wxs)
-
-# A public property set on the msiexec command line does not survive the
-# elevation a per-machine install goes through unless SecureCustomProperties
-# names it, and INSTALLDIR is the one this package offers. wixl writes that row
-# itself, for the upgrade properties, and refuses a second row with the same
-# key - so the row it wrote is extended here rather than authored in the .wxs.
-# tr, because msiinfo writes the IDT form with DOS line endings and a carriage
-# return would ride into the property Windows then reads.
-secure=$(msiinfo export "$out" Property | tr -d '\r' |
-  awk -F'\t' '$1 == "SecureCustomProperties" { print $2 }')
-msibuild "$out" -q "UPDATE \`Property\` SET \`Value\`='$secure;INSTALLDIR;MSIINSTALLPERUSER'
-  WHERE \`Property\`='SecureCustomProperties'"
-
-# Plus the note, which is the one file the installer adds to the bundle.
-"$here/verify-msi.sh" "$out" "$msiversion" "$upgrade" "$((files + 1))"
+files=$(find "$stage" -type f | wc -l)
+cat > "$extra/msi.env" <<ENV
+MSIVERSION=$msiversion
+PRODUCT=$product
+UPGRADE=$upgrade
+FILES=$files
+ENV
+echo "windows-msi: $files files from $stage, MSI version $msiversion"

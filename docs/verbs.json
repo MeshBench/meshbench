@@ -4244,6 +4244,41 @@
         "runnable": true
       }
     },
+    "radio.deliver": {
+      "what": "hand a node's radio one frame directly, as received or as a chosen kind of failed reception, to test the firmware's receive path without the channel deciding anything",
+      "params": [
+        {
+          "name": "node",
+          "type": "string",
+          "what": "the node whose radio receives it; it needs firmware running"
+        },
+        {
+          "name": "hex",
+          "type": "string",
+          "what": "the frame, header first, as hex digits"
+        },
+        {
+          "name": "as",
+          "type": "string",
+          "what": "ok (the default), crc_error, header_error, no_crc (the header said the payload has no CRC), next_before_read or next_during_read (the next frame's header arriving in continuous receive before or during the firmware's read of this one)"
+        }
+      ],
+      "returns": [
+        "node",
+        "as",
+        "bytes",
+        "delivered"
+      ],
+      "answers": "`delivered` is false when the node has no firmware or its chip does not read that kind, which is an answer rather than a refusal. The next_* kinds need a frame already received and not yet read, so they follow an ok delivery.",
+      "example": {
+        "params": {
+          "as": "no_crc",
+          "hex": "1500348b2db7",
+          "node": "West Lomond"
+        },
+        "what": "a frame whose header said it carries no CRC"
+      }
+    },
     "radio.preset": {
       "what": "put the nodes on one of the community's agreed modem settings, which decides sensitivity and airtime and therefore every number downstream of them, or list the settings there are to choose from",
       "params": [
