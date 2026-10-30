@@ -27,6 +27,7 @@ had changed in them - which is the gap this file exists to close.
   another "has the console" and showed nothing until typed at; each window now
   follows its own node live, up to twelve at once, and one opened before the
   run fills in when its node boots.
+
 ### Fixed
 
 - **A Heltec V4's console answers.** Its MeshCore build puts Serial on the
