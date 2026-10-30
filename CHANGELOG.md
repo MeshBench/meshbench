@@ -21,6 +21,12 @@ had changed in them - which is the gap this file exists to close.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A Heltec V4's console answers.** Its MeshCore build puts Serial on the
+  ESP32-S3's USB port, and the board was wired to UART0, so typed commands
+  went nowhere and nothing after the ROM banner was printed.
+
 ## [0.4.0] - 2026-10-30
 
 Driving firmware from outside, and more boards running under emulation. A

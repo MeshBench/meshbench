@@ -16,8 +16,11 @@ var heltecV4Board = Board{
 	// megabytes of it, where the S3 boards around it carry eight octal.
 	QEMU: &QEMUWiring{
 		Machine: "esp32s3", SPI: 3, NSS: 8, Busy: 13, DIO1: 14, LED: 35,
-		PSRAMMB:  2,
-		Verified: true,
+		PSRAMMB: 2,
+		// Serial is the USB port on this board: its MeshCore variant is
+		// built with ARDUINO_USB_CDC_ON_BOOT.
+		ConsoleOnUSB: true,
+		Verified:     true,
 	},
 	// The V3's panel exactly: same controller, same address, same pins.
 	Hardware: &Panel{
