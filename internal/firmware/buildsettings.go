@@ -48,8 +48,7 @@ type BuildSettings struct {
 	// "meshcore" for MeshCore's own commands, "none" for a firmware with no
 	// command line, or the name of another. Provisioning speaks MeshCore's,
 	// so a node running anything else is not sent it - every line would be
-	// refused, and a setting an experiment pinned would silently not apply
-	// (#599).
+	// refused, and a setting an experiment pinned would silently not apply.
 	Dialect string `json:"dialect,omitempty"`
 
 	// Notes is whatever the person who imported it wanted the next person to

@@ -1,4 +1,4 @@
-// Which firmware takes MeshCore's console commands (#599).
+// Which firmware takes MeshCore's console commands.
 //
 // Provisioning, and every setting an experiment arm pins, is a run of MeshCore
 // CLI lines typed at a node's console. A firmware that is not MeshCore refuses
@@ -25,7 +25,8 @@ func dialectOf(n scenario.Node, installed []firmware.Installed) string {
 		return ""
 	}
 	for _, in := range installed {
-		if in.Board == n.Firmware.Board && in.Version == n.Firmware.Version {
+		if in.Board == n.Firmware.Board && in.Version == n.Firmware.Version &&
+			sameRole(in.Role, string(n.Firmware.Role)) {
 			if set := firmware.LoadBuildSettings(in.Path); !set.SpeaksMeshCore() {
 				return set.Dialect
 			}
@@ -33,6 +34,15 @@ func dialectOf(n scenario.Node, installed []firmware.Installed) string {
 		}
 	}
 	return ""
+}
+
+// sameRole matches an installed image to the role a node names, as the engine
+// does when it boots one: the role itself, or that role plus the transport a
+// published companion carries. Matching on board and version alone took a
+// repeater and a companion image of one version for each other, and each has
+// its own settings.
+func sameRole(installed, node string) bool {
+	return node == "" || installed == node || strings.HasPrefix(installed, node+"_")
 }
 
 // withDialect is a node's provisioning script, or in place of it one line

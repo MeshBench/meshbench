@@ -35,7 +35,7 @@ func deckWith(t *testing.T, version, dialect string) scenario.Node {
 }
 
 // A node whose build does not speak MeshCore's console is told why it is sent
-// nothing, rather than sent lines it refuses (#599).
+// nothing, rather than sent lines it refuses.
 func TestAFirmwareThatIsNotMeshCoreIsNotProvisioned(t *testing.T) {
 	n := deckWith(t, "wadamesh", "wadamesh")
 	got := (&Sim{}).provisionLines(n)
@@ -50,7 +50,7 @@ func TestAFirmwareThatIsNotMeshCoreIsNotProvisioned(t *testing.T) {
 }
 
 // An arm that pins a setting onto such a node is refused before the run; an
-// arm that only chooses builds is not (#599).
+// arm that only chooses builds is not.
 func TestAnArmPinningSettingsOntoForeignFirmwareIsRefused(t *testing.T) {
 	n := deckWith(t, "wadamesh", "none")
 	s := &Sim{}
@@ -61,5 +61,28 @@ func TestAnArmPinningSettingsOntoForeignFirmwareIsRefused(t *testing.T) {
 	}
 	if why := s.RefuseUnprovisionable([]ExpArm{{Label: "builds", RepeaterVersion: "v1.17.1"}}, []scenario.Node{n}); why != "" {
 		t.Errorf("an arm pinning no settings was refused: %q", why)
+	}
+}
+
+// Settings belong to one image, so a repeater of the same version on the same
+// board is not taken for the companion that declared a dialect.
+func TestADialectBelongsToItsOwnRole(t *testing.T) {
+	deck := deckWith(t, "wadamesh", "wadamesh")
+	if d := dialectOf(deck, firmware.ListInstalled(firmware.DefaultCacheDir())); d != "wadamesh" {
+		t.Fatalf("the companion itself: %q", d)
+	}
+	dir := filepath.Join(firmware.DefaultCacheDir(), "board", "LilyGo_TDeck")
+	if err := os.WriteFile(filepath.Join(dir, "simple_repeater@wadamesh.bin"), make([]byte, 64), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rep := deck
+	rep.Kind, rep.Firmware.Role = scenario.SimpleRepeater, scenario.RoleSimpleRepeater
+	if d := dialectOf(rep, firmware.ListInstalled(firmware.DefaultCacheDir())); d != "" {
+		t.Errorf("a repeater image with no settings of its own was given the companion's: %q", d)
+	}
+	generic := deck
+	generic.Firmware.Role = "companion_radio"
+	if d := dialectOf(generic, firmware.ListInstalled(firmware.DefaultCacheDir())); d != "wadamesh" {
+		t.Errorf("a node naming the role without its transport: %q", d)
 	}
 }
