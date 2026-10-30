@@ -1,6 +1,9 @@
 package emulated
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 // qemuGDBArgs starts QEMU's GDB stub, on loopback only: a stub is the whole
 // machine, memory and registers, to anything that reaches the port.
@@ -22,6 +25,21 @@ func (e *EmulatedNode) qemuGDBArgs() []string {
 // reset, the machine is not started here at all: the stub's autostart starts
 // it when a debugger connects and continues.
 func (e *EmulatedNode) renodeStart() string {
+	if os.Getenv(EnvRenodeLockstep) == "1" {
+		// Idle time skipped rather than waited out on the host clock: in
+		// lockstep the engine is the clock, and a sleeping CPU waiting for
+		// wall time would hold every tick to real time. And Renode's own
+		// random numbers - what the nRF52's RNG peripheral answers, which
+		// MeshCore draws its jitter from - seeded from the node rather than
+		// afresh each run.
+		seed := noiseSeedFor(e.RunSeed, e.NodeName, e.BoardName, e.Position)
+		return fmt.Sprintf("emulation SetSeed %d\nemulation SetAdvanceImmediately true\n%s",
+			int32(seed), e.renodeStartFree())
+	}
+	return e.renodeStartFree()
+}
+
+func (e *EmulatedNode) renodeStartFree() string {
 	if e.GDBPort <= 0 {
 		return "start\n"
 	}

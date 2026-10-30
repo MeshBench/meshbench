@@ -124,6 +124,11 @@ machine LoadPlatformDescription @%[1]s/usbd.repl
 	return script, nil
 }
 
+// EnvRenodeLockstep runs a Renode board from the engine's ticks, a millisecond
+// of virtual time per millisecond asked for, rather than letting it run free
+// on the host clock.
+const EnvRenodeLockstep = "MESHBENCH_RENODE_LOCKSTEP"
+
 // startRenode boots this node's script, and holds its console open.
 func (e *EmulatedNode) startRenode(ctx context.Context, bridge string) error {
 	renodeBin, err := lookupTool("renode")
