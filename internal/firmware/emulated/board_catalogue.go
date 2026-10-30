@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MeshBench/meshbench/internal/firmware"
 )
@@ -386,9 +388,31 @@ func (c *BoardCatalogue) get(ctx context.Context, url, accept string) (io.ReadCl
 	}
 	if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
+		if limited := rateLimited(resp); limited != "" {
+			return nil, fmt.Errorf("%s returned %s: %s", url, resp.Status, limited)
+		}
 		return nil, fmt.Errorf("%s returned %s", url, resp.Status)
 	}
 	return resp.Body, nil
+}
+
+// rateLimited says so when GitHub refused because this address has used its
+// allowance, which reads otherwise as the catalogue being unreachable. Sixty
+// unauthenticated requests an hour is a handful of board probes.
+func rateLimited(resp *http.Response) string {
+	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+		return ""
+	}
+	if resp.Header.Get("X-RateLimit-Remaining") != "0" {
+		return ""
+	}
+	when := ""
+	if reset, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64); err == nil {
+		when = " until " + time.Unix(reset, 0).Format("15:04")
+	}
+	return "GitHub's API allowance for this address is used up" + when +
+		"; set GITHUB_TOKEN (export GITHUB_TOKEN=$(gh auth token)) to raise it. " +
+		"Already-downloaded images keep working without it"
 }
 
 // countingReader reports as it goes, throttled to whole percent so a slow

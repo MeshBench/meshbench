@@ -23,6 +23,9 @@ had changed in them - which is the gap this file exists to close.
 
 ### Added
 
+- **Two more boards emulate.** Heltec E290 and Heltec Wireless Tracker V2
+  passed the board probe against v1.17.1 (build, boot, radio, transmit,
+  receive and flood), so they are offered for emulation.
 - **Script input at an instant of simulated time.** `console.type`,
   `console.cli` and the `companion.*` verbs that write to a node take `at_ms`:
   the call is held and runs when the run reaches that instant, so a script
@@ -52,6 +55,10 @@ had changed in them - which is the gap this file exists to close.
 
 ### Fixed
 
+- **A board probe says when GitHub's rate limit stopped it.** Out of
+  unauthenticated API allowance, it reported that the firmware catalogue
+  could not be reached; it now says the allowance is used up, until when, and
+  that `GITHUB_TOKEN` raises it.
 - **Emulated nRF52 boards keep what they store.** The factory registers never
   said how big the flash was, so the SoftDevice refused every erase and write
   with `NRF_ERROR_FORBIDDEN`: the filesystem could not be formatted, and
