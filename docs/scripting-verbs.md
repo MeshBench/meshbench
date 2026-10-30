@@ -228,9 +228,9 @@ Two verbs are **not** in this table:
 
 | verb | takes | returns | façade |
 |---|---|---|---|
-| `console.cli` | *a bare string*, `node` string, `command` string, `at_ms` number | `node`, `reply`, `failed`, `queued`, `at_ms`, `now_ms` | `node.companion.cli(line)` |
+| `console.cli` | *a bare string*, `node` string, `command` string, `at_ms` number | `node`, `reply`, `failed`, `paused`, `queued`, `at_ms`, `now_ms` | `node.companion.cli(line)` |
 | `console.read` | *a bare string*, `node` string | `node`, `lines`, `tail` | `node.console.read()  /  node.console.tail` |
-| `console.type` | `node` string, `command` string, `at_ms` number | `node`, `sent`, `note`, `queued`, `at_ms`, `now_ms` | `node.console.send(line)` |
+| `console.type` | `node` string, `command` string, `at_ms` number | `node`, `sent`, `note`, `paused`, `queued`, `at_ms`, `now_ms` | `node.console.send(line)` |
 | `fleet.replies` | — | `replies` | *none* — the reply collector, called only by its own goroutine |
 | `fleet.send` | *a bare string*, `command` string, `node` string, `kind` string | `command`, `sent_to`, `replies`, `warning` | `wb.fleet.send(command, kind=\|node=)` - *planned*, no client defines `wb.fleet` yet; call the verb |
 

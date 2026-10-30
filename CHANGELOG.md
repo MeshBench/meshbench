@@ -34,6 +34,11 @@ had changed in them - which is the gap this file exists to close.
 
 ### Changed
 
+- **A console command on a paused run says it is waiting for play.** The
+  firmware answers `OK - Advert sent` whether or not the clock is running, and
+  on a paused run nothing goes on the air until it plays. `console.type` and
+  `console.cli` now add a line under the reply saying so, and return it as
+  `paused`.
 - **The Windows installer asks where to go and says when it has finished.**
   It is built by the WiX toolset again, now on a Windows runner, which is the
   only place WiX can build one: a Destination Folder page with a Change button,

@@ -2078,7 +2078,7 @@ Run one meshcore-cli line at a companion node, which has no text console of its 
 | `command` | string | required | the line, in meshcore-cli's own vocabulary; refused when absent or blank, and `?` lists what this build answers |
 | `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `node`, `reply`, `failed`, `queued`, `at_ms`, `now_ms`. `failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback.
+**Answers** `node`, `reply`, `failed`, `paused`, `queued`, `at_ms`, `now_ms`. `failed` is present and true where the line ran and the answer was no: an unknown command, a command meshcore-cli has that this build does not, or a connect that could not be made. That is not an error, because a console refused at the status bar leaves nothing where it was typed. `reply` is what the console prints either way, and the node's own answer to it arrives later in the scrollback. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.
 
 **Example** - list the meshcore-cli commands this build answers
 
@@ -2122,7 +2122,7 @@ Run a line at a node's own firmware console, which answers what the node says ra
 | `command` | string | required | the line to type, sent with a carriage return and newline after it; refused when it is absent or empty |
 | `at_ms` | number | optional | an instant of simulated time to run this at instead of now: the call is held and runs when the engine reaches it, so it lands at the same instant on any machine. Refused unless it is after now. Without it, a call made while the clock is playing lands wherever the clock happens to be, and sim.state then says the run cannot be reproduced |
 
-**Answers** `node`, `sent`, `note`, `queued`, `at_ms`, `now_ms`. The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty.
+**Answers** `node`, `sent`, `note`, `paused`, `queued`, `at_ms`, `now_ms`. The node's reply is not in this answer: it lands in the scrollback when the engine next steps, and is read with `console.read`. On a paused clock this steps the engine sixty times so the reply arrives anyway, but while a sweep owns the clock the replies come back empty. `paused` is present when the clock is stopped: whatever the command sends is queued and goes on the air when the run plays, and the console says so under the reply.
 
 **Example** - ask a node what it believes it is called
 
