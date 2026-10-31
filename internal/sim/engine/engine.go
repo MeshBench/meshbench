@@ -193,6 +193,9 @@ type Engine struct {
 	// every tick. firmwareNewlyDown is the subset a caller has not yet been
 	// told about; FirmwareFailures drains it.
 	firmwareDown map[string]bool
+	// firmwareAt is the instant the firmware was last advanced to, so each
+	// frame's start is announced once.
+	firmwareAt uint32
 	// debug is which nodes are being debugged, and held which of them a
 	// debugger is holding, at the tick they did not answer. See debug.go.
 	debug             map[string]Debug

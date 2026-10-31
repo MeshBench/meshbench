@@ -64,8 +64,17 @@ func (e *Engine) runFirmware(ctx context.Context, now uint32) error {
 	// instead of the sum — the difference between a 300-node scenario stepping
 	// and a 300-node scenario saturating the machine.
 	busy := e.channelBusy(now)
+	e.mu.Lock()
+	since := e.firmwareAt
+	e.firmwareAt = now
+	e.mu.Unlock()
+	starts := e.framesStarting(since, now)
 	sent := make([]ticked, 0, len(targets))
 	for _, t := range targets {
+		if err := e.announceStarts(t, now, starts[t.i]); err != nil {
+			e.markFirmwareDown(t.name, t.fw, "its radio would not take a frame start: "+err.Error())
+			continue
+		}
 		if e.stillHeld(t) {
 			continue
 		}
@@ -187,4 +196,15 @@ func (e *Engine) FirmwareFailures() []FirmwareFailure {
 	out := e.firmwareNewlyDown
 	e.firmwareNewlyDown = nil
 	return out
+}
+
+// announceStarts tells one node about the frames that began at it since its
+// last tick, each at its start in the node's own clock.
+func (e *Engine) announceStarts(t ticked, now uint32, starts []transmission) error {
+	for _, s := range starts {
+		if err := t.fw.Bridge.FrameStarted(s.startMs+(t.atMs-now), s.frame); err != nil {
+			return err
+		}
+	}
+	return nil
 }

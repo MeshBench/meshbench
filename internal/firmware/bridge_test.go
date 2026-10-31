@@ -358,3 +358,54 @@ func TestConsoleSinkFollowsWhoeverHoldsThePort(t *testing.T) {
 		t.Errorf("the client saw %q, want %q", got, want)
 	}
 }
+
+// A frame start goes only to a node that has said it takes the kind, with its
+// start in front of the bytes: a native bridge built before it ends its
+// connection on a kind it does not know.
+func TestAFrameStartReachesOnlyANodeThatTakesIt(t *testing.T) {
+	b, _ := Listen("127.0.0.1:0", "GB7XYZ")
+	defer func() { _ = b.Close() }()
+	c := fakeRadio(t, b.Addr())
+	defer func() { _ = c.Close() }()
+
+	for i := 0; i < 50 && !b.Attached(); i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := b.FrameStarted(7, []byte{0x11}); err != nil {
+		t.Fatal(err)
+	}
+
+	record := make([]byte, 48)
+	record[47] = capFrameStarted
+	if _, err := c.Write(append([]byte{kindRadioStats, 0, 48}, record...)); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 100; i++ {
+		b.mu.Lock()
+		takes := b.takesFrameStarted
+		b.mu.Unlock()
+		if takes {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := b.FrameStarted(0x01020304, []byte{0x22, 0xBB}); err != nil {
+		t.Fatal(err)
+	}
+
+	var hdr [3]byte
+	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := io.ReadFull(c, hdr[:]); err != nil {
+		t.Fatal(err)
+	}
+	if hdr[0] != kindFrameStarted {
+		t.Fatalf("wrong frame kind 0x%02x, want 0x0b", hdr[0])
+	}
+	buf := make([]byte, binary.BigEndian.Uint16(hdr[1:]))
+	if _, err := io.ReadFull(c, buf); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(buf, []byte{1, 2, 3, 4, 0x22, 0xBB}) {
+		t.Errorf("emulator received % x, want 01 02 03 04 22 bb: the start sent before it said it takes the kind leaked", buf)
+	}
+}

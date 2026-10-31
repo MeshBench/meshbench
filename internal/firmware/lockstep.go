@@ -138,3 +138,21 @@ func (b *Bridge) CaughtUp(atMs uint32) bool {
 		}
 	}
 }
+
+// FrameStarted tells the node a frame's carrier begins here at atMs, its own
+// clock, so its chip can land the frame as it arrives. The frame is still
+// delivered, or not, when it ends. A node that has not said it takes the kind
+// is told nothing, and receives each frame whole as before.
+func (b *Bridge) FrameStarted(atMs uint32, frame []byte) error {
+	b.mu.Lock()
+	takes := b.takesFrameStarted
+	b.mu.Unlock()
+	if !takes {
+		return nil
+	}
+	payload := binary.BigEndian.AppendUint32(make([]byte, 0, 4+len(frame)), atMs)
+	if err := b.send(kindFrameStarted, append(payload, frame...)); err != nil {
+		return fmt.Errorf("firmware: frame start to %s: %w", b.node, err)
+	}
+	return nil
+}
