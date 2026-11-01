@@ -8,14 +8,16 @@
 package engine
 
 // framesStarting is, for every node, the transmissions that began in
-// (since, now] loudly enough to be detected there.
+// [since, now] loudly enough to be detected there. Since is included because
+// a step collects what the firmware sent after running it, so a frame started
+// at the last step's instant is first seen now.
 func (e *Engine) framesStarting(since, now uint32) [][]transmission {
 	e.mu.Lock()
 	nodes := make([]*Node, len(e.nodes))
 	copy(nodes, e.nodes)
 	var starting []transmission
 	for _, t := range e.inFlight {
-		if t.startMs > since && t.startMs <= now {
+		if t.startMs >= since && t.startMs <= now {
 			starting = append(starting, t)
 		}
 	}
