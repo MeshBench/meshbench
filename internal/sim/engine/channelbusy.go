@@ -53,32 +53,36 @@ func (e *Engine) channelBusy(now uint32) []bool {
 		if dst.Firmware == nil {
 			continue
 		}
-		rxPHY := e.phyOf(dst.specRef())
 		for _, t := range air {
-			// A node is deaf to the channel while its own transmitter is keyed,
-			// and it is not listening for itself in any case.
-			if t.from == i {
-				continue
-			}
-			src := nodes[t.from]
-			// Activity on another channel is not activity this node can detect
-			// - the rule delivery already uses. Without it a node would defer
-			// to a mesh it is not part of.
-			txPHY := e.phyOf(src.specRef())
-			if !txPHY.sameChannel(rxPHY) {
-				continue
-			}
-			loss, ok := e.pathLoss(t.from, i)
-			if !ok {
-				continue
-			}
-			rxDBm := e.rxPowerDBm(nodes, t.from, i, loss)
-			noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.specRef()))
-			if rxDBm-noiseDBm >= requiredSNRdB(txPHY.sf) {
+			if e.detects(nodes, t, i) {
 				busy[i] = true
 				break
 			}
 		}
 	}
 	return busy
+}
+
+// detects is whether node i can detect transmission t at all.
+func (e *Engine) detects(nodes []*Node, t transmission, i int) bool {
+	// A node is deaf to the channel while its own transmitter is keyed, and it
+	// is not listening for itself in any case.
+	if t.from == i {
+		return false
+	}
+	dst, src := nodes[i], nodes[t.from]
+	// Activity on another channel is not activity this node can detect - the
+	// rule delivery already uses. Without it a node would defer to a mesh it is
+	// not part of.
+	txPHY := e.phyOf(src.specRef())
+	if !txPHY.sameChannel(e.phyOf(dst.specRef())) {
+		return false
+	}
+	loss, ok := e.pathLoss(t.from, i)
+	if !ok {
+		return false
+	}
+	rxDBm := e.rxPowerDBm(nodes, t.from, i, loss)
+	noiseDBm := dsp.NoiseFloorDBm(txPHY.bandwidthHz, e.noiseFigOf(dst.specRef()))
+	return rxDBm-noiseDBm >= requiredSNRdB(txPHY.sf)
 }

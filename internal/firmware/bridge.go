@@ -79,6 +79,14 @@ const (
 	// capRxFaults is the bit by which it says its chip reads FailedNoCRC,
 	// FailedNextBeforeRead and FailedNextDuringRead (virtual-sx1262 ABI 1.8).
 	capRxFaults = 0x04
+
+	// kindFrameStarted is host → node: a frame whose carrier begins here, and
+	// when in the node's own clock. Its chip lands it in the buffer as it
+	// arrives, so a firmware that reads late finds the next frame's header
+	// and bytes behind the last, as on silicon. capFrameStarted says the node
+	// takes it (virtual-sx1262 ABI 1.9).
+	kindFrameStarted = 0x0B
+	capFrameStarted  = 0x08
 )
 
 // FrameFailure is where a frame the receiver locked onto went wrong, numbered
@@ -160,6 +168,8 @@ type Bridge struct {
 	takesNoLock bool
 	// takesRxFaults is whether its chip reads failures 4 to 6.
 	takesRxFaults bool
+	// takesFrameStarted is whether it takes kindFrameStarted.
+	takesFrameStarted bool
 
 	// done is closed when the bridge is. Anything waiting on the node must
 	// select on it: a node whose process has gone will never ack, and a wait
@@ -328,6 +338,7 @@ func (b *Bridge) read(c net.Conn) {
 				b.takesFailed = n >= 48 && buf[47]&capFrameFailed != 0
 				b.takesNoLock = n >= 48 && buf[47]&capNoLock != 0
 				b.takesRxFaults = n >= 48 && buf[47]&capRxFaults != 0
+				b.takesFrameStarted = n >= 48 && buf[47]&capFrameStarted != 0
 				b.mu.Unlock()
 			}
 
