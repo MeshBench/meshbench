@@ -125,7 +125,15 @@ class Adafruit_LittleFS {
     // this fails, and it fails silently as a null file.
     auto slash = p.find_last_of('/');
     if (slash != std::string::npos) ensureDir(p.substr(0, slash));
-    FILE* f = fopen(p.c_str(), mode);
+    // FILE_O_WRITE as LittleFS opens it on nRF52: not truncated, at the end.
+    FILE* f;
+    if (strcmp(mode, FILE_O_WRITE) == 0) {
+      f = fopen(p.c_str(), "r+b");
+      if (!f) f = fopen(p.c_str(), "w+b");
+      if (f) fseek(f, 0, SEEK_END);
+    } else {
+      f = fopen(p.c_str(), mode);
+    }
     return File(f, p);
   }
 
