@@ -7,9 +7,9 @@ require (
 	github.com/cogentcore/webgpu v0.23.0
 	github.com/ncruces/zenity v0.10.15
 	github.com/ulikunitz/xz v0.5.17
-	golang.org/x/image v0.47.0
-	golang.org/x/sys v0.49.0
-	golang.org/x/text v0.43.0
+	golang.org/x/image v0.48.0
+	golang.org/x/sys v0.50.0
+	golang.org/x/text v0.44.0
 )
 
 require (
